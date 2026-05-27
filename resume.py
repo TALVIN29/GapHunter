@@ -42,13 +42,13 @@ def _check_size(file_bytes: bytes) -> bool:
     return len(file_bytes) <= MAX_FILE_SIZE
 
 
-def _check_magic(file_bytes: bytes, content_type: str) -> bool:
-    """Layer 2: magic bytes — MIME type alone is browser-spoofable (PRD §9.3)."""
-    if content_type == _MIME_PDF:
-        return file_bytes[:4] == _PDF_MAGIC
-    if content_type == _MIME_DOCX:
-        return file_bytes[:4] == _DOCX_MAGIC
-    return False
+def _detect_type(file_bytes: bytes) -> str | None:
+    """Layer 2: detect file type from magic bytes — content_type from browser is unreliable."""
+    if file_bytes[:4] == _PDF_MAGIC:
+        return "pdf"
+    if file_bytes[:4] == _DOCX_MAGIC:
+        return "docx"
+    return None
 
 
 def _extract_pdf(file_bytes: bytes) -> str | None:
@@ -78,10 +78,11 @@ def _extract_docx(file_bytes: bytes) -> str | None:
 
 
 def extract_resume_text(file_bytes: bytes, content_type: str) -> str | None:
-    """Layers 3 + 4: extract then truncate."""
-    if content_type == _MIME_PDF:
+    """Layers 3 + 4: detect type from magic bytes, extract, then truncate."""
+    file_type = _detect_type(file_bytes)
+    if file_type == "pdf":
         text = _extract_pdf(file_bytes)
-    elif content_type == _MIME_DOCX:
+    elif file_type == "docx":
         text = _extract_docx(file_bytes)
     else:
         return None
@@ -125,12 +126,7 @@ async def parse_resume(
         logger.warning("Resume rejected: %d bytes > limit", len(file_bytes))
         return None
 
-    # Layer 2: magic bytes
-    if not _check_magic(file_bytes, content_type):
-        logger.warning("Resume rejected: magic bytes mismatch for %s", content_type)
-        return None
-
-    # Layers 3 + 4: extract + truncate
+    # Layers 2–4: detect type from magic bytes, extract, truncate
     resume_text = extract_resume_text(file_bytes, content_type)
     if not resume_text:
         logger.warning("Resume rejected: extraction returned empty")
