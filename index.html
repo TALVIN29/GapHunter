@@ -292,9 +292,9 @@
                     <span class="text-accent font-mono text-xs mt-0.5 shrink-0"
                       x-text="String(idx + 1).padStart(2, '0')"></span>
                     <div>
-                      <p class="font-medium text-slate-200" x-text="step.title"></p>
-                      <p class="text-slate-500 text-xs mt-0.5" x-text="step.description"></p>
-                      <p x-show="step.resource" class="text-accent text-xs mt-1" x-text="'→ ' + step.resource"></p>
+                      <p class="font-medium text-slate-200" x-text="step.action"></p>
+                      <p class="text-slate-500 text-xs mt-0.5" x-text="step.duration"></p>
+                      <a x-show="step.resource_url" :href="step.resource_url" target="_blank" rel="noopener" class="text-accent text-xs mt-1 hover:underline" x-text="'→ ' + step.resource_url"></a>
                     </div>
                   </div>
                 </template>
