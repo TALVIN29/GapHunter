@@ -3,10 +3,10 @@
   command  = ""
 
 # Proxy /api/* and /health to Render backend.
-# Replace RENDER_URL with actual slug after Render deploy (Step 2).
+# Replace gaphunter-api with actual slug after Render deploy (Step 2).
 [[redirects]]
   from   = "/api/*"
-  to     = "https://RENDER_URL.onrender.com/api/:splat"
+  to     = "https://gaphunter-api.onrender.com/api/:splat"
   status = 200
   force  = true
   [redirects.headers]
@@ -14,7 +14,7 @@
 
 [[redirects]]
   from   = "/health"
-  to     = "https://RENDER_URL.onrender.com/health"
+  to     = "https://gaphunter-api.onrender.com/health"
   status = 200
   force  = true
 
