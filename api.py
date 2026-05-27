@@ -174,6 +174,10 @@ async def startup() -> None:
     app.state.fallback_ready = False
     app.state.reset_date = _date.today()
 
+    # Pre-verify Shadow Mode fallback file is accessible — sets fallback_ready=True at startup
+    # so /health Go/No-Go gate passes without needing a live scrape to fail first.
+    _load_fallback("data analyst")
+
     # Addendum O: pre-seed demo-static roadmap cache so polling resolves instantly
     # when circuit breaker is open during recording (session_id == "demo-static").
     if _STATIC_DEMO_PATH.exists():
