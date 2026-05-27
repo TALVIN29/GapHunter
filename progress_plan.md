@@ -3,7 +3,7 @@
 ## Talvin Principle: HITL
 ## Knowledge Tier: T3
 ## Progress: 9/10 sprints complete (Day 29 fully deployed; Day 30 Golden Path Lock + record + submit remains)
-## Last checkpoint: 2026-05-27 (session 2) — second full PRD cross-reference pass (§1–32, Addenda A–P) complete. No new code issues found. Security audit clean: ANTHROPIC_API_KEY=0 in HTML/JS, gaphunter-demo-2026=0 in HTML/JS. Git clean (origin/main up to date). Live Render health check confirmed green: status=ok, uptime_s=85.4, shadow_forced=false, circuit_open=false, circuit_breaker_limit=100, fallback_ready=true. All code deploy-ready for Day 30.
+## Last checkpoint: 2026-05-28 (session 3) — live health re-confirmed green: status=ok, uptime_s=13668.7 (3h 47m), shadow_forced=false, circuit_open=false, circuit_breaker_limit=100, fallback_ready=true. All code deploy-ready. No new issues. Day 30 pre-record protocol is the only remaining work.
 ## Next action: Day 30 morning pre-record checks — Steps 5/5b/5c/6/7 (firewall, rate-limit, Apply buttons, E2E, warm-up), then Phase 1 baseline → Phase 2 Golden Path Lock → Phase 3 dry run → Phase 4 recording → Phase 5 reset → Phase 6 submit. ALL PRD cross-reference passes COMPLETE 2026-05-27 — no remaining code issues.
 ## Blockers: None
 
