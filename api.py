@@ -32,6 +32,8 @@ from pipeline import attach_evidence
 from resume import parse_resume
 from roadmap import (
     ROADMAP_CACHE,
+    RoadmapEntry,
+    RoadmapStatus,
     get_roadmap_status,
     init_roadmap_cache,
     prefetch_roadmaps,
@@ -171,6 +173,24 @@ async def startup() -> None:
     app.state.circuit_open = False
     app.state.fallback_ready = False
     app.state.reset_date = _date.today()
+
+    # Addendum O: pre-seed demo-static roadmap cache so polling resolves instantly
+    # when circuit breaker is open during recording (session_id == "demo-static").
+    if _STATIC_DEMO_PATH.exists():
+        try:
+            _static_roadmaps = json.loads(
+                _STATIC_DEMO_PATH.read_text(encoding="utf-8")
+            ).get("roadmaps", {})
+            if _static_roadmaps:
+                ROADMAP_CACHE["demo-static"] = {
+                    skill: RoadmapEntry(status=RoadmapStatus.READY, roadmap=rm)
+                    for skill, rm in _static_roadmaps.items()
+                }
+                logger.info(
+                    "Demo-static roadmap cache seeded: %d skills", len(_static_roadmaps)
+                )
+        except Exception as _exc:
+            logger.warning("Demo-static roadmap seed failed: %s", _exc)
 
     init_db()
     logger.info("GapHunter API ready")

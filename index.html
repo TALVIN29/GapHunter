@@ -676,7 +676,7 @@
               );
               const data = await res.json();
               if (data.status === 'ready') {
-                this.roadmaps[g.skill] = { status: 'ready', steps: data.steps || [] };
+                this.roadmaps[g.skill] = { status: 'ready', steps: data.roadmap?.steps || data.steps || [] };
               }
             } catch { /* silent */ }
           }));
