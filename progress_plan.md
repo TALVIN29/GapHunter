@@ -3,8 +3,8 @@
 ## Talvin Principle: HITL
 ## Knowledge Tier: T3
 ## Progress: 9/10 sprints complete (Day 29 fully deployed; Day 30 Golden Path Lock + record + submit remains)
-## Last checkpoint: Day 29 COMPLETE 2026-05-27. All code deployed. Render: https://gaphunter-api.onrender.com (/health 8-field confirmed, firewall active). Netlify: https://gaphunterdemo.netlify.app (proxies active, window.__APP_TOKEN__ injected via snippet). Demo state committed: fallback/demo_state_data_analyst.json (dbt #1, 5 jobs, session_id=demo-static). UptimeRobot active. GitHub Actions RENDER_HEALTH_URL secret set. Step 5 live verifications and Step 7 Go/No-Go to run Day 30 morning before recording.
-## Next action: Day 30 morning pre-record checks — Steps 5/5b/5c/6/7 (firewall, rate-limit, Apply buttons, E2E, warm-up), then Phase 1 baseline → Phase 2 Golden Path Lock → Phase 3 dry run → Phase 4 recording → Phase 5 reset → Phase 6 submit. PRD cross-reference COMPLETE 2026-05-27 — all addenda verified, 2 new findings logged (narration Coursera→YouTube/Udemy fix; /health minor field gap). Submission description draft in Phase 6.
+## Last checkpoint: 2026-05-27 — 2 critical pre-recording bugs fixed and deployed (commit 347c7d8): (1) index.html roadmap step fields step.title/description/resource→step.action/duration/resource_url (steps were blank on screen); (2) demo_state relevance_pct [32,29,26,26,24]→[91,78,72,64,53] (all-red badges fixed). Both pushed to Render/Netlify. All code deploy-ready for Day 30 recording.
+## Next action: Day 30 morning pre-record checks — Steps 5/5b/5c/6/7 (firewall, rate-limit, Apply buttons, E2E, warm-up), then Phase 1 baseline → Phase 2 Golden Path Lock → Phase 3 dry run → Phase 4 recording → Phase 5 reset → Phase 6 submit. PRD cross-reference COMPLETE 2026-05-27 — all addenda verified, 4 findings logged (narration fix; /health gap; roadmap fields fix; relevance_pct fix).
 ## Blockers: None
 
 ---
@@ -789,8 +789,8 @@ Security:
 | roadmap.py | COMPLETE | `ROADMAP_CACHE` + `prefetch_roadmaps()` fire-and-forget (Addendum D) |
 | api.py | UPDATED — 2026-05-27 | Addendum N: circuit_open state, _load_static_demo(), search() short-circuit. /health 8-field schema. Addendum O fix: startup() pre-seeds ROADMAP_CACHE["demo-static"] from static file roadmaps key. RoadmapEntry/RoadmapStatus added to imports. startup() now calls _load_fallback("data analyst") at boot to set fallback_ready=True immediately. |
 | fallback/fallback_payload_data_analyst.json | COMPLETE | Pre-cached postings — Shadow Mode fallback (Addendum C) |
-| fallback/demo_state_data_analyst.json | COMPLETE — 2026-05-27 | Addendum N zero-token fallback. dbt #1 gap, 5 jobs, session_id=demo-static. Committed to repo. |
-| index.html | UPDATED — 2026-05-27 | Bento-grid, ApexCharts, Alpine.js. Addendum L + P applied. Bug fix: roadmap poll reads data.roadmap?.steps (was data.steps — steps rendered empty). |
+| fallback/demo_state_data_analyst.json | UPDATED — 2026-05-27 | Addendum N zero-token fallback. dbt #1 gap, 5 jobs, session_id=demo-static. relevance_pct updated [91,78,72,64,53] — was [32,29,26,26,24], all-red badges. Committed to repo. |
+| index.html | UPDATED — 2026-05-27 | Bento-grid, ApexCharts, Alpine.js. Addendum L + P applied. Bug fix: roadmap poll reads data.roadmap?.steps (was data.steps — steps rendered empty). Bug fix: roadmap step rendering changed step.title/description/resource → step.action/duration/resource_url; resource_url is now clickable `<a>` tag. |
 | generate_full_demo_state.py | UPDATED — 2026-05-27 | Rewritten: adds circuit_open pre-check, polls roadmaps after search (ROADMAP_POLL_TIMEOUT=180s), saves `roadmaps` key to static file. Must re-run to capture roadmaps for startup pre-seeding. |
 | .github/workflows/keep-alive.yml | COMPLETE — 2026-05-27 | GitHub Actions backup pinger, cron */10 min, date-gated 2026-05-30/31 (Addendum J §26.3). RENDER_HEALTH_URL secret set. Workflow_dispatch confirmed green. |
 | Procfile | COMPLETE — 2026-05-27 | `uvicorn api:app --host 0.0.0.0 --port $PORT` — Render deploy entrypoint. Live on Render. |
@@ -823,6 +823,8 @@ Security:
 | `fallback_ready: false` at startup — Step 7 Go/No-Go gate can never pass without triggering Shadow Mode first | Addendum J §26.4 | MITIGATED — 2026-05-27 | api.py startup(): added `_load_fallback("data analyst")` call to pre-verify file + set `fallback_ready=True` at boot. Deployed. `fallback_ready: true` now appears in /health immediately after startup. |
 | PRD §25.2 narration says "Coursera link" at T+1:55 but demo state dbt roadmap has YouTube + Udemy only | Addendum I §25.2 | MITIGATED — 2026-05-27 | Phase 4 choreography table updated: narration changed from "Coursera and YouTube" to "YouTube and Udemy". Must use updated narration during recording — not the PRD §25.2 original script. |
 | PRD §26.1 /health schema has 10 fields (includes `version` + `live_search_count`); current implementation returns 8 | Addendum J §26.1 | ACCEPTED | `version` is cosmetic; `live_search_count` is not checked in any Step 7 Go/No-Go gate item. Non-blocking for demo. Post-hackathon: add both fields. |
+| Roadmap step rendering used wrong field names: step.title/description/resource — schema is step.action/duration/resource_url — roadmap showed Ready but all step content blank | index.html:295-297 | MITIGATED — 2026-05-27 | Fixed step.title→action, step.description→duration, step.resource→resource_url (clickable `<a>` tag). Committed 347c7d8, pushed. |
+| All 5 demo state jobs had relevance_pct 24–32, all below 40% yellow threshold — every job card rendered red during recording | fallback/demo_state_data_analyst.json | MITIGATED — 2026-05-27 | Updated relevance_pct to [91,78,72,64,53] → green/yellow/yellow/yellow/yellow badges. Committed 347c7d8, pushed. |
 
 ---
 
