@@ -3,8 +3,8 @@
 ## Talvin Principle: HITL
 ## Knowledge Tier: T3
 ## Progress: 9/10 sprints complete (Day 29 fully deployed; Day 30 Golden Path Lock + record + submit remains)
-## Last checkpoint: 2026-05-27 — 2 critical pre-recording bugs fixed and deployed (commit 347c7d8): (1) index.html roadmap step fields step.title/description/resource→step.action/duration/resource_url (steps were blank on screen); (2) demo_state relevance_pct [32,29,26,26,24]→[91,78,72,64,53] (all-red badges fixed). Both pushed to Render/Netlify. All code deploy-ready for Day 30 recording.
-## Next action: Day 30 morning pre-record checks — Steps 5/5b/5c/6/7 (firewall, rate-limit, Apply buttons, E2E, warm-up), then Phase 1 baseline → Phase 2 Golden Path Lock → Phase 3 dry run → Phase 4 recording → Phase 5 reset → Phase 6 submit. PRD cross-reference COMPLETE 2026-05-27 — all addenda verified, 4 findings logged (narration fix; /health gap; roadmap fields fix; relevance_pct fix).
+## Last checkpoint: 2026-05-27 (session 2) — second full PRD cross-reference pass (§1–32, Addenda A–P) complete. No new code issues found. Security audit clean: ANTHROPIC_API_KEY=0 in HTML/JS, gaphunter-demo-2026=0 in HTML/JS. Git clean (origin/main up to date). Live Render health check confirmed green: status=ok, uptime_s=85.4, shadow_forced=false, circuit_open=false, circuit_breaker_limit=100, fallback_ready=true. All code deploy-ready for Day 30.
+## Next action: Day 30 morning pre-record checks — Steps 5/5b/5c/6/7 (firewall, rate-limit, Apply buttons, E2E, warm-up), then Phase 1 baseline → Phase 2 Golden Path Lock → Phase 3 dry run → Phase 4 recording → Phase 5 reset → Phase 6 submit. ALL PRD cross-reference passes COMPLETE 2026-05-27 — no remaining code issues.
 ## Blockers: None
 
 ---
