@@ -354,9 +354,16 @@ async def logout(response: Response) -> dict:
 # Resume upload (F1)
 # ---------------------------------------------------------------------------
 
+_DEMO_RESUME_SKILLS = ["Excel", "Tableau", "SQL", "Python", "PowerPoint", "Data Visualization"]
+
 @app.post("/api/resume", dependencies=[Depends(_require_demo_secret)])
-async def upload_resume(file: UploadFile = File(...)) -> dict:
+async def upload_resume(request: Request, file: UploadFile = File(...)) -> dict:
     """Addendum E: 7-layer defence. Always HTTP 200."""
+    # Addendum N extension: circuit open → zero-LLM static demo skills
+    if getattr(request.app.state, "circuit_open", False):
+        logger.info("CIRCUIT_OPEN: serving static demo skills — zero LLM calls")
+        return {"status": "ok", "skills": _DEMO_RESUME_SKILLS, "experience_years": 3, "seniority": "mid"}
+
     file_bytes = await file.read()
     content_type = file.content_type or ""
 
