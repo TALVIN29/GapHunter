@@ -1,0 +1,180 @@
+{
+  "status": "ok",
+  "session_id": "demo-static",
+  "total_postings": 5,
+  "titles_searched": [
+    "Data Analyst",
+    "Business Analyst",
+    "Data Scientist",
+    "Analytics Specialist",
+    "Business Intelligence Analyst"
+  ],
+  "jobs": [
+    {
+      "title": "Insights Analyst",
+      "company": "GrowthCo",
+      "location": "Remote",
+      "url": "https://www.linkedin.com/jobs/view/5678901234",
+      "relevance_pct": 32,
+      "freshness_score": 0.3333,
+      "competition_score": 0.6242,
+      "is_remote": true,
+      "seniority": "mid",
+      "salary": "$95,000–$125,000/yr",
+      "source": "indeed",
+      "date_posted": "2026-05-25",
+      "skills_match": [
+        "SQL",
+        "Python",
+        "pandas",
+        "scikit-learn",
+        "Tableau",
+        "Mode Analytics",
+        "statistical testing",
+        "t-test"
+      ]
+    },
+    {
+      "title": "Analytics Engineer",
+      "company": "DataDriven Startup",
+      "location": "Austin, TX",
+      "url": "https://www.linkedin.com/jobs/view/4567890123",
+      "relevance_pct": 29,
+      "freshness_score": 0.25,
+      "competition_score": 0.5671,
+      "is_remote": true,
+      "seniority": "mid",
+      "salary": "$120,000–$150,000/yr",
+      "source": "indeed",
+      "date_posted": "2026-05-24",
+      "skills_match": [
+        "SQL",
+        "dbt",
+        "Python",
+        "BigQuery",
+        "Snowflake",
+        "Git",
+        "Data modeling",
+        "Looker"
+      ]
+    },
+    {
+      "title": "Senior Data Analyst",
+      "company": "FinanceFlow Ltd.",
+      "location": "San Francisco, CA",
+      "url": "https://www.linkedin.com/jobs/view/2345678901",
+      "relevance_pct": 26,
+      "freshness_score": 0.1667,
+      "competition_score": 0.4633,
+      "is_remote": true,
+      "seniority": "senior",
+      "salary": "$130,000–$165,000/yr",
+      "source": "linkedin",
+      "date_posted": "2026-05-22",
+      "skills_match": [
+        "BigQuery",
+        "Looker",
+        "SQL",
+        "Python",
+        "dbt",
+        "Statistical Analysis",
+        "Data Warehouse",
+        "BI Tools"
+      ]
+    },
+    {
+      "title": "Data Analyst",
+      "company": "TechCorp Inc.",
+      "location": "New York, NY",
+      "url": "https://www.linkedin.com/jobs/view/1234567890",
+      "relevance_pct": 26,
+      "freshness_score": 0.125,
+      "competition_score": 0.513,
+      "is_remote": false,
+      "seniority": "mid",
+      "salary": "$90,000–$120,000/yr",
+      "source": "linkedin",
+      "date_posted": "2026-05-20",
+      "skills_match": [
+        "SQL",
+        "Python",
+        "pandas",
+        "numpy",
+        "Tableau",
+        "Power BI",
+        "dbt",
+        "Snowflake"
+      ]
+    },
+    {
+      "title": "Business Intelligence Analyst",
+      "company": "RetailGiant Corp.",
+      "location": "Chicago, IL",
+      "url": "https://www.linkedin.com/jobs/view/3456789012",
+      "relevance_pct": 24,
+      "freshness_score": 0.1,
+      "competition_score": 0.4287,
+      "is_remote": false,
+      "seniority": "mid",
+      "salary": "$85,000–$110,000/yr",
+      "source": "linkedin",
+      "date_posted": "2026-05-18",
+      "skills_match": [
+        "SQL",
+        "Tableau",
+        "Python",
+        "Snowflake",
+        "Redshift",
+        "dbt Core",
+        "dbt Cloud",
+        "Google Analytics"
+      ]
+    }
+  ],
+  "gaps": [
+    {
+      "skill": "dbt",
+      "urls": [
+        "https://www.linkedin.com/jobs/view/1234567890",
+        "https://www.linkedin.com/jobs/view/2345678901",
+        "https://www.linkedin.com/jobs/view/4567890123"
+      ],
+      "demand_score": 0.745
+    },
+    {
+      "skill": "python",
+      "urls": [
+        "https://www.linkedin.com/jobs/view/1234567890",
+        "https://www.linkedin.com/jobs/view/2345678901",
+        "https://www.linkedin.com/jobs/view/3456789012"
+      ],
+      "demand_score": 0.5026
+    },
+    {
+      "skill": "sql",
+      "urls": [
+        "https://www.linkedin.com/jobs/view/1234567890",
+        "https://www.linkedin.com/jobs/view/2345678901",
+        "https://www.linkedin.com/jobs/view/3456789012"
+      ],
+      "demand_score": 0.5026
+    },
+    {
+      "skill": "pandas",
+      "urls": [
+        "https://www.linkedin.com/jobs/view/1234567890",
+        "https://www.linkedin.com/jobs/view/5678901234"
+      ],
+      "demand_score": 0.4433
+    },
+    {
+      "skill": "snowflake",
+      "urls": [
+        "https://www.linkedin.com/jobs/view/1234567890",
+        "https://www.linkedin.com/jobs/view/3456789012",
+        "https://www.linkedin.com/jobs/view/4567890123"
+      ],
+      "demand_score": 0.4372
+    }
+  ]
+}
