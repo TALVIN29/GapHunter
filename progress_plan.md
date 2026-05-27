@@ -422,8 +422,8 @@ Scraper uses Bright Data Dataset API (Bearer token + dataset IDs) — NOT proxy 
 
 #### Step 5 — Verify Firewall on Deployed Infra ⬅ Day 30 morning pre-record
 - [ ] DevTools → Network → `POST /api/search` on Netlify URL → confirm `X-Demo-Secret` header present in every request
-- [ ] `curl https://gaphunter-api.onrender.com/api/search -X POST -d '{"role":"Data Analyst"}'` (no header) → HTTP 403
-- [ ] Confirm `CIRCUIT_BREAKER_LIMIT=100` in Render env dashboard
+- [x] `curl https://gaphunter-api.onrender.com/api/search -X POST -d '{"role":"Data Analyst"}'` (no header) → HTTP 403 — CONFIRMED 2026-05-27
+- [x] Confirm `CIRCUIT_BREAKER_LIMIT=100` — confirmed via `/health` response (`circuit_breaker_limit: 100`) 2026-05-27
 
 #### Step 5b — Rate-Limit UI Degradation Test (Addendum L) ⬅ Day 30 morning pre-record ⚠️ Run LAST — triggers IP lockout
 **Purpose:** Verify the Addendum L patch is live — `rate_limited` renders inline error and clears skeleton. Without this test, the fracture identified in §28.1 may be undetected until Demo Day.
@@ -524,7 +524,7 @@ print(f'OK — {len(d[\"jobs\"])} jobs, {len(d[\"gaps\"])} gaps, {len(d[\"roadma
 # Step 2: Fire one more POST /api/search
 curl -s -X POST https://gaphunter-api.onrender.com/api/search \
   -H "Content-Type: application/json" \
-  -H "X-Demo-Secret: $DEMO_SECRET" \
+  -H "X-Demo-Secret: gaphunter-demo-2026" \
   -d '{"query": "Data Analyst", "session_id": "test-circuit"}' | python -m json.tool
 
 # Expected: HTTP 200, response body matches demo_state_data_analyst.json shape
@@ -559,11 +559,18 @@ Run this sequence on Day 30 morning before recording. Day 29 warm-up deferred to
 - [ ] Confirm `uptime_s > 60` (container warm — not freshly restarted)
 - [ ] Confirm `shadow_forced: false` (live Bright Data scraping active)
 - [ ] Confirm `circuit_open: false` (circuit breaker not tripped — will be tripped deliberately in Phase 2)
-- [ ] Confirm `fallback_ready: true` (Shadow Mode safety net loaded)
+- [ ] Confirm `fallback_ready: true` (Shadow Mode safety net loaded — **now pre-loaded at startup; will be true within 5s of boot**)
 - [ ] Open https://gaphunterdemo.netlify.app in clean Chrome profile — bento grid loads, no console errors
 - [ ] Run Pre-Flight rejection test: type `"asdfgh"` → inline error < 1s, 0 network calls in DevTools
 
 **Go/No-Go gate:** All 6 checks green before Phase 2 Golden Path Lock. Do not proceed to Phase 2 if any check fails.
+
+**Pre-verified 2026-05-27 (re-verify Day 30 morning):**
+- `fallback_ready: true` at uptime=102s — startup pre-load working ✓
+- `circuit_breaker_limit: 100` — live path nominal ✓
+- `shadow_forced: false` — Bright Data live ✓
+- `circuit_open: false` — not tripped ✓
+- Roadmap `demo-static/dbt`: READY (5 steps) at startup ✓
 
 ### Day 30 — Record + Submit
 **Goal:** Demo video recorded per Addendum I §25.2 choreography with Golden Path Lock (Addendum O) active. Submission package on lablab.ai before deadline.
@@ -576,7 +583,7 @@ Run this sequence on Day 30 morning before recording. Day 29 warm-up deferred to
 - [ ] `uptime_s > 60` — required; if < 60, wait 2 min, re-check
 - [ ] `circuit_open: false` — required at this stage (live path nominal; will be tripped deliberately in Phase 2)
 - [ ] `shadow_forced: false` — required; if true, Bright Data is timing out — investigate before proceeding
-- [ ] `fallback_ready: true` — required; if false, POST a test search to warm fallback cache
+- [ ] `fallback_ready: true` — required; pre-loaded at startup (fix deployed 2026-05-27); should be true immediately
 
 ---
 
@@ -617,7 +624,7 @@ print('JOB COUNT:', len(d.get('jobs', [])))
 - [ ] `GET /health` → `uptime_s > 60` — if < 60, wait 2 min before proceeding
 - [ ] `POST /api/search` → `session_id == "demo-static"` — if UUID, static file not loading; check `fallback/demo_state_data_analyst.json` committed
 - [ ] `POST /api/search` → `gaps[0].skill == "dbt"` — if different skill, re-run `generate_full_demo_state.py` against a live run where dbt ranks #1; recommit; re-deploy
-- [ ] `GET /health` → `fallback_ready: true` — if false, POST a test search to warm cache
+- [ ] `GET /health` → `fallback_ready: true` — pre-loaded at startup; should always be true now; if false, Render lost the fallback file (check repo)
 
 **All 5 checks must be green before proceeding to Phase 3. No exceptions.**
 
