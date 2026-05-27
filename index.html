@@ -1,0 +1,739 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GapHunter — Labor Market Intelligence</title>
+
+  <!-- Addendum P: token injected by Netlify snippet injection at deploy time.
+       Local dev: set window.__APP_TOKEN__ = btoa('your-secret') in browser console. -->
+  <script>
+    window.__APP_TOKEN__ = window.__APP_TOKEN__ || '';
+    window.__API_URL__   = window.__API_URL__   || 'https://gaphunter-api.onrender.com';
+  </script>
+
+  <!-- CDN order per Day 28 spec: ApexCharts → Alpine.js (defer) → SweetAlert2 -->
+  <script src="https://cdn.jsdelivr.net/npm/apexcharts@3.45.2/dist/apexcharts.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.5/dist/cdn.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.10.6/dist/sweetalert2.all.min.js"></script>
+
+  <!-- Google Fonts: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+  <!-- Tailwind CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            canvas:  '#080c14',
+            surface: '#0f1623',
+            border:  '#1e2d45',
+            accent:  '#3b82f6',
+          },
+          fontFamily: { sans: ['Inter', 'sans-serif'] },
+        },
+      },
+    };
+  </script>
+
+  <style>
+    body { background: #080c14; color: #e2e8f0; font-family: 'Inter', sans-serif; }
+    .bento { display: grid; gap: 1rem; }
+    .card  { background: #0f1623; border: 1px solid #1e2d45; border-radius: .75rem; padding: 1.25rem; }
+    .badge { display: inline-flex; align-items: center; gap: .25rem; border-radius: 9999px;
+             padding: .125rem .625rem; font-size: .75rem; font-weight: 500; }
+    .badge-blue   { background: #1e3a5f; color: #93c5fd; }
+    .badge-green  { background: #14402d; color: #6ee7b7; }
+    .badge-yellow { background: #3d2e00; color: #fcd34d; }
+    .badge-red    { background: #3d1414; color: #fca5a5; }
+    .btn-primary  { background: #3b82f6; color: #fff; font-weight: 600; border-radius: .5rem;
+                    padding: .5rem 1.25rem; transition: background .15s; }
+    .btn-primary:hover  { background: #2563eb; }
+    .btn-primary:disabled { opacity: .5; cursor: not-allowed; }
+    .btn-ghost  { border: 1px solid #1e2d45; border-radius: .5rem; padding: .5rem 1rem;
+                  color: #94a3b8; transition: border-color .15s; }
+    .btn-ghost:hover { border-color: #3b82f6; color: #e2e8f0; }
+    .input-field { background: #0f1623; border: 1px solid #1e2d45; border-radius: .5rem;
+                   padding: .5rem .875rem; color: #e2e8f0; width: 100%; outline: none; }
+    .input-field:focus { border-color: #3b82f6; }
+    .tab-active   { border-bottom: 2px solid #3b82f6; color: #e2e8f0; font-weight: 600; }
+    .tab-inactive { border-bottom: 2px solid transparent; color: #64748b; }
+    .tab-inactive:hover { color: #94a3b8; }
+    .job-card-active { border-color: #3b82f6 !important; }
+    .skill-pill { background: #1e2d45; color: #93c5fd; border-radius: 9999px;
+                  padding: .1rem .5rem; font-size: .7rem; }
+    .accordion-body { overflow: hidden; transition: max-height .3s ease; }
+    [x-cloak] { display: none !important; }
+    ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #1e2d45; border-radius: 4px; }
+  </style>
+</head>
+
+<body x-data="app()" x-init="init()" x-cloak>
+
+  <!-- ── Header ─────────────────────────────────────────────────── -->
+  <header class="border-b border-border sticky top-0 z-40" style="background:#080c14;">
+    <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <span class="text-accent font-bold text-lg">GapHunter</span>
+        <span class="badge badge-blue">v2.0</span>
+      </div>
+      <nav class="flex gap-6">
+        <button class="pb-1 text-sm transition-all"
+          :class="activeTab === 'seeker' ? 'tab-active' : 'tab-inactive'"
+          @click="activeTab = 'seeker'">Job Seeker</button>
+        <button class="pb-1 text-sm transition-all"
+          :class="activeTab === 'hr' ? 'tab-active' : 'tab-inactive'"
+          @click="activeTab = 'hr'; maybeInitRadar()">HR Intelligence</button>
+      </nav>
+      <div class="flex items-center gap-2">
+        <span x-show="circuitOpen" class="badge badge-red">Demo Mode</span>
+        <span x-show="!circuitOpen" class="badge badge-green">Live</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ════════════════════════════════════════════════════════════
+       JOB SEEKER TAB
+  ════════════════════════════════════════════════════════════ -->
+  <main x-show="activeTab === 'seeker'" class="max-w-7xl mx-auto px-4 py-6">
+
+    <!-- Search + Gaps row -->
+    <div class="bento" style="grid-template-columns: 340px 1fr;">
+
+      <!-- Search Panel -->
+      <div class="card flex flex-col gap-4">
+        <h2 class="font-semibold text-sm text-slate-400 uppercase tracking-wider">Search</h2>
+
+        <div class="flex flex-col gap-3">
+          <div>
+            <label class="text-xs text-slate-500 mb-1 block">Job Title</label>
+            <input class="input-field" type="text" x-model="role"
+              placeholder="e.g. Data Analyst" @keydown.enter="doSearch()" />
+          </div>
+          <div>
+            <label class="text-xs text-slate-500 mb-1 block">Location</label>
+            <input class="input-field" type="text" x-model="location"
+              placeholder="e.g. United States" @keydown.enter="doSearch()" />
+          </div>
+          <div>
+            <label class="text-xs text-slate-500 mb-1 block">Your Skills <span class="text-slate-600">(comma-separated)</span></label>
+            <input class="input-field" type="text" x-model="skills"
+              placeholder="e.g. Python, SQL, Tableau" @keydown.enter="doSearch()" />
+          </div>
+        </div>
+
+        <!-- CV Upload -->
+        <div class="border border-dashed border-border rounded-lg p-3 text-center">
+          <label class="cursor-pointer flex flex-col items-center gap-1">
+            <svg class="w-5 h-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+            </svg>
+            <span class="text-xs text-slate-500">Upload CV (PDF/DOCX)</span>
+            <input type="file" accept=".pdf,.doc,.docx" class="hidden" @change="uploadCV($event)" />
+          </label>
+          <p x-show="cvStatus" x-text="cvStatus" class="text-xs mt-1"
+            :class="cvStatus.startsWith('✓') ? 'text-green-400' : 'text-red-400'"></p>
+        </div>
+
+        <button class="btn-primary w-full flex items-center justify-center gap-2"
+          @click="doSearch()" :disabled="searching">
+          <svg x-show="searching" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+          </svg>
+          <span x-text="searching ? 'Analysing…' : 'Find My Gaps'"></span>
+        </button>
+
+        <div x-show="totalPostings > 0" class="text-xs text-slate-500 text-center">
+          Analysed <span x-text="totalPostings" class="text-slate-300"></span> postings
+        </div>
+      </div>
+
+      <!-- Gaps Bar Chart -->
+      <div class="card flex flex-col gap-3">
+        <div class="flex items-center justify-between">
+          <h2 class="font-semibold text-sm text-slate-400 uppercase tracking-wider">Top 5 Skill Gaps</h2>
+          <span x-show="gaps.length > 0" class="badge badge-yellow">Market Demand Score</span>
+        </div>
+        <div x-show="gaps.length === 0" class="flex-1 flex items-center justify-center text-slate-600 text-sm">
+          Run a search to see your skill gaps
+        </div>
+        <div id="gaps-chart" x-show="gaps.length > 0" style="min-height: 220px;"></div>
+      </div>
+    </div>
+
+    <!-- Jobs + Analysis row -->
+    <div class="bento mt-4" style="grid-template-columns: 1fr 1fr;" x-show="jobs.length > 0">
+
+      <!-- Job Cards -->
+      <div class="card flex flex-col gap-3 overflow-y-auto" style="max-height: 420px;">
+        <h2 class="font-semibold text-sm text-slate-400 uppercase tracking-wider sticky top-0"
+          style="background:#0f1623; padding-bottom:.5rem;">
+          Jobs
+          <span class="text-slate-600 font-normal ml-1">(<span x-text="jobs.length"></span>)</span>
+        </h2>
+        <template x-for="job in jobs" :key="job.url + job.title">
+          <div class="card cursor-pointer hover:border-accent transition-colors"
+            style="padding: .875rem;"
+            :class="selectedJob?.url === job.url ? 'job-card-active' : ''"
+            @click="selectJob(job)">
+
+            <div class="flex justify-between items-start gap-2 mb-2">
+              <div>
+                <p class="font-medium text-sm" x-text="job.title"></p>
+                <p class="text-slate-500 text-xs" x-text="job.company + ' · ' + job.location"></p>
+              </div>
+              <span class="badge shrink-0"
+                :class="job.relevance_pct >= 70 ? 'badge-green' : job.relevance_pct >= 40 ? 'badge-yellow' : 'badge-red'"
+                x-text="job.relevance_pct + '%'"></span>
+            </div>
+
+            <div class="flex flex-wrap gap-1 mb-2">
+              <template x-for="sk in (job.skills_match || []).slice(0,4)" :key="sk">
+                <span class="skill-pill" x-text="sk"></span>
+              </template>
+            </div>
+
+            <div class="flex items-center justify-between text-xs text-slate-500">
+              <span x-text="job.salary !== 'Not disclosed' ? job.salary : ''"></span>
+              <div class="flex items-center gap-2">
+                <span x-show="job.is_remote" class="badge badge-blue" style="font-size:.65rem;">Remote</span>
+                <a x-show="job.url" :href="job.url" target="_blank" rel="noopener"
+                  @click.stop class="text-accent hover:underline">Apply →</a>
+              </div>
+            </div>
+          </div>
+        </template>
+      </div>
+
+      <!-- Per-Job Analysis Panel -->
+      <div class="card flex flex-col gap-3">
+        <h2 class="font-semibold text-sm text-slate-400 uppercase tracking-wider">Job Analysis</h2>
+
+        <div x-show="!selectedJob" class="flex-1 flex items-center justify-center text-slate-600 text-sm">
+          Click a job card to get AI analysis
+        </div>
+
+        <div x-show="selectedJob && !analysing && !analysis" class="text-slate-500 text-sm text-center">
+          Loading analysis…
+        </div>
+
+        <div x-show="analysing" class="flex items-center justify-center gap-2 text-slate-500 text-sm py-8">
+          <svg class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+          </svg>
+          Analysing with Claude…
+        </div>
+
+        <div x-show="analysis" class="flex flex-col gap-4">
+          <div>
+            <p class="text-xs text-slate-500 mb-1 uppercase tracking-wider">Highlight in Application</p>
+            <div class="flex flex-wrap gap-1">
+              <template x-for="sk in (analysis?.highlight_skills || [])" :key="sk">
+                <span class="badge badge-green" x-text="sk"></span>
+              </template>
+            </div>
+          </div>
+          <div>
+            <p class="text-xs text-slate-500 mb-1 uppercase tracking-wider">Skills to Develop</p>
+            <div class="flex flex-wrap gap-1">
+              <template x-for="sk in (analysis?.gap_skills || [])" :key="sk">
+                <span class="badge badge-red" x-text="sk"></span>
+              </template>
+            </div>
+          </div>
+          <div>
+            <p class="text-xs text-slate-500 mb-1 uppercase tracking-wider">Application Tip</p>
+            <p class="text-sm text-slate-300 leading-relaxed" x-text="analysis?.application_tip"></p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Roadmap Accordion -->
+    <div class="card mt-4" x-show="gaps.length > 0">
+      <h2 class="font-semibold text-sm text-slate-400 uppercase tracking-wider mb-3">Learning Roadmaps</h2>
+      <div class="flex flex-col gap-2">
+        <template x-for="gap in gaps" :key="gap.skill">
+          <div class="border border-border rounded-lg overflow-hidden">
+            <button class="w-full flex items-center justify-between px-4 py-3 text-sm hover:bg-white/5 transition-colors"
+              @click="toggleRoadmap(gap.skill)">
+              <div class="flex items-center gap-2">
+                <span x-text="gap.skill" class="font-medium"></span>
+                <span class="badge badge-blue text-xs" x-text="'Score: ' + (gap.demand_score || gap.score || 0).toFixed(2)"></span>
+              </div>
+              <div class="flex items-center gap-2">
+                <span x-show="roadmaps[gap.skill]?.status === 'pending'"
+                  class="badge badge-yellow text-xs">Generating…</span>
+                <span x-show="roadmaps[gap.skill]?.status === 'ready'"
+                  class="badge badge-green text-xs">Ready</span>
+                <svg class="w-4 h-4 text-slate-500 transition-transform"
+                  :class="openRoadmap === gap.skill ? 'rotate-180' : ''"
+                  fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                </svg>
+              </div>
+            </button>
+            <div x-show="openRoadmap === gap.skill" style="padding: 0 1rem 1rem;">
+              <div x-show="roadmaps[gap.skill]?.status === 'pending'"
+                class="text-slate-500 text-sm text-center py-4">
+                Roadmap generating — check back in a moment…
+              </div>
+              <div x-show="roadmaps[gap.skill]?.status === 'ready'" class="text-sm">
+                <template x-for="(step, idx) in (roadmaps[gap.skill]?.steps || [])" :key="idx">
+                  <div class="flex gap-3 py-2 border-b border-border last:border-0">
+                    <span class="text-accent font-mono text-xs mt-0.5 shrink-0"
+                      x-text="String(idx + 1).padStart(2, '0')"></span>
+                    <div>
+                      <p class="font-medium text-slate-200" x-text="step.title"></p>
+                      <p class="text-slate-500 text-xs mt-0.5" x-text="step.description"></p>
+                      <p x-show="step.resource" class="text-accent text-xs mt-1" x-text="'→ ' + step.resource"></p>
+                    </div>
+                  </div>
+                </template>
+              </div>
+            </div>
+          </div>
+        </template>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- ════════════════════════════════════════════════════════════
+       HR INTELLIGENCE TAB
+  ════════════════════════════════════════════════════════════ -->
+  <main x-show="activeTab === 'hr'" class="max-w-7xl mx-auto px-4 py-6">
+
+    <div class="bento" style="grid-template-columns: 340px 1fr;">
+
+      <!-- HR Search Panel -->
+      <div class="card flex flex-col gap-4">
+        <h2 class="font-semibold text-sm text-slate-400 uppercase tracking-wider">Competitor Intel</h2>
+        <div>
+          <label class="text-xs text-slate-500 mb-1 block">Company Name</label>
+          <input class="input-field" type="text" x-model="hrCompany" placeholder="e.g. Stripe" />
+        </div>
+        <div>
+          <label class="text-xs text-slate-500 mb-1 block">Role</label>
+          <input class="input-field" type="text" x-model="hrRole" placeholder="e.g. Data Engineer" />
+        </div>
+        <div>
+          <label class="text-xs text-slate-500 mb-1 block">Location</label>
+          <input class="input-field" type="text" x-model="hrLocation" placeholder="e.g. United States" />
+        </div>
+        <button class="btn-primary w-full flex items-center justify-center gap-2"
+          @click="doHRSearch()" :disabled="hrSearching">
+          <svg x-show="hrSearching" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+          </svg>
+          <span x-text="hrSearching ? 'Scanning…' : 'Analyse Competitor'"></span>
+        </button>
+        <p x-show="hrPostings > 0" class="text-xs text-slate-500 text-center">
+          Analysed <span x-text="hrPostings" class="text-slate-300"></span> postings for
+          <span x-text="hrCompany" class="text-slate-300"></span>
+        </p>
+      </div>
+
+      <!-- HR Radar Chart — Addendum H: hardcoded for demo -->
+      <div class="card flex flex-col gap-3">
+        <div class="flex items-center justify-between">
+          <h2 class="font-semibold text-sm text-slate-400 uppercase tracking-wider">Skill Demand Radar</h2>
+          <span x-show="hrSkills.length > 0" class="badge badge-blue text-xs"
+            x-text="hrCompany || 'Competitor'"></span>
+        </div>
+        <div x-show="hrSkills.length === 0"
+          class="flex-1 flex items-center justify-center text-slate-600 text-sm">
+          Run a competitor search to see the radar
+        </div>
+        <div id="hr-radar-chart" x-show="hrSkills.length > 0" style="min-height: 260px;"></div>
+      </div>
+    </div>
+
+    <!-- HR Skills Table -->
+    <div class="card mt-4" x-show="hrSkills.length > 0">
+      <h2 class="font-semibold text-sm text-slate-400 uppercase tracking-wider mb-3">Top Skills Breakdown</h2>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="border-b border-border text-left text-xs text-slate-500 uppercase tracking-wider">
+              <th class="pb-2">Rank</th>
+              <th class="pb-2">Skill</th>
+              <th class="pb-2">Demand Score</th>
+              <th class="pb-2">Signal</th>
+            </tr>
+          </thead>
+          <tbody>
+            <template x-for="(sk, idx) in hrSkills.slice(0, 10)" :key="sk.skill">
+              <tr class="border-b border-border/50 hover:bg-white/5 transition-colors">
+                <td class="py-2 text-slate-500 font-mono" x-text="idx + 1"></td>
+                <td class="py-2 font-medium" x-text="sk.skill"></td>
+                <td class="py-2">
+                  <div class="flex items-center gap-2">
+                    <div class="bg-border rounded-full h-1.5 w-24">
+                      <div class="bg-accent h-1.5 rounded-full"
+                        :style="'width:' + Math.min(100, (sk.score / (hrSkills[0]?.score || 1)) * 100) + '%'">
+                      </div>
+                    </div>
+                    <span class="text-xs text-slate-400" x-text="sk.score.toFixed(3)"></span>
+                  </div>
+                </td>
+                <td class="py-2">
+                  <span class="badge"
+                    :class="sk.score > 0.7 ? 'badge-red' : sk.score > 0.4 ? 'badge-yellow' : 'badge-blue'"
+                    x-text="sk.score > 0.7 ? 'High Demand' : sk.score > 0.4 ? 'Growing' : 'Emerging'">
+                  </span>
+                </td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- ── Alpine.js app ───────────────────────────────────────────── -->
+  <script>
+    const API = window.__API_URL__ || 'https://gaphunter-api.onrender.com';
+
+    // Addendum P: decode obfuscated token (set by Netlify snippet injection)
+    function _tok() {
+      try {
+        const raw = window.__APP_TOKEN__ || '';
+        return raw ? atob(raw) : '';
+      } catch { return ''; }
+    }
+
+    function _headers() {
+      const tok = _tok();
+      const h = { 'Content-Type': 'application/json' };
+      if (tok) h['X-Demo-Secret'] = tok;
+      return h;
+    }
+
+    let _gapsChart = null;
+    let _hrRadarChart = null;
+
+    function renderGapsChart(gaps) {
+      const el = document.getElementById('gaps-chart');
+      if (!el) return;
+      const labels = gaps.map(g => g.skill);
+      const scores = gaps.map(g => +(g.demand_score || g.score || 0).toFixed(3));
+
+      const opts = {
+        series: [{ name: 'Demand Score', data: scores }],
+        chart: { type: 'bar', height: 220, background: 'transparent',
+          toolbar: { show: false }, animations: { enabled: true } },
+        plotOptions: { bar: { horizontal: true, borderRadius: 4,
+          dataLabels: { position: 'top' } } },
+        dataLabels: { enabled: true, formatter: v => v.toFixed(3),
+          style: { colors: ['#94a3b8'], fontSize: '11px' } },
+        colors: ['#3b82f6'],
+        xaxis: { categories: labels, labels: { style: { colors: '#64748b' } } },
+        yaxis: { labels: { style: { colors: '#94a3b8', fontSize: '12px' } } },
+        grid: { borderColor: '#1e2d45' },
+        theme: { mode: 'dark' },
+        tooltip: { theme: 'dark' },
+      };
+
+      if (_gapsChart) {
+        _gapsChart.updateOptions(opts);
+      } else {
+        _gapsChart = new ApexCharts(el, opts);
+        _gapsChart.render();
+      }
+    }
+
+    function renderHRRadar(skills) {
+      const el = document.getElementById('hr-radar-chart');
+      if (!el) return;
+      const top8 = skills.slice(0, 8);
+      const opts = {
+        series: [{ name: 'Demand', data: top8.map(s => +(s.score * 100).toFixed(1)) }],
+        chart: { type: 'radar', height: 260, background: 'transparent',
+          toolbar: { show: false } },
+        xaxis: { categories: top8.map(s => s.skill) },
+        colors: ['#3b82f6'],
+        fill: { opacity: 0.2 },
+        stroke: { width: 2 },
+        markers: { size: 4 },
+        yaxis: { show: false },
+        grid: { show: false },
+        theme: { mode: 'dark' },
+        tooltip: { theme: 'dark' },
+      };
+
+      if (_hrRadarChart) {
+        _hrRadarChart.updateOptions(opts);
+      } else {
+        _hrRadarChart = new ApexCharts(el, opts);
+        _hrRadarChart.render();
+      }
+    }
+
+    function app() {
+      return {
+        // ── tab ──────────────────────────────────────────────
+        activeTab: 'seeker',
+
+        // ── seeker state ─────────────────────────────────────
+        role: 'Data Analyst',
+        location: 'United States',
+        skills: '',
+        searching: false,
+        jobs: [],
+        gaps: [],
+        sessionId: null,
+        totalPostings: 0,
+        circuitOpen: false,
+
+        // ── CV upload ────────────────────────────────────────
+        cvStatus: '',
+
+        // ── analysis ─────────────────────────────────────────
+        selectedJob: null,
+        analysis: null,
+        analysing: false,
+
+        // ── roadmap ──────────────────────────────────────────
+        roadmaps: {},
+        openRoadmap: null,
+        _pollTimer: null,
+
+        // ── HR ───────────────────────────────────────────────
+        hrCompany: '',
+        hrRole: 'Data Engineer',
+        hrLocation: 'United States',
+        hrSearching: false,
+        hrSkills: [],
+        hrPostings: 0,
+
+        // ── lifecycle ────────────────────────────────────────
+        init() {
+          // no-op: pre-seeded with defaults per Addendum B (no auth flow)
+        },
+
+        // ── search (Addendum L: rate_limited branch BEFORE no_results) ──
+        async doSearch() {
+          if (this.searching) return;
+          this.searching = true;
+          this.jobs = [];
+          this.gaps = [];
+          this.sessionId = null;
+          this.totalPostings = 0;
+          this.selectedJob = null;
+          this.analysis = null;
+          this.roadmaps = {};
+          this.openRoadmap = null;
+          if (this._pollTimer) clearInterval(this._pollTimer);
+
+          try {
+            const res = await fetch(`${API}/api/search`, {
+              method: 'POST',
+              headers: _headers(),
+              body: JSON.stringify({
+                role: this.role,
+                location: this.location,
+                skills: this.skills,
+              }),
+            });
+            const data = await res.json();
+
+            // Addendum L: rate_limited BEFORE no_results
+            if (data.status === 'rate_limited') {
+              Swal.fire({ icon: 'warning', title: 'Rate Limited',
+                text: data.message || 'Too many searches. Please wait 1 hour.',
+                background: '#0f1623', color: '#e2e8f0',
+                confirmButtonColor: '#3b82f6' });
+              return;
+            }
+
+            if (data.status === 'invalid_query') {
+              Swal.fire({ icon: 'info', title: 'Invalid Query',
+                text: data.message || 'Please enter a valid job title.',
+                background: '#0f1623', color: '#e2e8f0',
+                confirmButtonColor: '#3b82f6' });
+              return;
+            }
+
+            if (data.status !== 'ok') {
+              Swal.fire({ icon: 'error', title: 'Search Failed',
+                text: data.message || 'Something went wrong. Try again.',
+                background: '#0f1623', color: '#e2e8f0',
+                confirmButtonColor: '#3b82f6' });
+              return;
+            }
+
+            if (!data.jobs || data.jobs.length === 0) {
+              Swal.fire({ icon: 'info', title: 'No Results',
+                text: 'No job postings found. Try a different role or location.',
+                background: '#0f1623', color: '#e2e8f0',
+                confirmButtonColor: '#3b82f6' });
+              return;
+            }
+
+            this.jobs = data.jobs || [];
+            this.gaps = data.gaps || [];
+            this.sessionId = data.session_id;
+            this.totalPostings = data.total_postings || 0;
+            this.circuitOpen = data.circuit_open || false;
+
+            // init roadmap entries as pending
+            this.gaps.forEach(g => {
+              this.roadmaps[g.skill] = { status: 'pending', steps: [] };
+            });
+
+            // render chart after DOM tick
+            this.$nextTick(() => renderGapsChart(this.gaps));
+
+            // start roadmap polling
+            this._startRoadmapPoll();
+
+          } catch (err) {
+            Swal.fire({ icon: 'error', title: 'Network Error',
+              text: 'Could not reach the server. Check your connection.',
+              background: '#0f1623', color: '#e2e8f0',
+              confirmButtonColor: '#3b82f6' });
+          } finally {
+            this.searching = false;
+          }
+        },
+
+        // ── per-job analysis ──────────────────────────────────
+        async selectJob(job) {
+          this.selectedJob = job;
+          this.analysis = null;
+          if (!job.url) return;
+          this.analysing = true;
+          try {
+            const res = await fetch(`${API}/api/analyse`, {
+              method: 'POST',
+              headers: _headers(),
+              body: JSON.stringify({ job_url: job.url, session_id: this.sessionId }),
+            });
+            const data = await res.json();
+            if (data.status === 'ok') this.analysis = data.analysis;
+          } catch (err) {
+            console.warn('Analysis failed', err);
+          } finally {
+            this.analysing = false;
+          }
+        },
+
+        // ── CV upload ─────────────────────────────────────────
+        async uploadCV(event) {
+          const file = event.target.files?.[0];
+          if (!file) return;
+          this.cvStatus = 'Parsing…';
+          const form = new FormData();
+          form.append('file', file);
+          try {
+            const headers = {};
+            const tok = _tok();
+            if (tok) headers['X-Demo-Secret'] = tok;
+            const res = await fetch(`${API}/api/resume`, { method: 'POST', headers, body: form });
+            const data = await res.json();
+            if (data.status === 'ok') {
+              this.skills = (data.skills || []).join(', ');
+              this.cvStatus = `✓ ${data.skills?.length || 0} skills extracted`;
+            } else {
+              this.cvStatus = data.message || 'Parse failed — try manual entry';
+            }
+          } catch {
+            this.cvStatus = 'Upload error — try manual entry';
+          }
+        },
+
+        // ── roadmap polling ────────────────────────────────────
+        _startRoadmapPoll() {
+          if (this._pollTimer) clearInterval(this._pollTimer);
+          this._pollTimer = setInterval(() => this._pollRoadmaps(), 2000);
+        },
+
+        async _pollRoadmaps() {
+          if (!this.sessionId) return;
+          const pending = this.gaps.filter(
+            g => this.roadmaps[g.skill]?.status === 'pending'
+          );
+          if (pending.length === 0) {
+            clearInterval(this._pollTimer);
+            return;
+          }
+          await Promise.all(pending.map(async g => {
+            try {
+              const res = await fetch(
+                `${API}/api/roadmap/${encodeURIComponent(g.skill)}?session_id=${this.sessionId}`,
+                { headers: _headers() }
+              );
+              const data = await res.json();
+              if (data.status === 'ready') {
+                this.roadmaps[g.skill] = { status: 'ready', steps: data.steps || [] };
+              }
+            } catch { /* silent */ }
+          }));
+        },
+
+        toggleRoadmap(skill) {
+          this.openRoadmap = this.openRoadmap === skill ? null : skill;
+        },
+
+        // ── HR competitor search ──────────────────────────────
+        async doHRSearch() {
+          if (this.hrSearching) return;
+          if (!this.hrCompany.trim() || !this.hrRole.trim()) {
+            Swal.fire({ icon: 'info', title: 'Required',
+              text: 'Please enter a company name and role.',
+              background: '#0f1623', color: '#e2e8f0', confirmButtonColor: '#3b82f6' });
+            return;
+          }
+          this.hrSearching = true;
+          this.hrSkills = [];
+          this.hrPostings = 0;
+          try {
+            const res = await fetch(`${API}/api/hr/competitors`, {
+              method: 'POST',
+              headers: _headers(),
+              body: JSON.stringify({
+                company_name: this.hrCompany,
+                role: this.hrRole,
+                location: this.hrLocation,
+              }),
+            });
+            const data = await res.json();
+            if (data.status === 'ok') {
+              this.hrSkills = data.top_skills || [];
+              this.hrPostings = data.postings_analysed || 0;
+              this.$nextTick(() => renderHRRadar(this.hrSkills));
+            } else {
+              Swal.fire({ icon: 'error', title: 'Search Failed',
+                text: data.message || 'No competitor postings found.',
+                background: '#0f1623', color: '#e2e8f0', confirmButtonColor: '#3b82f6' });
+            }
+          } catch {
+            Swal.fire({ icon: 'error', title: 'Network Error',
+              text: 'Could not reach the server.',
+              background: '#0f1623', color: '#e2e8f0', confirmButtonColor: '#3b82f6' });
+          } finally {
+            this.hrSearching = false;
+          }
+        },
+
+        maybeInitRadar() {
+          if (this.hrSkills.length > 0) {
+            this.$nextTick(() => renderHRRadar(this.hrSkills));
+          }
+        },
+      };
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,32 @@
+name: GapHunter Keep-Alive
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'  # every 10 minutes, UTC
+  workflow_dispatch:         # manual trigger for testing
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check date gate
+        id: date_gate
+        run: |
+          TODAY=$(date -u +%Y-%m-%d)
+          if [[ "$TODAY" == "2026-05-30" || "$TODAY" == "2026-05-31" ]]; then
+            echo "active=true" >> $GITHUB_OUTPUT
+          else
+            echo "active=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Ping health endpoint
+        if: steps.date_gate.outputs.active == 'true'
+        run: |
+          RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" \
+            --max-time 20 \
+            "${{ secrets.RENDER_HEALTH_URL }}")
+          echo "HTTP status: $RESPONSE"
+          if [ "$RESPONSE" != "200" ]; then
+            echo "::error::Health check returned $RESPONSE — container may be down"
+            exit 1
+          fi
