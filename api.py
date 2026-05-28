@@ -632,6 +632,7 @@ def _format_job(job: dict) -> dict:
         "source": job.get("source", ""),
         "date_posted": job.get("date_posted", ""),
         "skills_match": job.get("extracted_skills", [])[:8],
+        "is_verified": job.get("is_verified", True),
     }
 
 

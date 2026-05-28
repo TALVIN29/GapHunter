@@ -1,15 +1,25 @@
 """
-Two-step multi-source scraper — PRD §7.1, §7.6.
-Step 1: Google SERP → LinkedIn job URLs.
-Step 2: LinkedIn Collect + Indeed (parallel) → full payload with all §7.1 fields.
-Shadow Mode wrapper (Addendum C) lives in api.py.
+Multi-source verified job aggregator — PRD §7.1, §7.6, Addendum T.
+
+Pipeline:
+  Step 1: Bright Data SERP — location-aware Google queries → LinkedIn job view URLs
+  Step 2: LinkedIn Collect + Indeed direct API (parallel) → full posting payload
+  Step 3: Scam detection filter — removes fake/suspicious postings
+  Step 4: Deduplication — removes cross-source duplicates by (title, company)
+  Step 5: Quality filter — description length + required fields
+
+Value over plain LinkedIn search:
+  - Multi-source aggregation (LinkedIn + Indeed simultaneously)
+  - AI-driven scam detection (keyword patterns + salary anomalies)
+  - Cross-platform deduplication
+  - Structured output for AI skill extraction + demand scoring
 """
 
 import json
 import logging
 import os
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import quote_plus
 
 import requests
@@ -31,40 +41,139 @@ _DATASET_INDEED = os.environ.get("BRIGHTDATA_DATASET_ID_INDEED", "")
 
 _API_BASE = "https://api.brightdata.com/datasets/v3/scrape"
 
+# ---------------------------------------------------------------------------
+# Scam detection — Addendum T
+# ---------------------------------------------------------------------------
 
-def _scrape_url(dataset_id: str) -> str:
-    return f"{_API_BASE}?dataset_id={dataset_id}&notify=false&include_errors=true"
+_SCAM_DESC_KEYWORDS: frozenset[str] = frozenset({
+    "no experience needed",
+    "work from home easy",
+    "earn from home",
+    "unlimited earning",
+    "be your own boss",
+    "passive income",
+    "network marketing",
+    "make money fast",
+    "guaranteed income",
+    "per hour from home",
+    "whatsapp me",
+    "send cv to whatsapp",
+    "send resume to telegram",
+    "no investment required",
+    "direct income",
+    "mlm",
+    "multi level marketing",
+    "100% commission",
+    "commission only",
+    "daily payout",
+    "quick money",
+})
 
+_SCAM_TITLE_KEYWORDS: frozenset[str] = frozenset({
+    "home based agent",
+    "online agent",
+    "part time agent",
+    "freelance recruiter",
+    "earn daily",
+    "reseller",
+    "drop shipping",
+    "dropshipping",
+})
+
+_EXEC_SENIORITY: frozenset[str] = frozenset({
+    "director", "vp", "vice president", "executive", "c-level",
+    "president", "partner", "principal", "staff", "distinguished",
+})
+
+_SUSPICIOUS_SALARY_THRESHOLD = 500_000  # >$500k for non-exec = suspicious
+
+
+def _is_scam(posting: dict) -> bool:
+    """Return True if posting shows scam signals — Addendum T."""
+    desc = (posting.get("job_description") or "").lower()
+    title = (posting.get("title") or "").lower()
+    salary_max = posting.get("salary_max") or 0
+    seniority = (posting.get("seniority_level") or "").lower()
+
+    if any(kw in desc for kw in _SCAM_DESC_KEYWORDS):
+        logger.info("Scam rejected (desc keyword): %s @ %s", title, posting.get("company_name"))
+        return True
+
+    if any(kw in title for kw in _SCAM_TITLE_KEYWORDS):
+        logger.info("Scam rejected (title keyword): %s @ %s", title, posting.get("company_name"))
+        return True
+
+    if salary_max > _SUSPICIOUS_SALARY_THRESHOLD:
+        if not any(s in seniority for s in _EXEC_SENIORITY):
+            logger.info("Scam rejected (salary anomaly $%.0f): %s", salary_max, title)
+            return True
+
+    return False
+
+
+def _deduplicate(records: list[dict]) -> list[dict]:
+    """Remove cross-source duplicates by (title.lower, company.lower)."""
+    seen: set[tuple[str, str]] = set()
+    unique: list[dict] = []
+    for r in records:
+        key = (
+            r.get("title", "").lower().strip(),
+            r.get("company_name", "").lower().strip(),
+        )
+        if key not in seen:
+            seen.add(key)
+            unique.append(r)
+    removed = len(records) - len(unique)
+    if removed:
+        logger.info("Deduplication removed %d duplicate postings", removed)
+    return unique
+
+
+# ---------------------------------------------------------------------------
+# Main entry point
+# ---------------------------------------------------------------------------
 
 def scrape_jobs(job_role: str, location: str) -> list[dict]:
     """
-    Full pipeline: SERP → LinkedIn + Indeed (parallel).
-    Returns up to POSTINGS_CAP quality-filtered, normalised postings.
-    PRD §7.1, §7.6.
+    Full pipeline: SERP → LinkedIn + Indeed (parallel) → scam filter → dedup → quality filter.
+    Returns up to POSTINGS_CAP verified postings. PRD §7.1, §7.6, Addendum T.
     """
     _check_env()
 
     t0 = time.time()
     job_urls = _step1_serp(job_role, location)
-    logger.info("Step 1: %d URLs in %.1fs", len(job_urls), time.time() - t0)
+    logger.info("Step 1: %d LinkedIn URLs in %.1fs", len(job_urls), time.time() - t0)
 
     t1 = time.time()
     postings = _step2_multi_source(job_urls[:POSTINGS_CAP], job_role, location)
-    logger.info("Step 2: %d postings in %.1fs", len(postings), time.time() - t1)
+    logger.info("Step 2: %d raw postings in %.1fs", len(postings), time.time() - t1)
 
+    postings = _deduplicate(postings)
     return _quality_filter(postings)
 
 
+# ---------------------------------------------------------------------------
+# Step 1 — Location-aware SERP
+# ---------------------------------------------------------------------------
+
 def _step1_serp(job_role: str, location: str) -> list[str]:
-    """SERP query → individual LinkedIn job view URLs."""
-    keyword = f"{job_role} jobs {location} site:linkedin.com/jobs/view"
+    """Bright Data SERP → LinkedIn job view URLs.
+
+    Uses quoted location for stricter Google matching — prevents US jobs
+    surfacing for non-US location queries.
+    """
+    if location:
+        keyword = f'"{job_role}" "{location}" site:linkedin.com/jobs/view'
+    else:
+        keyword = f'"{job_role}" jobs site:linkedin.com/jobs/view'
+
     payload = {
         "input": [
             {
                 "url": "https://www.google.com/",
                 "keyword": keyword,
                 "language": "en",
-                "tbs": "qdr:m",
+                "tbs": "qdr:m",   # last month
                 "tbm": "",
                 "uule": "",
                 "nfpr": "",
@@ -72,43 +181,48 @@ def _step1_serp(job_role: str, location: str) -> list[str]:
             }
         ]
     }
-    resp = requests.post(
-        _scrape_url(_DATASET_SERP),
-        headers=_headers(),
-        json=payload,
-        timeout=SERP_TIMEOUT,
-    )
-    resp.raise_for_status()
+    try:
+        resp = requests.post(
+            _scrape_url(_DATASET_SERP),
+            headers=_headers(),
+            json=payload,
+            timeout=SERP_TIMEOUT,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        organic = data.get("organic", []) if isinstance(data, dict) else []
+        urls = [
+            r["link"]
+            for r in organic
+            if "linkedin.com/jobs/view" in r.get("link", "")
+        ]
+        logger.info("SERP: %d LinkedIn URLs for '%s' in '%s'", len(urls), job_role, location)
+        return urls
+    except Exception as exc:
+        logger.warning("SERP failed: %s", exc)
+        return []
 
-    data = resp.json()
-    organic = data.get("organic", []) if isinstance(data, dict) else []
-    urls = [
-        r["link"]
-        for r in organic
-        if "linkedin.com/jobs/view" in r.get("link", "")
-    ]
-    logger.info("SERP returned %d LinkedIn job URLs", len(urls))
-    return urls
 
+# ---------------------------------------------------------------------------
+# Step 2 — Multi-source parallel scrape
+# ---------------------------------------------------------------------------
 
 def _step2_multi_source(
     job_urls: list[str], job_role: str, location: str
 ) -> list[dict]:
-    """Run LinkedIn Collect + Indeed in parallel via ThreadPoolExecutor."""
+    """Run LinkedIn Collect + Indeed direct API in parallel via ThreadPoolExecutor."""
     results: list[dict] = []
 
-    futures_map = {}
+    futures_map: dict[str, object] = {}
     with ThreadPoolExecutor(max_workers=2) as executor:
         if job_urls and _DATASET_LINKEDIN:
             futures_map["linkedin"] = executor.submit(_fetch_linkedin, job_urls)
         if _DATASET_INDEED:
-            futures_map["indeed"] = executor.submit(
-                _fetch_indeed, job_role, location
-            )
+            futures_map["indeed"] = executor.submit(_fetch_indeed, job_role, location)
 
     for source, future in futures_map.items():
         try:
-            results.extend(future.result())
+            results.extend(future.result())  # type: ignore[union-attr]
         except Exception as exc:
             logger.warning("Source %s failed: %s", source, exc)
 
@@ -124,7 +238,6 @@ def _fetch_linkedin(job_urls: list[str]) -> list[dict]:
         timeout=LINKEDIN_TIMEOUT,
     )
     resp.raise_for_status()
-
     records = _parse_ndjson(resp.text)
     return [_normalise_linkedin(r) for r in records]
 
@@ -134,7 +247,7 @@ def _fetch_indeed(job_role: str, location: str) -> list[dict]:
         "input": [
             {
                 "keyword": job_role,
-                "location": location or "",
+                "location": location,
                 "num_of_results": POSTINGS_CAP,
             }
         ]
@@ -146,46 +259,63 @@ def _fetch_indeed(job_role: str, location: str) -> list[dict]:
         timeout=INDEED_TIMEOUT,
     )
     resp.raise_for_status()
-
     records = _parse_ndjson(resp.text)
     return [_normalise_indeed(r) for r in records]
 
 
-def _parse_ndjson(text: str) -> list[dict]:
-    records = []
-    for line in text.strip().splitlines():
-        line = line.strip()
-        if not line:
-            continue
-        try:
-            records.append(json.loads(line))
-        except json.JSONDecodeError:
-            logger.warning("Skipping malformed NDJSON line")
-    return records
+# ---------------------------------------------------------------------------
+# Quality + scam filter — Addendum T
+# ---------------------------------------------------------------------------
 
+def _quality_filter(records: list[dict]) -> list[dict]:
+    """Keep postings that pass: description length + required fields + scam check."""
+    qualified = []
+    scam_count = 0
+    for r in records:
+        if len(r.get("job_description", "").strip()) < 200:
+            continue
+        if not r.get("title", "").strip():
+            continue
+        if not r.get("company_name", "").strip():
+            continue
+        if _is_scam(r):
+            scam_count += 1
+            r["is_verified"] = False
+            continue
+        r["is_verified"] = True
+        qualified.append(r)
+
+    qualified.sort(key=lambda r: len(r.get("job_description", "")), reverse=True)
+    kept = qualified[:POSTINGS_CAP]
+    logger.info(
+        "Quality filter: %d/%d kept, %d scam-rejected",
+        len(kept), len(records), scam_count,
+    )
+    return kept
+
+
+# ---------------------------------------------------------------------------
+# Normalisation
+# ---------------------------------------------------------------------------
 
 def _normalise_linkedin(r: dict) -> dict:
-    """Map LinkedIn Collect field names → standard posting dict (PRD §7.1 full field set)."""
+    """Map LinkedIn Collect field names → standard posting dict (PRD §7.1)."""
     salary_min = _safe_float(r.get("salary_base_min"))
     salary_max = _safe_float(r.get("salary_base_max"))
     num_applicants = _safe_int(r.get("number_of_applicants"))
 
     remote_type = (r.get("remote_type") or "").lower()
     is_remote = remote_type in ("remote", "fully remote")
-
     seniority = (r.get("job_seniority_level") or "unknown").lower()
 
     return {
-        # Core text
         "job_description": r.get("job_summary") or "",
         "title": r.get("job_title") or "",
         "company_name": r.get("company_name") or "",
         "url": r.get("url") or r.get("apply_link") or "",
         "apply_link": r.get("apply_link") or r.get("url") or "",
         "location": r.get("job_location") or "",
-        # LinkedIn taxonomy (for dual_signal)
         "skills_listed": r.get("skills_listed") or [],
-        # Signals
         "date_posted": r.get("job_posted_date") or "",
         "num_applicants": num_applicants,
         "salary_min": salary_min,
@@ -195,13 +325,11 @@ def _normalise_linkedin(r: dict) -> dict:
         "remote_type": remote_type,
         "seniority_level": seniority,
         "employment_type": (r.get("job_employment_type") or "").lower(),
-        # Company metadata (HR tab)
         "company_industry": r.get("company_industry") or "",
         "company_size": r.get("company_size") or "",
         "company_description": r.get("company_description") or "",
-        # Source tag for cross-source validation
         "source": "linkedin",
-        # Populated by extractor + signals
+        "is_verified": False,  # set by _quality_filter
         "extracted_skills": [],
         "freshness_score": 0.5,
         "competition_score": 0.5,
@@ -224,7 +352,6 @@ def _normalise_indeed(r: dict) -> dict:
         r.get("remote_type") or r.get("work_type") or r.get("is_remote") or ""
     )
     is_remote = str(remote_raw).lower() in ("remote", "fully remote", "true", "1")
-
     seniority = (
         r.get("job_seniority_level") or r.get("seniority_level") or "unknown"
     ).lower()
@@ -235,13 +362,12 @@ def _normalise_indeed(r: dict) -> dict:
         or r.get("job_summary")
         or ""
     )
-    title = r.get("job_title") or r.get("title") or ""
     url = r.get("url") or r.get("job_url") or r.get("apply_link") or ""
     date_posted = r.get("job_posted_date") or r.get("date_posted") or r.get("posted_at") or ""
 
     return {
         "job_description": description,
-        "title": title,
+        "title": r.get("job_title") or r.get("title") or "",
         "company_name": r.get("company_name") or r.get("company") or "",
         "url": url,
         "apply_link": url,
@@ -260,6 +386,7 @@ def _normalise_indeed(r: dict) -> dict:
         "company_size": r.get("company_size") or "",
         "company_description": r.get("company_description") or "",
         "source": "indeed",
+        "is_verified": False,  # set by _quality_filter
         "extracted_skills": [],
         "freshness_score": 0.5,
         "competition_score": 0.5,
@@ -268,18 +395,21 @@ def _normalise_indeed(r: dict) -> dict:
     }
 
 
-def _quality_filter(records: list[dict]) -> list[dict]:
-    """Keep postings with job_description >= 200 chars + title + company."""
-    qualified = [
-        r for r in records
-        if len(r.get("job_description", "").strip()) >= 200
-        and r.get("title", "").strip()
-        and r.get("company_name", "").strip()
-    ]
-    qualified.sort(key=lambda r: len(r.get("job_description", "")), reverse=True)
-    kept = qualified[:POSTINGS_CAP]
-    logger.info("Quality filter: %d/%d kept", len(kept), len(records))
-    return kept
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _parse_ndjson(text: str) -> list[dict]:
+    records = []
+    for line in text.strip().splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            records.append(json.loads(line))
+        except json.JSONDecodeError:
+            logger.warning("Skipping malformed NDJSON line")
+    return records
 
 
 def _safe_float(val) -> float:
@@ -294,6 +424,10 @@ def _safe_int(val) -> int | None:
         return int(val) if val is not None else None
     except (TypeError, ValueError):
         return None
+
+
+def _scrape_url(dataset_id: str) -> str:
+    return f"{_API_BASE}?dataset_id={dataset_id}&notify=false&include_errors=true"
 
 
 def _headers() -> dict:

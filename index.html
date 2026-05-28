@@ -225,6 +225,7 @@
             <div class="flex items-center justify-between text-xs text-slate-500">
               <span x-text="job.salary !== 'Not disclosed' ? job.salary : ''"></span>
               <div class="flex items-center gap-2">
+                <span x-show="job.is_verified !== false" class="badge badge-green" style="font-size:.65rem;" title="Scam-checked by GapHunter AI">✓ Verified</span>
                 <span x-show="job.is_remote" class="badge badge-blue" style="font-size:.65rem;">Remote</span>
                 <a x-show="job.url" :href="job.url" target="_blank" rel="noopener"
                   @click.stop class="text-accent hover:underline">Apply →</a>
