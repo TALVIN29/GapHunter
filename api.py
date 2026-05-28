@@ -439,8 +439,12 @@ async def _extract_job_from_page(url: str, page_text: str) -> dict | None:
         f"{page_text}\n\n"
         "Return JSON only with these exact fields (null if not found):\n"
         "job_description (string 200+ chars), title (string), company_name (string), "
-        "location (string), salary_min (number or null), salary_max (number or null), "
-        "salary_currency (ISO code), seniority_level (entry/mid/senior/unknown), "
+        "location (string), "
+        "salary_min (number — ANNUAL salary minimum, convert monthly×12 if needed, null if not stated), "
+        "salary_max (number — ANNUAL salary maximum, convert monthly×12 if needed, null if not stated), "
+        "salary_currency (ISO currency code matching the job location — MYR for Malaysia, SGD for Singapore, "
+        "AUD for Australia, INR for India, GBP for UK, USD for US, etc.), "
+        "seniority_level (entry/mid/senior/unknown), "
         "employment_type (full-time/part-time/contract), is_remote (boolean), "
         "remote_type (remote/hybrid/on-site), skills_listed (array of strings), "
         "date_posted (YYYY-MM-DD or null).\n"
@@ -834,14 +838,24 @@ async def search(req: SearchRequest, request: Request, background_tasks: Backgro
     }
 
 
+_CURRENCY_SYMBOLS: dict[str, str] = {
+    "USD": "$", "MYR": "RM ", "SGD": "S$", "AUD": "A$", "NZD": "NZ$",
+    "GBP": "£", "EUR": "€", "INR": "₹", "PHP": "₱", "IDR": "Rp ",
+    "THB": "฿", "HKD": "HK$", "CAD": "C$", "JPY": "¥", "CNY": "¥",
+    "KRW": "₩", "TWD": "NT$", "VND": "₫",
+}
+
+
 def _format_job(job: dict) -> dict:
     url = job.get("apply_link") or job.get("url") or ""
     safe_url = url if validate_job_url(url) else ""
 
     salary_min = job.get("salary_min", 0) or 0
     salary_max = job.get("salary_max", 0) or 0
+    currency = (job.get("salary_currency") or "USD").upper()
+    symbol = _CURRENCY_SYMBOLS.get(currency, currency + " ")
     salary_display = (
-        f"${int(salary_min):,}–${int(salary_max):,}/yr"
+        f"{symbol}{int(salary_min):,}–{symbol}{int(salary_max):,}/yr"
         if salary_min > 0 and salary_max > 0
         else "Not disclosed"
     )

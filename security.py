@@ -7,9 +7,36 @@ Blocks SSRF, open redirect, private IPs, metadata endpoints.
 from urllib.parse import urlparse
 
 ALLOWED_JOB_DOMAINS: frozenset[str] = frozenset({
+    # Global platforms
     "linkedin.com",
     "indeed.com",
     "glassdoor.com",
+    "monster.com",
+    # SEA — Malaysia / Singapore / Philippines / Indonesia
+    "jobstreet.com",
+    "jobstreet.com.my",
+    "jobstreet.com.sg",
+    "jobstreet.com.ph",
+    "jobsdb.com",
+    "wobb.my",
+    "hiredly.com",
+    "jobscentral.com.sg",
+    "mycareersfuture.gov.sg",
+    "kalibrr.com",
+    "glints.com",
+    # Australia / New Zealand
+    "seek.com.au",
+    "seek.co.nz",
+    # India
+    "naukri.com",
+    "shine.com",
+    "timesjobs.com",
+    # UK / Europe
+    "reed.co.uk",
+    "totaljobs.com",
+    "cv-library.co.uk",
+    "stepstone.de",
+    # ATS / company career boards
     "greenhouse.io",
     "lever.co",
     "workday.com",
