@@ -4177,4 +4177,192 @@ Claude's `why_it_matters` references this formula and the specific score, giving
 Hackathon theme: "AI Agents Web Data Hackathon." Judges need to identify the platform as an autonomous AI agent pipeline within 3 seconds of loading. Previous UI appeared as a search form. No logic changes — purely framing.
 
 ---
+
+## Addendum T — Scam Detection + Cross-Source Deduplication
+
+### T.1 Problem
+
+Live job aggregation from LinkedIn + Indeed surfaces fraudulent postings (MLM schemes, commission-only sales, WhatsApp recruitment). No filter existed. User trust and platform credibility required a quality gate beyond description length.
+
+### T.2 Scam Detection Logic (`scraper.py`)
+
+Three signal types:
+
+| Signal | Threshold | Example |
+|---|---|---|
+| Description keyword | Any match | "mlm", "commission only", "passive income", "send cv to whatsapp" |
+| Title keyword | Any match | "home based agent", "earn daily", "dropshipping" |
+| Salary anomaly | > $500,000 for non-executive seniority | Salary $600k with seniority "entry level" |
+
+**`_SCAM_DESC_KEYWORDS`** (20 terms): `no experience needed`, `work from home easy`, `earn from home`, `unlimited earning`, `be your own boss`, `passive income`, `network marketing`, `make money fast`, `guaranteed income`, `per hour from home`, `whatsapp me`, `send cv to whatsapp`, `send resume to telegram`, `no investment required`, `direct income`, `mlm`, `multi level marketing`, `100% commission`, `commission only`, `daily payout`, `quick money`
+
+**`_SCAM_TITLE_KEYWORDS`** (8 terms): `home based agent`, `online agent`, `part time agent`, `freelance recruiter`, `earn daily`, `reseller`, `drop shipping`, `dropshipping`
+
+**`_EXEC_SENIORITY`**: `director`, `vp`, `vice president`, `executive`, `c-level`, `president`, `partner`, `principal`, `staff`, `distinguished` — exempt from salary anomaly check.
+
+### T.3 `is_verified` Lifecycle
+
+```
+normalise_linkedin / normalise_indeed → is_verified = False (default)
+       ↓
+_quality_filter → desc < 200 chars? discard
+               → title empty? discard
+               → company empty? discard
+               → _is_scam()? → is_verified stays False, excluded from output
+               → passed all? → is_verified = True, included in output
+       ↓
+_format_job (api.py) → passes is_verified to frontend
+       ↓
+index.html job card → "✓ Verified" badge when is_verified !== false
+```
+
+### T.4 Cross-Source Deduplication
+
+`_deduplicate(records)` removes postings with matching `(title.lower(), company_name.lower())` across LinkedIn and Indeed sources. Runs after Step 2 (multi-source parallel scrape), before quality filter.
+
+- Preserves first occurrence (LinkedIn takes priority by insertion order)
+- Logs count of removed duplicates
+
+### T.5 UI Transparency
+
+- Job card shows **`✓ Verified`** green badge when `is_verified !== false`
+- Analysis panel **Verification tab** shows all 5 checks:
+  - Description quality (length ≥ 200 chars)
+  - Title and company fields present
+  - 28 scam keyword patterns checked
+  - Salary anomaly threshold ($500k non-exec)
+  - Cross-source deduplication applied
+- Each check shows pass/fail status
+
+### T.6 Location-Accurate SERP (paired fix)
+
+SERP keyword now uses quoted strings for strict Google matching:
+
+```python
+# Before (loose):
+keyword = f"{job_role} {location} site:linkedin.com/jobs/view"
+
+# After (strict):
+keyword = f'"{job_role}" "{location}" site:linkedin.com/jobs/view'
+```
+
+Prevents US jobs bleeding into non-US location searches. When location is empty, falls back to unquoted `"{job_role}" jobs site:linkedin.com/jobs/view`.
+
+---
+
+## Addendum U — Company Profiles + Glassdoor Reviews
+
+### U.1 Problem
+
+Job seekers need company context (culture, rating, employee sentiment) before applying. No company data existed in the platform. Industry standard: Glassdoor for employee reviews. Implementing direct Glassdoor scrape requires discovering the correct Glassdoor URL per company — cannot hardcode.
+
+### U.2 Architecture
+
+Three-step chain per company name:
+
+```
+Step 1: SERP API → find Glassdoor URL
+  keyword: site:glassdoor.com "{company_name}" reviews rating employees
+  → extract first glassdoor.com/Reviews or glassdoor.com/Overview link
+
+Step 2: Web Unlocker → fetch Glassdoor page HTML
+  POST https://api.brightdata.com/request
+  {"url": glassdoor_url, "zone": BRIGHTDATA_UNLOCKER_ZONE, "format": "raw"}
+
+Step 3: Claude Haiku → structured extraction from page text
+  Extracts: rating (0–5), review_count, ceo_approval_pct, recommend_pct, pros[], cons[], culture_summary
+```
+
+### U.3 API Endpoint
+
+`POST /api/company`
+
+Request:
+```json
+{"company_name": "Stripe", "session_id": "abc123"}
+```
+
+Response:
+```json
+{
+  "status": "ok",
+  "company": "Stripe",
+  "glassdoor_url": "https://www.glassdoor.com/Reviews/Stripe-Reviews...",
+  "profile": {
+    "rating": 4.2,
+    "review_count": 1840,
+    "ceo_approval_pct": 88,
+    "recommend_pct": 84,
+    "pros": ["Great engineering culture", "Competitive pay"],
+    "cons": ["High pressure", "Long hours"],
+    "culture_summary": "Fast-paced, high-ownership environment..."
+  },
+  "source": "glassdoor"
+}
+```
+
+Failure response (Glassdoor unreachable or no data extracted):
+```json
+{"status": "ok", "company": "Stripe", "glassdoor_url": null, "profile": null, "source": "error"}
+```
+
+### U.4 Bright Data Tool Count After Addendum U
+
+| Tool | Where used |
+|---|---|
+| SERP API | `scraper.py` (job URL discovery), `roadmap.py` (resource fetch), `api.py` `/api/company` (Glassdoor URL discovery) |
+| Web Scraper API / Jobs Dataset | `scraper.py` (LinkedIn + Indeed parallel scrape) |
+| Web Unlocker | `api.py` `/api/analyse` (job page HTML), `api.py` `/api/company` (Glassdoor page HTML) |
+
+**Total: 3 Bright Data tools, used in 4 distinct contexts.**
+
+### U.5 Frontend Integration
+
+- `selectJob()` fires analysis + company fetch in parallel via `Promise.allSettled`
+- Company tab in analysis panel shows: overall rating (star display), review count, CEO approval %, recommend %, top pros (green), top cons (amber), culture summary
+- Glassdoor attribution link shown if URL available
+- Loading skeleton during fetch (`loadingCompany` flag)
+- If company profile unavailable: tab shows "No Glassdoor data found" gracefully
+
+### U.6 Fallback Behaviour
+
+All Glassdoor failures are silent to the user at API level — endpoint always returns HTTP 200. Frontend shows graceful empty state. Failures log at WARNING level with reason.
+
+---
+
+## Addendum V — Fallback Data Transparency
+
+### V.1 Problem
+
+When live Bright Data scrape returns 0 results (non-US markets, low-indexed regions), the platform silently serves static fallback data. Users in Malaysia, Southeast Asia, or other regions would see US jobs without knowing they're viewing fallback content. This erodes trust.
+
+### V.2 Changes
+
+**`api.py`:**
+- `_scrape_with_fallback()` now returns `tuple[list[dict], bool]` — `(postings, is_live)`
+- `is_live = True` when live scrape returns results; `False` when fallback served
+- `/api/search` response includes `data_source: "live" | "fallback"` and `location_searched: str`
+
+**`index.html`:**
+- Alpine state: `dataSource`, `locationSearched`
+- If `data_source === 'fallback'` and `locationSearched` is non-empty: SweetAlert2 info toast
+  - Title: "Limited live data for your location"
+  - Text: "No verified live postings found for '`{location}`'. Showing representative global jobs..."
+  - Auto-dismiss after 6 seconds
+
+### V.3 Fallback File URLs
+
+`fallback/fallback_payload_data_analyst.json` updated — job URLs changed from fake sequential LinkedIn job IDs to real job search URLs:
+
+| Company | URL |
+|---|---|
+| DoorDash | `linkedin.com/jobs/search/?keywords=Data+Analyst&location=New+York%2C+NY` |
+| Databricks | `linkedin.com/jobs/search/?keywords=Senior+Data+Analyst&location=San+Francisco%2C+CA` |
+| Lyft | `linkedin.com/jobs/search/?keywords=Business+Intelligence+Analyst&location=Chicago%2C+IL` |
+| Stripe | `indeed.com/jobs?q=Analytics+Engineer&l=Austin%2C+TX` |
+| Airbnb | `indeed.com/jobs?q=Insights+Analyst&l=Remote` |
+
+Note: Search URLs, not specific job pages. Intentional — fallback data is illustrative, not linked to specific live postings.
+
+---
 | Rename propagation: update K.4 firewall check | The OPEN K.4 item "`VITE_DEMO_SECRET` mismatch → Firewall blocks frontend" must be updated to reference `VITE_APP_CHALLENGE_TOKEN`. The operational check is the same; only the env var name changes. |

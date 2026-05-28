@@ -106,3 +106,67 @@
 **Impact:** If zone wrong → silent metadata fallback. If zone correct → Unlocker active, `"source": "unlocker"` in response.
 
 ---
+
+## Session: 2026-05-29
+
+---
+
+### D-009 — Scam detection via keyword + salary anomaly filter (Addendum T)
+
+**Decision:** Implemented `_is_scam()` in `scraper.py` with 20 description keywords, 8 title keywords, and salary anomaly threshold ($500k for non-exec roles). All postings that fail this check have `is_verified = False` and are excluded from output.
+
+**Reasoning:** User explicitly requested scam detection as a core value proposition. "Verified to prevent job scam" differentiates GapHunter from plain LinkedIn search. Three-signal approach (keywords + salary) covers MLM schemes, commission-only traps, and inflated-salary bait without false-positives on legitimate high-paying executive roles.
+
+**Impact:** Adds a quality gate between raw scraper output and final postings list. Scam postings never reach the frontend. `is_verified` flag drives the "✓ Verified" badge in the job card UI.
+
+**PRD ref:** Addendum T.
+
+---
+
+### D-010 — `_scrape_with_fallback` returns tuple `(postings, is_live)` not just postings
+
+**Decision:** Changed return type from `list[dict]` to `tuple[list[dict], bool]`. `is_live = True` when live scrape returns results; `False` when static fallback is served. All callers updated.
+
+**Reasoning:** Frontend needed to know data provenance to decide whether to show the fallback warning toast. Boolean flag in the response is the cleanest way to thread this information from scraper → api → frontend without adding a separate field or inference logic.
+
+**Impact:** `/api/search` response now includes `data_source: "live"|"fallback"` and `location_searched`. Callers that used to do `postings = await _scrape_with_fallback(...)` now do `postings, is_live = await _scrape_with_fallback(...)`. Breaking change contained to `api.py` only.
+
+**PRD ref:** Addendum V.
+
+---
+
+### D-011 — Quoted SERP keyword for location accuracy (Addendum T.6)
+
+**Decision:** Changed SERP keyword from unquoted `{role} {location} site:linkedin.com/jobs/view` to quoted `"{role}" "{location}" site:linkedin.com/jobs/view`.
+
+**Reasoning:** User reported Malaysia search returning New York results. Root cause: unquoted SERP lets Google match any page mentioning both terms regardless of context. Quoting forces Google to treat location as a required string, not a suggestion. Trade-off: may reduce result count for regions with sparse LinkedIn indexing, but results will be geographically accurate.
+
+**Impact:** Reduces geographic bleed from US job market into non-US searches. If 0 results returned (low-indexed regions), fallback served with toast notification. Does not fix the fallback data being US-based — that's intentional and disclosed to user.
+
+**PRD ref:** Addendum T.6, Addendum V.
+
+---
+
+### D-012 — Company profile via SERP → Web Unlocker → Claude Haiku chain (Addendum U)
+
+**Decision:** New `/api/company` endpoint: (1) SERP finds Glassdoor URL for company name, (2) Web Unlocker fetches the Glassdoor page, (3) Claude Haiku extracts structured profile (rating, review count, CEO approval, pros, cons, culture summary).
+
+**Reasoning:** User wants "one website that settles all problems in applying a job" — company culture/reviews are table-stakes for job seekers. Glassdoor is the industry standard source. Direct Glassdoor scraping requires bypassing their bot detection (→ Web Unlocker). SERP-first approach avoids hardcoded URLs — every company name resolves to the right Glassdoor page dynamically. Claude Haiku over regex parsing because Glassdoor's DOM is JS-rendered and schema-volatile.
+
+**Impact:** Third use of Bright Data tools (SERP + Web Unlocker) within a single endpoint. Company tab in analysis panel shows real-time Glassdoor data. Failed company fetch returns graceful empty state — never breaks job analysis flow.
+
+**PRD ref:** Addendum U.
+
+---
+
+### D-013 — Parallel company + gap analysis on job click
+
+**Decision:** `selectJob()` in `index.html` fires both `/api/analyse` and `/api/company` simultaneously via `Promise.allSettled`, instead of sequential await.
+
+**Reasoning:** Both calls are independent — gap analysis needs the job metadata, company profile needs the company name. Running them in parallel reduces perceived latency from ~(A + B) to ~max(A, B). `Promise.allSettled` (not `Promise.all`) ensures one failure doesn't cancel the other — critical because company profile fetch is best-effort.
+
+**Impact:** Analysis panel populates faster. Glassdoor data races to load while gap analysis is computing. Neither call blocks the other on failure.
+
+**PRD ref:** Addendum U.5.
+
+---
