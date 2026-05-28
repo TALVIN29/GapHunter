@@ -331,8 +331,10 @@ def _load_fallback(role: str) -> list[dict]:
     return []
 
 
-async def _scrape_with_fallback(role: str, location: str) -> list[dict]:
-    """Addendum C: 45s timeout → silent fallback to pre-cached JSON."""
+async def _scrape_with_fallback(role: str, location: str) -> tuple[list[dict], bool]:
+    """Addendum C: 45s timeout → silent fallback to pre-cached JSON.
+    Returns (postings, is_live) — is_live=False when fallback data is served.
+    """
     from scraper import scrape_jobs
 
     try:
@@ -341,15 +343,15 @@ async def _scrape_with_fallback(role: str, location: str) -> list[dict]:
             timeout=_SCRAPE_TIMEOUT_S,
         )
         if postings:
-            return postings
+            return postings, True
         logger.warning("Scrape returned 0 postings — using fallback")
-        return _load_fallback(role)
+        return _load_fallback(role), False
     except asyncio.TimeoutError:
         logger.warning("Scrape timed out after %ds — using fallback", _SCRAPE_TIMEOUT_S)
-        return _load_fallback(role)
+        return _load_fallback(role), False
     except Exception as exc:
         logger.warning("Scrape error: %s — using fallback", exc)
-        return _load_fallback(role)
+        return _load_fallback(role), False
 
 
 # ---------------------------------------------------------------------------
@@ -405,6 +407,11 @@ class HRRequest(BaseModel):
     company_name: str
     role: str
     location: str = ""
+
+
+class CompanyRequest(BaseModel):
+    company_name: str
+    session_id: str
 
 
 # ---------------------------------------------------------------------------
@@ -532,7 +539,7 @@ async def search(req: SearchRequest, request: Request, background_tasks: Backgro
 
     # Layer 3: Tick circuit breaker (only live path reaches here)
     _tick_circuit_breaker(request.app.state)
-    postings = await _scrape_with_fallback(primary_title, req.location)
+    postings, is_live = await _scrape_with_fallback(primary_title, req.location)
 
     if not postings:
         return {"status": "error", "message": "No job postings found. Try a different role or location."}
@@ -603,6 +610,8 @@ async def search(req: SearchRequest, request: Request, background_tasks: Backgro
         "titles_searched": titles,
         "jobs": jobs_out,
         "gaps": evidence,
+        "data_source": "live" if is_live else "fallback",
+        "location_searched": req.location,
     }
 
 
@@ -633,6 +642,9 @@ def _format_job(job: dict) -> dict:
         "date_posted": job.get("date_posted", ""),
         "skills_match": job.get("extracted_skills", [])[:8],
         "is_verified": job.get("is_verified", True),
+        "company_description": (job.get("company_description") or "")[:400],
+        "company_size": job.get("company_size", ""),
+        "company_industry": job.get("company_industry", ""),
     }
 
 
@@ -808,6 +820,127 @@ async def hr_competitors(req: HRRequest) -> dict:
         "role": req.role,
         "postings_analysed": len(postings),
         "top_skills": [{"skill": s, "score": sc} for s, sc in top_skills],
+    }
+
+
+# ---------------------------------------------------------------------------
+# Company Profile — Addendum U
+# SERP → Glassdoor URL → Web Unlocker → Claude Haiku extraction
+# ---------------------------------------------------------------------------
+
+def _glassdoor_serp_sync(company_name: str) -> str:
+    """Find Glassdoor company reviews URL via Bright Data SERP."""
+    import requests as _req
+    token = os.environ.get("BRIGHTDATA_API_TOKEN", "")
+    dataset = os.environ.get("BRIGHTDATA_DATASET_ID", "")
+    if not token or not dataset:
+        return ""
+    keyword = f'site:glassdoor.com "{company_name}" reviews rating employees'
+    payload = {
+        "input": [{
+            "url": "https://www.google.com/",
+            "keyword": keyword,
+            "language": "en",
+            "tbs": "",
+            "tbm": "",
+            "uule": "",
+            "nfpr": "",
+            "index": "",
+        }]
+    }
+    try:
+        resp = _req.post(
+            f"https://api.brightdata.com/datasets/v3/scrape"
+            f"?dataset_id={dataset}&notify=false&include_errors=true",
+            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+            json=payload,
+            timeout=20,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        organic = data.get("organic", []) if isinstance(data, dict) else []
+        for r in organic:
+            link = r.get("link", "")
+            if "glassdoor.com" in link and any(
+                k in link for k in ("Reviews", "Overview", "reviews")
+            ):
+                return link
+    except Exception as exc:
+        logger.warning("Glassdoor SERP failed for %s: %s", company_name, exc)
+    return ""
+
+
+@app.post("/api/company", dependencies=[Depends(_require_demo_secret)])
+async def get_company_profile(req: CompanyRequest) -> dict:
+    """
+    Addendum U: Company background + Glassdoor employee reviews.
+    Pipeline: SERP → Glassdoor URL → Web Unlocker fetch → Claude Haiku extraction.
+    Demonstrates: SERP API + Web Unlocker + Claude in one endpoint.
+    """
+    company = req.company_name.strip()
+    if not company:
+        return {"status": "error", "message": "Company name required"}
+
+    # Step 1: Find Glassdoor URL via SERP
+    try:
+        async with asyncio.timeout(25):
+            glassdoor_url = await asyncio.to_thread(_glassdoor_serp_sync, company)
+    except Exception:
+        glassdoor_url = ""
+
+    logger.info("Company profile: %s → Glassdoor URL: %s", company, glassdoor_url or "not found")
+
+    # Step 2: Fetch Glassdoor page via Web Unlocker
+    page_text = ""
+    if glassdoor_url:
+        raw_html = await _fetch_with_unlocker(glassdoor_url)
+        page_text = _html_to_text(raw_html, max_chars=5000) if raw_html else ""
+
+    # Step 3: Claude Haiku extracts structured profile
+    if page_text:
+        prompt = (
+            f"Extract company profile data for '{company}' from this Glassdoor page.\n\n"
+            f"Page text:\n{page_text}\n\n"
+            "Return JSON only — use null for fields not found:\n"
+            '{"rating": <float 1.0-5.0 or null>, '
+            '"review_count": <int or null>, '
+            '"ceo_approval_pct": <int 0-100 or null>, '
+            '"recommend_pct": <int 0-100 or null>, '
+            '"pros": ["<point>", "<point>", "<point>"], '
+            '"cons": ["<point>", "<point>", "<point>"], '
+            '"culture_summary": "<1 sentence describing the work culture>", '
+            '"headquarters": "<city, country or null>", '
+            '"founded": <year int or null>, '
+            '"size_range": "<e.g. 1001-5000 employees or null>"}'
+        )
+        try:
+            async with asyncio.timeout(15):
+                resp = await _client.messages.create(
+                    model="claude-haiku-4-5-20251001",
+                    max_tokens=400,
+                    system="Extract structured data from Glassdoor text. Return valid JSON only.",
+                    messages=[{"role": "user", "content": prompt}],
+                )
+            text = resp.content[0].text.strip()
+            if text.startswith("```"):
+                text = text.split("\n", 1)[1].rsplit("```", 1)[0].strip()
+            profile = json.loads(text)
+            return {
+                "status": "ok",
+                "company": company,
+                "glassdoor_url": glassdoor_url,
+                "profile": profile,
+                "source": "glassdoor",
+            }
+        except Exception as exc:
+            logger.warning("Company profile extraction failed for %s: %s", company, exc)
+
+    return {
+        "status": "ok",
+        "company": company,
+        "glassdoor_url": glassdoor_url or None,
+        "profile": None,
+        "source": "not_found",
     }
 
 

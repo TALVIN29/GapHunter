@@ -236,47 +236,188 @@
       </div>
 
       <!-- Per-Job Analysis Panel -->
-      <div class="card flex flex-col gap-3">
-        <h2 class="font-semibold text-sm text-slate-400 uppercase tracking-wider">Job Analysis</h2>
+      <div class="card flex flex-col gap-3" style="overflow-y:auto; max-height:480px;">
 
-        <div x-show="!selectedJob" class="flex-1 flex items-center justify-center text-slate-600 text-sm">
-          Click a job card to get AI analysis
-        </div>
-
-        <div x-show="selectedJob && !analysing && !analysis" class="text-slate-500 text-sm text-center">
-          Loading analysis…
-        </div>
-
-        <div x-show="analysing" class="flex items-center justify-center gap-2 text-slate-500 text-sm py-8">
-          <svg class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
-            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+        <!-- Empty state -->
+        <div x-show="!selectedJob" class="flex-1 flex flex-col items-center justify-center text-slate-600 text-sm gap-2 py-8">
+          <svg class="w-8 h-8 text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
           </svg>
-          Analysing with Claude…
+          <p>Click a job card for full analysis</p>
+          <p class="text-xs text-slate-700">Skills · Company · Verification · Roadmap</p>
         </div>
 
-        <div x-show="analysis" class="flex flex-col gap-4">
+        <!-- Job header when selected -->
+        <div x-show="selectedJob" class="flex items-start justify-between gap-2">
           <div>
-            <p class="text-xs text-slate-500 mb-1 uppercase tracking-wider">Highlight in Application</p>
-            <div class="flex flex-wrap gap-1">
-              <template x-for="sk in (analysis?.highlight_skills || [])" :key="sk">
-                <span class="badge badge-green" x-text="sk"></span>
-              </template>
-            </div>
+            <p class="font-semibold text-sm" x-text="selectedJob?.title"></p>
+            <p class="text-xs text-slate-500" x-text="selectedJob?.company + ' · ' + selectedJob?.location"></p>
           </div>
-          <div>
-            <p class="text-xs text-slate-500 mb-1 uppercase tracking-wider">Skills to Develop</p>
-            <div class="flex flex-wrap gap-1">
-              <template x-for="sk in (analysis?.gap_skills || [])" :key="sk">
-                <span class="badge badge-red" x-text="sk"></span>
-              </template>
-            </div>
-          </div>
-          <div>
-            <p class="text-xs text-slate-500 mb-1 uppercase tracking-wider">Application Tip</p>
-            <p class="text-sm text-slate-300 leading-relaxed" x-text="analysis?.application_tip"></p>
+          <div class="flex flex-col items-end gap-1">
+            <span class="badge badge-green text-xs" x-show="selectedJob?.is_verified !== false">✓ Verified</span>
+            <span class="badge badge-yellow text-xs" x-show="selectedJob?.is_verified === false">⚠ Unverified</span>
           </div>
         </div>
+
+        <!-- Tabs -->
+        <div x-show="selectedJob" class="flex gap-0 border-b border-border text-xs">
+          <button class="px-3 py-1.5 transition-all"
+            :class="analysisTab === 'gaps' ? 'tab-active' : 'tab-inactive'"
+            @click="analysisTab = 'gaps'">Gap Analysis</button>
+          <button class="px-3 py-1.5 transition-all"
+            :class="analysisTab === 'company' ? 'tab-active' : 'tab-inactive'"
+            @click="analysisTab = 'company'">Company</button>
+          <button class="px-3 py-1.5 transition-all"
+            :class="analysisTab === 'verify' ? 'tab-active' : 'tab-inactive'"
+            @click="analysisTab = 'verify'">Verification</button>
+        </div>
+
+        <!-- Tab: Gap Analysis -->
+        <div x-show="selectedJob && analysisTab === 'gaps'" class="flex flex-col gap-3">
+          <div x-show="analysing" class="flex items-center gap-2 text-slate-500 text-sm py-4">
+            <svg class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+            </svg>
+            Analysing with Claude Sonnet…
+          </div>
+          <div x-show="!analysing && !analysis && selectedJob" class="text-slate-600 text-xs">Waiting for analysis…</div>
+          <div x-show="analysis" class="flex flex-col gap-3">
+            <div>
+              <p class="text-xs text-slate-500 mb-1 uppercase tracking-wider">Highlight in Application</p>
+              <div class="flex flex-wrap gap-1">
+                <template x-for="sk in (analysis?.highlight_skills || [])" :key="sk">
+                  <span class="badge badge-green" x-text="sk"></span>
+                </template>
+              </div>
+            </div>
+            <div>
+              <p class="text-xs text-slate-500 mb-1 uppercase tracking-wider">Skills to Develop</p>
+              <div class="flex flex-wrap gap-1">
+                <template x-for="sk in (analysis?.gap_skills || [])" :key="sk">
+                  <span class="badge badge-red" x-text="sk"></span>
+                </template>
+              </div>
+            </div>
+            <div>
+              <p class="text-xs text-slate-500 mb-1 uppercase tracking-wider">Application Tip</p>
+              <p class="text-xs text-slate-300 leading-relaxed" x-text="analysis?.application_tip"></p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab: Company -->
+        <div x-show="selectedJob && analysisTab === 'company'" class="flex flex-col gap-3">
+          <div x-show="loadingCompany" class="flex items-center gap-2 text-slate-500 text-xs py-4">
+            <svg class="animate-spin w-3 h-3" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+            </svg>
+            Fetching company data via Bright Data…
+          </div>
+
+          <!-- Company basic info from scraped data -->
+          <div class="flex flex-wrap gap-2 text-xs">
+            <span x-show="selectedJob?.company_industry" class="badge badge-blue" x-text="selectedJob?.company_industry"></span>
+            <span x-show="selectedJob?.company_size" class="px-2 py-0.5 rounded bg-surface border border-border text-slate-400" x-text="selectedJob?.company_size + ' employees'"></span>
+            <span x-show="selectedJob?.salary !== 'Not disclosed'" class="px-2 py-0.5 rounded bg-surface border border-border text-slate-400" x-text="selectedJob?.salary"></span>
+          </div>
+
+          <!-- Glassdoor rating -->
+          <div x-show="companyProfile?.rating" class="flex items-center gap-2">
+            <div class="flex gap-0.5">
+              <template x-for="i in 5" :key="i">
+                <svg class="w-4 h-4" :class="i <= Math.round(companyProfile?.rating || 0) ? 'text-yellow-400' : 'text-slate-700'" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
+                </svg>
+              </template>
+            </div>
+            <span class="text-sm font-medium text-slate-300" x-text="companyProfile?.rating?.toFixed(1)"></span>
+            <span class="text-xs text-slate-500" x-show="companyProfile?.review_count" x-text="'(' + companyProfile?.review_count + ' reviews)'"></span>
+            <a x-show="companyProfile?.glassdoor_url" :href="companyProfile?.glassdoor_url" target="_blank" class="text-xs text-accent hover:underline ml-auto">Glassdoor →</a>
+          </div>
+
+          <!-- CEO approval + recommend -->
+          <div x-show="companyProfile?.ceo_approval_pct || companyProfile?.recommend_pct" class="flex gap-3 text-xs">
+            <div x-show="companyProfile?.ceo_approval_pct" class="flex flex-col gap-0.5">
+              <span class="text-slate-500">CEO Approval</span>
+              <span class="text-slate-300 font-medium" x-text="companyProfile?.ceo_approval_pct + '%'"></span>
+            </div>
+            <div x-show="companyProfile?.recommend_pct" class="flex flex-col gap-0.5">
+              <span class="text-slate-500">Would Recommend</span>
+              <span class="text-slate-300 font-medium" x-text="companyProfile?.recommend_pct + '%'"></span>
+            </div>
+          </div>
+
+          <!-- Culture summary -->
+          <div x-show="companyProfile?.culture_summary || companyProfile?.description">
+            <p class="text-xs text-slate-500 mb-1 uppercase tracking-wider">Culture</p>
+            <p class="text-xs text-slate-400 leading-relaxed" x-text="companyProfile?.culture_summary || companyProfile?.description"></p>
+          </div>
+
+          <!-- Pros -->
+          <div x-show="(companyProfile?.pros || []).length > 0">
+            <p class="text-xs text-slate-500 mb-1 uppercase tracking-wider">Employees Say — Pros</p>
+            <ul class="flex flex-col gap-1">
+              <template x-for="pro in (companyProfile?.pros || [])" :key="pro">
+                <li class="text-xs text-green-400 flex gap-1"><span>+</span><span x-text="pro"></span></li>
+              </template>
+            </ul>
+          </div>
+
+          <!-- Cons -->
+          <div x-show="(companyProfile?.cons || []).length > 0">
+            <p class="text-xs text-slate-500 mb-1 uppercase tracking-wider">Employees Say — Cons</p>
+            <ul class="flex flex-col gap-1">
+              <template x-for="con in (companyProfile?.cons || [])" :key="con">
+                <li class="text-xs text-red-400 flex gap-1"><span>-</span><span x-text="con"></span></li>
+              </template>
+            </ul>
+          </div>
+
+          <!-- No data fallback -->
+          <div x-show="!loadingCompany && !companyProfile" class="text-slate-600 text-xs">
+            No Glassdoor data found for this company.
+          </div>
+        </div>
+
+        <!-- Tab: Verification -->
+        <div x-show="selectedJob && analysisTab === 'verify'" class="flex flex-col gap-3 text-xs">
+          <p class="text-slate-500 text-xs">GapHunter runs every job through 4 verification layers before showing it.</p>
+
+          <div class="flex flex-col gap-2">
+            <div class="flex items-center gap-2">
+              <span class="text-green-400">✓</span>
+              <span class="text-slate-400">Description length ≥ 200 characters</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="text-green-400">✓</span>
+              <span class="text-slate-400">Company name present and non-empty</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <span :class="selectedJob?.is_verified !== false ? 'text-green-400' : 'text-red-400'"
+                x-text="selectedJob?.is_verified !== false ? '✓' : '✗'"></span>
+              <span class="text-slate-400">Scam keyword scan — no WhatsApp/Telegram solicitation, MLM, guaranteed income, commission-only patterns</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <span :class="selectedJob?.is_verified !== false ? 'text-green-400' : 'text-red-400'"
+                x-text="selectedJob?.is_verified !== false ? '✓' : '✗'"></span>
+              <span class="text-slate-400">Salary anomaly check — salary range consistent with role seniority</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="text-green-400">✓</span>
+              <span class="text-slate-400">Cross-source deduplication — same job on multiple platforms unified</span>
+            </div>
+          </div>
+
+          <div x-show="selectedJob?.source" class="mt-1 pt-2 border-t border-border">
+            <span class="text-slate-600">Source: </span>
+            <span class="text-slate-400" x-text="selectedJob?.source"></span>
+            <span x-show="selectedJob?.date_posted" class="text-slate-600"> · Posted: </span>
+            <span x-show="selectedJob?.date_posted" class="text-slate-400" x-text="selectedJob?.date_posted"></span>
+          </div>
+        </div>
+
       </div>
     </div>
 
@@ -534,6 +675,11 @@
         selectedJob: null,
         analysis: null,
         analysing: false,
+        dataSource: 'live',
+        locationSearched: '',
+        companyProfile: null,
+        loadingCompany: false,
+        analysisTab: 'gaps',
 
         // ── roadmap ──────────────────────────────────────────
         roadmaps: {},
@@ -617,6 +763,15 @@
             this.sessionId = data.session_id;
             this.totalPostings = data.total_postings || 0;
             this.circuitOpen = data.circuit_open || false;
+            this.dataSource = data.data_source || 'live';
+            this.locationSearched = data.location_searched || this.location;
+
+            if (this.dataSource === 'fallback' && this.locationSearched) {
+              Swal.fire({ icon: 'info', title: 'Limited live data for your location',
+                text: `No verified live postings found for "${this.locationSearched}". Showing representative global jobs. Skill gaps and analysis are still accurate.`,
+                background: '#0f1623', color: '#e2e8f0', confirmButtonColor: '#3b82f6',
+                timer: 6000, timerProgressBar: true });
+            }
 
             // init roadmap entries as pending
             this.gaps.forEach(g => {
@@ -643,29 +798,67 @@
         async selectJob(job) {
           this.selectedJob = job;
           this.analysis = null;
-          if (!job.url) return;
-          this.analysing = true;
+          this.companyProfile = null;
+          this.analysisTab = 'gaps';
+
+          // Fire both in parallel — don't block on company profile
+          const analysePromise = (async () => {
+            if (!job.url) return;
+            this.analysing = true;
+            try {
+              const res = await fetch(`${API}/api/analyse`, {
+                method: 'POST',
+                headers: _headers(),
+                body: JSON.stringify({
+                  job_url: job.url,
+                  session_id: this.sessionId,
+                  job_title: job.title || null,
+                  company: job.company || null,
+                  location: job.location || null,
+                  seniority: job.seniority || null,
+                  salary: job.salary || null,
+                  skills_match: job.skills_match || null,
+                }),
+              });
+              const data = await res.json();
+              if (data.status === 'ok') this.analysis = data.analysis;
+            } catch (err) {
+              console.warn('Analysis failed', err);
+            } finally {
+              this.analysing = false;
+            }
+          })();
+
+          const companyPromise = this.fetchCompany(job.company, job);
+
+          await Promise.allSettled([analysePromise, companyPromise]);
+        },
+
+        async fetchCompany(companyName, job) {
+          if (!companyName) return;
+          this.loadingCompany = true;
           try {
-            const res = await fetch(`${API}/api/analyse`, {
+            const res = await fetch(`${API}/api/company`, {
               method: 'POST',
               headers: _headers(),
-              body: JSON.stringify({
-                job_url: job.url,
-                session_id: this.sessionId,
-                job_title: job.title || null,
-                company: job.company || null,
-                location: job.location || null,
-                seniority: job.seniority || null,
-                salary: job.salary || null,
-                skills_match: job.skills_match || null,
-              }),
+              body: JSON.stringify({ company_name: companyName, session_id: this.sessionId || 'demo-static' }),
             });
             const data = await res.json();
-            if (data.status === 'ok') this.analysis = data.analysis;
+            if (data.status === 'ok') {
+              this.companyProfile = {
+                ...data.profile,
+                glassdoor_url: data.glassdoor_url,
+                source: data.source,
+                // fallback: use scraped data from job card
+                description: (data.profile && data.profile.culture_summary) || job?.company_description || '',
+                size: (data.profile && data.profile.size_range) || job?.company_size || '',
+                industry: job?.company_industry || '',
+              };
+            }
           } catch (err) {
-            console.warn('Analysis failed', err);
+            console.warn('Company profile failed', err);
           } finally {
-            this.analysing = false;
+            this.loadingCompany = false;
           }
         },
 
