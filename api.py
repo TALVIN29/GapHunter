@@ -758,14 +758,15 @@ async def _scrape_with_fallback(role: str, location: str) -> tuple[list[dict], s
     except Exception as exc:
         logger.warning("Scrape error: %s — trying web extraction", exc)
 
-    # Try 2: SERP + Web Unlocker — real jobs from any public job board
+    # Try 2: Multi-tier web extraction (DDG + direct boards + Claude extraction)
+    # Timeout raised to 90s — 4 tiers each take up to ~25s, parallelised internally
     try:
-        async with asyncio.timeout(30):
+        async with asyncio.timeout(90):
             web_jobs = await _find_jobs_via_web(role, location)
         if web_jobs:
             return web_jobs, "web_extracted"
     except asyncio.TimeoutError:
-        logger.warning("Web extraction timed out")
+        logger.warning("Web extraction timed out after 90s")
     except Exception as exc:
         logger.warning("Web extraction error: %s", exc)
 
@@ -1896,6 +1897,63 @@ async def health(request: Request) -> dict:
 # ---------------------------------------------------------------------------
 # Admin status — Addendum G §23.4 (optional, Day 29)
 # ---------------------------------------------------------------------------
+
+@app.get("/api/debug/scrape", dependencies=[Depends(_require_demo_secret)])
+async def debug_scrape(role: str = "Data Analyst", location: str = "Malaysia") -> dict:
+    """Diagnose job discovery pipeline — tests each tier and reports what each returns."""
+    out: dict = {"role": role, "location": location, "tiers": {}}
+
+    # Env vars (presence only — no values)
+    out["env"] = {
+        "BRIGHTDATA_API_TOKEN": bool(os.environ.get("BRIGHTDATA_API_TOKEN")),
+        "BRIGHTDATA_DATASET_ID": bool(os.environ.get("BRIGHTDATA_DATASET_ID")),
+        "BRIGHTDATA_DATASET_ID_LINKEDIN": bool(os.environ.get("BRIGHTDATA_DATASET_ID_LINKEDIN")),
+        "BRIGHTDATA_DATASET_ID_INDEED": bool(os.environ.get("BRIGHTDATA_DATASET_ID_INDEED")),
+        "BRIGHTDATA_UNLOCKER_ZONE": os.environ.get("BRIGHTDATA_UNLOCKER_ZONE", "(not set)"),
+        "DEMO_MODE": _DEMO_MODE,
+    }
+
+    # Tier 1: DDG plain HTTP
+    try:
+        job_urls, ddg_html = await _ddg_job_search(role, location)
+        out["tiers"]["ddg_plain"] = {
+            "html_bytes": len(ddg_html),
+            "job_urls_found": len(job_urls),
+            "sample_urls": job_urls[:3],
+            "html_snippet": ddg_html[:400] if ddg_html else "",
+        }
+    except Exception as exc:
+        out["tiers"]["ddg_plain"] = {"error": str(exc)}
+
+    # Tier 2: Web Unlocker test (Jobstreet Malaysia search page)
+    test_url = "https://www.jobstreet.com.my/en/job-search/data-analyst-jobs/in-malaysia/"
+    try:
+        html = await _fetch_with_unlocker(test_url)
+        out["tiers"]["web_unlocker"] = {
+            "url": test_url,
+            "html_bytes": len(html),
+            "working": len(html) > 500,
+            "html_snippet": html[:300] if html else "",
+        }
+    except Exception as exc:
+        out["tiers"]["web_unlocker"] = {"error": str(exc)}
+
+    # Tier 3: Direct board URLs for location
+    out["tiers"]["direct_board_urls"] = _direct_board_urls(role, location)
+
+    # Tier 4: Plain GET to a board URL
+    board_urls = _direct_board_urls(role, location)
+    if board_urls:
+        plain_html = await asyncio.to_thread(_plain_get_sync, board_urls[0])
+        out["tiers"]["plain_get_board"] = {
+            "url": board_urls[0],
+            "html_bytes": len(plain_html),
+            "working": len(plain_html) > 500,
+            "html_snippet": plain_html[:300] if plain_html else "",
+        }
+
+    return out
+
 
 @app.get("/api/admin/status")
 async def admin_status(request: Request, admin_key: str = "") -> dict:
