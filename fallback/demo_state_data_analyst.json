@@ -5,17 +5,17 @@
   "titles_searched": [
     "Data Analyst",
     "Business Analyst",
-    "Data Analyst Lead",
-    "Senior Data Analyst",
-    "Analytics Specialist"
+    "Data Specialist",
+    "Analytics Analyst",
+    "Data Intelligence Analyst"
   ],
   "jobs": [
     {
       "title": "Insights Analyst",
       "company": "GrowthCo",
       "location": "Remote",
-      "url": "https://www.linkedin.com/jobs/view/4395486931",
-      "relevance_pct": 91,
+      "url": "https://www.indeed.com/jobs?q=Insights+Analyst&l=Remote",
+      "relevance_pct": 32,
       "freshness_score": 0.3333,
       "competition_score": 0.6242,
       "is_remote": true,
@@ -30,7 +30,7 @@
         "scikit-learn",
         "Tableau",
         "Mode Analytics",
-        "Statistical testing",
+        "statistical testing",
         "t-test"
       ]
     },
@@ -38,8 +38,8 @@
       "title": "Analytics Engineer",
       "company": "DataDriven Startup",
       "location": "Austin, TX",
-      "url": "https://www.linkedin.com/jobs/view/4406395730",
-      "relevance_pct": 78,
+      "url": "https://www.indeed.com/jobs?q=Analytics+Engineer&l=Austin%2C+TX",
+      "relevance_pct": 29,
       "freshness_score": 0.25,
       "competition_score": 0.5671,
       "is_remote": true,
@@ -62,8 +62,8 @@
       "title": "Senior Data Analyst",
       "company": "FinanceFlow Ltd.",
       "location": "San Francisco, CA",
-      "url": "https://www.linkedin.com/jobs/view/4405651870",
-      "relevance_pct": 72,
+      "url": "https://www.linkedin.com/jobs/search/?keywords=Senior+Data+Analyst&location=San+Francisco%2C+CA",
+      "relevance_pct": 26,
       "freshness_score": 0.1667,
       "competition_score": 0.4633,
       "is_remote": true,
@@ -78,16 +78,16 @@
         "Python",
         "dbt",
         "Statistical Analysis",
-        "Data Warehouse",
-        "Business Intelligence"
+        "Airflow",
+        "Data Warehouse"
       ]
     },
     {
       "title": "Data Analyst",
       "company": "TechCorp Inc.",
       "location": "New York, NY",
-      "url": "https://www.linkedin.com/jobs/view/4403058307",
-      "relevance_pct": 64,
+      "url": "https://www.linkedin.com/jobs/search/?keywords=Data+Analyst&location=New+York%2C+NY",
+      "relevance_pct": 26,
       "freshness_score": 0.125,
       "competition_score": 0.513,
       "is_remote": false,
@@ -110,8 +110,8 @@
       "title": "Business Intelligence Analyst",
       "company": "RetailGiant Corp.",
       "location": "Chicago, IL",
-      "url": "https://www.linkedin.com/jobs/view/4256390347",
-      "relevance_pct": 53,
+      "url": "https://www.linkedin.com/jobs/search/?keywords=Business+Intelligence+Analyst&location=Chicago%2C+IL",
+      "relevance_pct": 24,
       "freshness_score": 0.1,
       "competition_score": 0.4287,
       "is_remote": false,
@@ -123,9 +123,9 @@
         "SQL",
         "Tableau",
         "Python",
-        "dbt",
         "Snowflake",
         "Redshift",
+        "dbt",
         "Google Analytics",
         "Mixpanel"
       ]
@@ -135,126 +135,52 @@
     {
       "skill": "dbt",
       "urls": [
-        "https://www.linkedin.com/jobs/view/1234567890",
-        "https://www.linkedin.com/jobs/view/2345678901",
-        "https://www.linkedin.com/jobs/view/3456789012"
+        "https://www.linkedin.com/jobs/search/?keywords=dbt+Data+Analyst",
+        "https://www.indeed.com/jobs?q=dbt+Analytics+Engineer",
+        "https://www.linkedin.com/jobs/search/?keywords=dbt+Data+Engineer"
       ],
       "demand_score": 0.8224
     },
     {
-      "skill": "python",
+      "skill": "sql",
       "urls": [
-        "https://www.linkedin.com/jobs/view/1234567890",
-        "https://www.linkedin.com/jobs/view/2345678901",
-        "https://www.linkedin.com/jobs/view/3456789012"
+        "https://www.linkedin.com/jobs/search/?keywords=SQL+Data+Analyst",
+        "https://www.indeed.com/jobs?q=SQL+Data+Analyst",
+        "https://www.linkedin.com/jobs/search/?keywords=SQL+Business+Analyst"
       ],
       "demand_score": 0.5026
     },
     {
-      "skill": "sql",
+      "skill": "python",
       "urls": [
-        "https://www.linkedin.com/jobs/view/1234567890",
-        "https://www.linkedin.com/jobs/view/2345678901",
-        "https://www.linkedin.com/jobs/view/3456789012"
+        "https://www.linkedin.com/jobs/search/?keywords=Python+Data+Analyst",
+        "https://www.indeed.com/jobs?q=Python+Data+Analyst",
+        "https://www.linkedin.com/jobs/search/?keywords=Python+Analytics+Engineer"
       ],
       "demand_score": 0.5026
     },
     {
       "skill": "pandas",
       "urls": [
-        "https://www.linkedin.com/jobs/view/1234567890",
-        "https://www.linkedin.com/jobs/view/5678901234"
+        "https://www.linkedin.com/jobs/search/?keywords=pandas+Python+Data+Analyst",
+        "https://www.indeed.com/jobs?q=pandas+Data+Scientist"
       ],
       "demand_score": 0.4433
     },
     {
       "skill": "snowflake",
       "urls": [
-        "https://www.linkedin.com/jobs/view/1234567890",
-        "https://www.linkedin.com/jobs/view/3456789012",
-        "https://www.linkedin.com/jobs/view/4567890123"
+        "https://www.linkedin.com/jobs/search/?keywords=Snowflake+Data+Analyst",
+        "https://www.indeed.com/jobs?q=Snowflake+Data+Engineer",
+        "https://www.linkedin.com/jobs/search/?keywords=Snowflake+Analytics+Engineer"
       ],
       "demand_score": 0.4372
     }
   ],
   "roadmaps": {
-    "sql": {
-      "skill": "sql",
-      "why_it_matters": "SQL is the universal language for querying and managing databases, making it an essential skill for developers, data analysts, and business professionals working with data.",
-      "steps": [
-        {
-          "step": 1,
-          "action": "Watch a complete SQL crash course to understand core concepts: databases, tables, SELECT, WHERE, ORDER BY, and basic queries.",
-          "resource_url": "https://www.youtube.com/watch?v=7S_tz1z_5bA",
-          "duration": "1 week"
-        },
-        {
-          "step": 2,
-          "action": "Learn SQL fundamentals including JOINs, GROUP BY, aggregation functions (COUNT, SUM, AVG), and filtering with HAVING.",
-          "resource_url": "https://www.youtube.com/watch?v=OT1RErkfLNQ",
-          "duration": "1 week"
-        },
-        {
-          "step": 3,
-          "action": "Dive into intermediate SQL topics: subqueries, nested queries, UNION, and more complex JOIN types (LEFT, RIGHT, FULL OUTER).",
-          "resource_url": "https://www.youtube.com/watch?v=yE6tIle64tU",
-          "duration": "1 week"
-        },
-        {
-          "step": 4,
-          "action": "Study advanced SQL concepts such as window functions, CTEs (Common Table Expressions), stored procedures, and query optimization.",
-          "resource_url": "https://www.youtube.com/watch?v=h0nxCDiD-zg",
-          "duration": "1 week"
-        },
-        {
-          "step": 5,
-          "action": "Follow a structured SQL playlist to reinforce all concepts with hands-on practice, projects, and real-world database scenarios.",
-          "resource_url": "https://www.youtube.com/playlist?list=PLavw5C92dz9Ef4E-1Zi9KfCTXS_IN8gXZ",
-          "duration": "2 weeks"
-        }
-      ],
-      "estimated_total": "6 weeks"
-    },
-    "dbt": {
-      "skill": "dbt",
-      "why_it_matters": "dbt (data build tool) is the industry-standard framework for transforming raw data in warehouses into analytics-ready models using SQL, making it essential for modern data engineering and analytics roles.",
-      "steps": [
-        {
-          "step": 1,
-          "action": "Watch a concise dbt crash course to understand core concepts: models, sources, tests, and documentation before writing any code.",
-          "resource_url": "https://www.youtube.com/watch?v=ia9aPgbYYjQ",
-          "duration": "1 day"
-        },
-        {
-          "step": 2,
-          "action": "Follow a beginner-friendly full project walkthrough to set up dbt locally, connect to a data warehouse, and build your first models end-to-end.",
-          "resource_url": "https://www.youtube.com/watch?v=zZVQluYDwYY",
-          "duration": "2–3 days"
-        },
-        {
-          "step": 3,
-          "action": "Watch a structured dbt tutorial series covering intermediate topics like ref(), Jinja macros, incremental models, and snapshots.",
-          "resource_url": "https://www.youtube.com/playlist?list=PLc2EZr8W2QIBegSYp4dEIMrfLj_cCJgYA",
-          "duration": "1 week"
-        },
-        {
-          "step": 4,
-          "action": "Enroll in the comprehensive dbt bootcamp to master advanced concepts: dbt Cloud, CI/CD pipelines, packages, exposures, and real-world project architecture.",
-          "resource_url": "https://www.udemy.com/course/complete-dbt-data-build-tool-bootcamp-zero-to-hero-learn-dbt/?srsltid=AfmBOoo4Juq6Hun85zoNJZnPIXBxMfeTet94E6coDRmL4I0ykHYInyr2",
-          "duration": "3 weeks"
-        },
-        {
-          "step": 5,
-          "action": "Watch a deep-dive dbt best practices session focusing on project structure, testing strategies, and production deployment patterns to solidify professional-level skills.",
-          "resource_url": "https://www.youtube.com/watch?v=C6BNAfaeqXY",
-          "duration": "1 day"
-        }
-      ],
-      "estimated_total": "5–6 weeks"
-    },
     "python": {
       "skill": "python",
-      "why_it_matters": "Python is the world's most popular programming language, powering web development, data science, AI, and automation across virtually every industry.",
+      "why_it_matters": "Python is the world's most popular programming language, powering data science, AI, web development, and automation across virtually every industry.",
       "steps": [
         {
           "step": 1,
@@ -264,116 +190,220 @@
         },
         {
           "step": 2,
-          "action": "Practice core concepts with hands-on exercises covering lists, dictionaries, file I/O, and error handling",
+          "action": "Practice core concepts with hands-on exercises covering strings, lists, dictionaries, and control flow",
           "resource_url": "https://exercism.org/tracks/python",
-          "duration": "2 weeks"
+          "duration": "1 week"
         },
         {
           "step": 3,
-          "action": "Study object-oriented programming (OOP): classes, inheritance, and modules through structured tutorials",
-          "resource_url": "https://docs.python.org/3/tutorial/classes.html",
-          "duration": "1 week"
+          "action": "Study object-oriented programming (OOP): classes, inheritance, and modules using the official Python tutorial",
+          "resource_url": "https://docs.python.org/3/tutorial",
+          "duration": "2 weeks"
         },
         {
           "step": 4,
-          "action": "Build real projects and explore the standard library using Python's official documentation as a reference",
-          "resource_url": "https://docs.python.org/3/library/index.html",
-          "duration": "1 week"
+          "action": "Build real projects and learn file handling, error handling, and working with APIs through a structured course",
+          "resource_url": "https://www.freecodecamp.org/learn/scientific-computing-with-python",
+          "duration": "2 weeks"
         },
         {
           "step": 5,
-          "action": "Deepen skills by taking a comprehensive intermediate Python course covering decorators, generators, and virtual environments",
-          "resource_url": "https://realpython.com/learning-paths/python3-introduction",
+          "action": "Learn popular libraries (NumPy, pandas, or Flask) based on your chosen specialization path",
+          "resource_url": "https://realpython.com/tutorials/intermediate",
           "duration": "2 weeks"
         },
         {
           "step": 6,
-          "action": "Solve algorithmic challenges to sharpen problem-solving and prepare for real-world coding tasks",
-          "resource_url": "https://leetcode.com/problemset/?difficulty=EASY&topicSlugs=array&languageTags=python3",
-          "duration": "ongoing"
+          "action": "Build and publish 2-3 portfolio projects on GitHub to solidify skills and demonstrate competence",
+          "resource_url": "https://github.com",
+          "duration": "2 weeks"
+        }
+      ],
+      "estimated_total": "11 weeks"
+    },
+    "dbt": {
+      "skill": "dbt",
+      "why_it_matters": "dbt (data build tool) is the industry-standard framework for transforming raw data in warehouses using SQL, enabling analytics engineers to build reliable, tested, and documented data pipelines.",
+      "steps": [
+        {
+          "step": 1,
+          "action": "Watch a concise dbt crash course to understand core concepts: models, runs, sources, and how dbt fits into the modern data stack.",
+          "resource_url": "https://www.youtube.com/watch?v=ia9aPgbYYjQ",
+          "duration": "1–2 days"
+        },
+        {
+          "step": 2,
+          "action": "Get a broader visual overview of dbt's architecture, project structure, and workflow with this introductory walkthrough video.",
+          "resource_url": "https://www.youtube.com/watch?v=zZVQluYDwYY",
+          "duration": "1 day"
+        },
+        {
+          "step": 3,
+          "action": "Follow the full dbt tutorial playlist covering models, tests, documentation, seeds, snapshots, and macros with hands-on examples.",
+          "resource_url": "https://www.youtube.com/playlist?list=PLc2EZr8W2QIBegSYp4dEIMrfLj_cCJgYA",
+          "duration": "1–2 weeks"
+        },
+        {
+          "step": 4,
+          "action": "Watch this deep-dive session on advanced dbt features including Jinja templating, ref/source functions, and incremental models.",
+          "resource_url": "https://www.youtube.com/watch?v=C6BNAfaeqXY",
+          "duration": "2–3 days"
+        },
+        {
+          "step": 5,
+          "action": "Enroll in the complete dbt bootcamp on Udemy to go from zero to hero with real-world projects, CI/CD integration, and dbt Cloud setup.",
+          "resource_url": "https://www.udemy.com/course/complete-dbt-data-build-tool-bootcamp-zero-to-hero-learn-dbt/?srsltid=AfmBOooMO4AyPq-GVXz8Hlm-GCn35RhKSgsSGr5wCPvFzNvBWyQO3hhY",
+          "duration": "3–4 weeks"
+        }
+      ],
+      "estimated_total": "6 weeks"
+    },
+    "sql": {
+      "skill": "sql",
+      "why_it_matters": "SQL is the universal language for querying and managing databases, making it an essential skill for data analysts, developers, and anyone working with data.",
+      "steps": [
+        {
+          "step": 1,
+          "action": "Learn SQL fundamentals: SELECT, WHERE, ORDER BY, and basic filtering using an interactive browser-based platform",
+          "resource_url": "https://sqlbolt.com",
+          "duration": "1 week"
+        },
+        {
+          "step": 2,
+          "action": "Practice JOINs (INNER, LEFT, RIGHT, FULL), GROUP BY, HAVING, and aggregate functions (COUNT, SUM, AVG)",
+          "resource_url": "https://www.w3schools.com/sql/",
+          "duration": "1 week"
+        },
+        {
+          "step": 3,
+          "action": "Complete the free SQL course covering intermediate queries, subqueries, and data manipulation",
+          "resource_url": "https://www.codecademy.com/learn/learn-sql",
+          "duration": "2 weeks"
+        },
+        {
+          "step": 4,
+          "action": "Learn advanced topics: CTEs, window functions (ROW_NUMBER, RANK, LAG/LEAD), and query optimization",
+          "resource_url": "https://mode.com/sql-tutorial/",
+          "duration": "2 weeks"
+        },
+        {
+          "step": 5,
+          "action": "Solve real-world SQL challenges to reinforce skills and build problem-solving speed",
+          "resource_url": "https://leetcode.com/problemset/database/",
+          "duration": "1 week"
+        },
+        {
+          "step": 6,
+          "action": "Set up a local PostgreSQL database and build a small project (e.g., sales dashboard queries or a personal finance tracker)",
+          "resource_url": "https://www.postgresql.org/download/",
+          "duration": "1 week"
         }
       ],
       "estimated_total": "8 weeks"
     },
     "pandas": {
       "skill": "pandas",
-      "why_it_matters": "Pandas is the essential Python library for data manipulation and analysis, forming the backbone of virtually every data science and analytics workflow.",
+      "why_it_matters": "pandas is the foundational Python library for data manipulation and analysis, essential for any data science, analytics, or machine learning workflow.",
       "steps": [
         {
           "step": 1,
-          "action": "Watch a beginner-friendly crash course to understand DataFrames, Series, and core pandas operations like filtering, sorting, and basic aggregations.",
-          "resource_url": "https://www.youtube.com/watch?v=vtgDGrUiUKk",
+          "action": "Learn Python basics (variables, lists, dicts, loops, functions) if not already familiar — pandas requires solid Python fundamentals.",
+          "resource_url": "https://www.learnpython.org/",
           "duration": "1 week"
         },
         {
           "step": 2,
-          "action": "Follow a structured pandas playlist covering reading/writing data (CSV, Excel), handling missing values, merging, and groupby operations with hands-on examples.",
-          "resource_url": "https://www.youtube.com/playlist?list=PLUaB-1hjhk8GZOuylZqLz-Qt9RIdZZMBE",
-          "duration": "2 weeks"
+          "action": "Read the official pandas 'Getting Started' tutorials to understand Series, DataFrames, reading CSV/Excel files, and basic indexing.",
+          "resource_url": "https://pandas.pydata.org/docs/getting_started/intro_tutorials/index.html",
+          "duration": "1 week"
         },
         {
           "step": 3,
-          "action": "Deepen your understanding with an intermediate tutorial focusing on multi-indexing, pivot tables, time series handling, and performance optimization techniques.",
-          "resource_url": "https://www.youtube.com/watch?v=2uvysYbKdjM",
+          "action": "Take the free Kaggle pandas course covering filtering, sorting, groupby, and data aggregation with hands-on exercises.",
+          "resource_url": "https://www.kaggle.com/learn/pandas",
           "duration": "1 week"
         },
         {
           "step": 4,
-          "action": "Watch a focused tutorial on advanced data cleaning and transformation patterns including apply/map functions, string operations, and reshaping data.",
-          "resource_url": "https://www.youtube.com/watch?v=_BA5kFO7w44",
+          "action": "Practice data cleaning techniques: handling missing values, duplicates, type conversions, and string operations using the pandas user guide.",
+          "resource_url": "https://pandas.pydata.org/docs/user_guide/missing_data.html",
           "duration": "1 week"
         },
         {
           "step": 5,
-          "action": "Complete a comprehensive Udemy course to consolidate all skills with real-world projects, quizzes, and practical data analysis scenarios from start to finish.",
-          "resource_url": "https://www.udemy.com/course/pandas-with-python/?srsltid=AfmBOorrneHWdv_5sBfbPR77JfslmIOc-Mq193Bz5r03mClv48vM3J63",
-          "duration": "2 weeks"
+          "action": "Learn merging, joining, and reshaping data (merge, concat, pivot_table, melt) through the pandas merge/reshape documentation.",
+          "resource_url": "https://pandas.pydata.org/docs/user_guide/merging.html",
+          "duration": "1 week"
+        },
+        {
+          "step": 6,
+          "action": "Watch real-world pandas data analysis walkthroughs on YouTube by Corey Schafer to reinforce concepts with practical projects.",
+          "resource_url": "https://www.youtube.com/playlist?list=PL-osiE80TeTsWmV9i9c58mdDCSskIFdDS",
+          "duration": "1 week"
+        },
+        {
+          "step": 7,
+          "action": "Apply skills by completing a full exploratory data analysis (EDA) project on a real dataset from Kaggle to solidify everything learned.",
+          "resource_url": "https://www.kaggle.com/datasets",
+          "duration": "1 week"
         }
       ],
       "estimated_total": "7 weeks"
     },
     "snowflake": {
-      "skill": "Snowflake",
-      "why_it_matters": "Snowflake is a leading cloud data platform widely adopted by enterprises for scalable data warehousing, analytics, and data sharing, making it a highly in-demand skill for data engineers, analysts, and architects.",
+      "skill": "snowflake",
+      "why_it_matters": "Snowflake is a leading cloud data platform widely adopted by enterprises for scalable data warehousing, analytics, and data sharing, making it a highly in-demand skill for data engineers and analysts.",
       "steps": [
         {
           "step": 1,
-          "action": "Understand cloud data warehousing fundamentals and create a free Snowflake trial account to explore the interface, virtual warehouses, and basic architecture.",
+          "action": "Create a free Snowflake trial account and explore the UI, understand the architecture (virtual warehouses, databases, schemas, stages), and run basic SQL queries.",
           "resource_url": "https://trial.snowflake.com",
           "duration": "3 days"
         },
         {
           "step": 2,
-          "action": "Complete Snowflake's official 'Introduction to Snowflake' hands-on course covering core concepts like databases, schemas, tables, and loading data.",
+          "action": "Complete the official Snowflake Introduction course on Snowflake University to learn core concepts like multi-cluster architecture, micro-partitioning, and Time Travel.",
           "resource_url": "https://learn.snowflake.com/en/courses/uni-essnow101/",
           "duration": "1 week"
         },
         {
           "step": 3,
-          "action": "Learn Snowflake SQL essentials including querying, semi-structured data (JSON/Parquet), Time Travel, and cloning via the SnowPro Core study guide.",
-          "resource_url": "https://learn.snowflake.com/en/courses/uni-ess-worksql/",
-          "duration": "2 weeks"
+          "action": "Learn Snowflake SQL fundamentals including loading data with COPY INTO, working with semi-structured data (JSON/Parquet), and using Snowflake-specific functions.",
+          "resource_url": "https://docs.snowflake.com/en/sql-reference-commands",
+          "duration": "1 week"
         },
         {
           "step": 4,
-          "action": "Study data loading and transformation techniques: Snowpipe, COPY INTO, Streams, and Tasks for building ELT pipelines.",
-          "resource_url": "https://docs.snowflake.com/en/user-guide/data-load-overview",
+          "action": "Study data loading and transformation patterns: Snowpipe for continuous ingestion, Streams and Tasks for ELT pipelines, and external stages (S3/Azure/GCS).",
+          "resource_url": "https://docs.snowflake.com/en/user-guide-data-pipeline",
           "duration": "1 week"
         },
         {
           "step": 5,
-          "action": "Explore advanced features including Snowflake Marketplace, Data Sharing, Role-Based Access Control (RBAC), and performance optimization with clustering keys.",
-          "resource_url": "https://learn.snowflake.com/en/courses/uni-essdww101/",
+          "action": "Follow a hands-on Snowflake project tutorial on YouTube (Darshil Parmar or TechTFQ channels) to build a real data pipeline from ingestion to analytics.",
+          "resource_url": "https://www.youtube.com/results?search_query=snowflake+data+engineering+project",
           "duration": "1 week"
         },
         {
           "step": 6,
-          "action": "Build a end-to-end capstone project: ingest raw data, transform it using dbt + Snowflake, and visualize results — then pursue the SnowPro Core Certification.",
+          "action": "Learn Snowflake performance optimization: clustering keys, materialized views, query profiling, warehouse sizing, and result caching best practices.",
+          "resource_url": "https://docs.snowflake.com/en/user-guide/performance-query-exploring",
+          "duration": "4 days"
+        },
+        {
+          "step": 7,
+          "action": "Explore Snowflake security and governance features: role-based access control (RBAC), dynamic data masking, row-level security, and data sharing.",
+          "resource_url": "https://docs.snowflake.com/en/user-guide/security",
+          "duration": "3 days"
+        },
+        {
+          "step": 8,
+          "action": "Prepare for and pass the SnowPro Core Certification exam using the official study guide and practice exams to validate your knowledge.",
           "resource_url": "https://learn.snowflake.com/en/certifications/snowpro-core/",
           "duration": "2 weeks"
         }
       ],
-      "estimated_total": "7-8 weeks"
+      "estimated_total": "7 weeks"
     }
   }
 }

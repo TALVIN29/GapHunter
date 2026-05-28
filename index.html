@@ -118,7 +118,7 @@
           <div>
             <label class="text-xs text-slate-500 mb-1 block">Location</label>
             <input class="input-field" type="text" x-model="location"
-              placeholder="e.g. United States" @keydown.enter="doSearch()" />
+              placeholder="e.g. Kuala Lumpur, Malaysia or New York, NY" @keydown.enter="doSearch()" />
           </div>
           <div>
             <label class="text-xs text-slate-500 mb-1 block">Your Skills <span class="text-slate-600">(comma-separated)</span></label>
@@ -287,6 +287,9 @@
                 Roadmap generating — check back in a moment…
               </div>
               <div x-show="roadmaps[gap.skill]?.status === 'ready'" class="text-sm">
+                <p x-show="roadmaps[gap.skill]?.why_it_matters"
+                  class="text-slate-400 text-xs mb-3 italic border-l-2 border-accent pl-2"
+                  x-text="roadmaps[gap.skill]?.why_it_matters"></p>
                 <template x-for="(step, idx) in (roadmaps[gap.skill]?.steps || [])" :key="idx">
                   <div class="flex gap-3 py-2 border-b border-border last:border-0">
                     <span class="text-accent font-mono text-xs mt-0.5 shrink-0"
@@ -294,10 +297,15 @@
                     <div>
                       <p class="font-medium text-slate-200" x-text="step.action"></p>
                       <p class="text-slate-500 text-xs mt-0.5" x-text="step.duration"></p>
-                      <a x-show="step.resource_url" :href="step.resource_url" target="_blank" rel="noopener" class="text-accent text-xs mt-1 hover:underline" x-text="'→ ' + step.resource_url"></a>
+                      <a x-show="step.resource_url" :href="step.resource_url" target="_blank" rel="noopener" class="text-accent text-xs mt-1 hover:underline block" x-text="'→ ' + step.resource_url"></a>
                     </div>
                   </div>
                 </template>
+                <p class="text-slate-600 text-xs mt-3">
+                  Estimated total: <span class="text-slate-400" x-text="roadmaps[gap.skill]?.estimated_total"></span>
+                  · Demand score: <span class="text-accent" x-text="(gap.demand_score || gap.score || 0).toFixed(3)"></span>
+                  (0.35×frequency + 0.25×freshness + 0.20×opportunity)
+                </p>
               </div>
             </div>
           </div>
@@ -327,7 +335,7 @@
         </div>
         <div>
           <label class="text-xs text-slate-500 mb-1 block">Location</label>
-          <input class="input-field" type="text" x-model="hrLocation" placeholder="e.g. United States" />
+          <input class="input-field" type="text" x-model="hrLocation" placeholder="e.g. Singapore or London, UK" />
         </div>
         <button class="btn-primary w-full flex items-center justify-center gap-2"
           @click="doHRSearch()" :disabled="hrSearching">
@@ -486,8 +494,8 @@
         activeTab: 'seeker',
 
         // ── seeker state ─────────────────────────────────────
-        role: 'Data Analyst',
-        location: 'United States',
+        role: '',
+        location: '',
         skills: '',
         searching: false,
         jobs: [],
@@ -511,8 +519,8 @@
 
         // ── HR ───────────────────────────────────────────────
         hrCompany: '',
-        hrRole: 'Data Engineer',
-        hrLocation: 'United States',
+        hrRole: '',
+        hrLocation: '',
         hrSearching: false,
         hrSkills: [],
         hrPostings: 0,
