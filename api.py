@@ -22,7 +22,7 @@ from dotenv import load_dotenv
 from fastapi import BackgroundTasks, Depends, FastAPI, File, HTTPException, Request, Response, UploadFile
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.types import ASGIApp, Receive, Scope, Send
 from pydantic import BaseModel, EmailStr, field_validator
 
 import auth as auth_module
@@ -62,53 +62,68 @@ _ALLOWED_ORIGINS = os.environ.get(
 _MAX_REQUEST_BYTES = 2 * 1024 * 1024  # 2 MB hard cap — OOM bomb protection
 
 
-class ContentLengthGuard(BaseHTTPMiddleware):
-    """Defend against both Content-Length-declared and chunked OOM payloads.
+class ContentLengthGuard:
+    """Pure ASGI middleware defending against declared and chunked OOM payloads.
 
-    Two-stage strategy:
-    1. Fast-fail: if Content-Length header is present and over limit, reject
-       immediately without reading a single byte of body.
-    2. Stream guard: for chunked (Transfer-Encoding: chunked) or missing
-       Content-Length bodies, asynchronously iterate request.stream(), maintain
-       a running byte counter, and abort with HTTP 413 the instant the limit is
-       crossed. Accepted bytes are buffered and re-injected into the request so
-       downstream handlers read them normally — zero double-read issues.
+    Pure ASGI (not BaseHTTPMiddleware) so we own the receive callable directly —
+    body is buffered into memory, limit enforced, then re-injected via a replacement
+    receive callable passed to the downstream app. No double-read issues.
     """
 
-    async def dispatch(self, request: Request, call_next):
-        # Stage 1: fast-fail on declared Content-Length
-        cl = request.headers.get("content-length")
-        if cl:
-            try:
-                if int(cl) > _MAX_REQUEST_BYTES:
-                    return JSONResponse(
-                        {"detail": "Payload Too Large — maximum request size is 2 MB"},
-                        status_code=413,
-                    )
-            except ValueError:
-                pass  # malformed header — let framework reject it downstream
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
 
-        # Stage 2: stream and count — catches chunked transfer without Content-Length
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        # Stage 1: fast-fail on declared Content-Length
+        headers = {k.lower(): v for k, v in scope.get("headers", [])}
+        cl_raw = headers.get(b"content-length")
+        if cl_raw:
+            try:
+                if int(cl_raw) > _MAX_REQUEST_BYTES:
+                    await self._reject(scope, receive, send)
+                    return
+            except ValueError:
+                pass
+
+        # Stage 2: buffer body chunks, abort if total exceeds limit
         total = 0
         chunks: list[bytes] = []
-        async for chunk in request.stream():
+        while True:
+            message = await receive()
+            if message.get("type") != "http.request":
+                break
+            chunk = message.get("body", b"")
             total += len(chunk)
             if total > _MAX_REQUEST_BYTES:
-                return JSONResponse(
-                    {"detail": "Payload Too Large — maximum request size is 2 MB"},
-                    status_code=413,
-                )
+                await self._reject(scope, receive, send)
+                return
             chunks.append(chunk)
+            if not message.get("more_body", False):
+                break
 
-        # Re-inject buffered body: replace the receive callable so downstream
-        # handlers (Pydantic parsing, UploadFile, etc.) can read the body normally.
         body = b"".join(chunks)
+        sent = False
 
-        async def _receive():
-            return {"type": "http.request", "body": body, "more_body": False}
+        async def _safe_receive():
+            nonlocal sent
+            if not sent:
+                sent = True
+                return {"type": "http.request", "body": body, "more_body": False}
+            return {"type": "http.disconnect"}
 
-        request = Request(request.scope, _receive)
-        return await call_next(request)
+        await self.app(scope, _safe_receive, send)
+
+    @staticmethod
+    async def _reject(scope: Scope, receive: Receive, send: Send) -> None:
+        response = JSONResponse(
+            {"detail": "Payload Too Large — maximum request size is 2 MB"},
+            status_code=413,
+        )
+        await response(scope, receive, send)
 
 
 app.add_middleware(
