@@ -460,9 +460,38 @@ def _serp_broad_jobs_sync(role: str, location: str) -> list[str]:
         )
         resp.raise_for_status()
         data = resp.json()
-        if not isinstance(data, dict):
-            return []
-        organic = data.get("organic") or []
+
+        # Bright Data Dataset API can return async (snapshot_id) or sync results.
+        # Sync: dict with "organic" key. Async: dict with "snapshot_id".
+        # List: direct array of result objects (deliver_to=api_response).
+        if isinstance(data, dict) and "snapshot_id" in data:
+            # Async response — poll for up to 15s
+            snap_id = data["snapshot_id"]
+            for _ in range(5):
+                import time as _time
+                _time.sleep(3)
+                poll = _req.get(
+                    f"https://api.brightdata.com/datasets/v3/snapshot/{snap_id}?format=json",
+                    headers={"Authorization": f"Bearer {token}"},
+                    timeout=10,
+                )
+                if poll.status_code == 200:
+                    poll_data = poll.json()
+                    if isinstance(poll_data, list) and poll_data:
+                        data = poll_data[0] if isinstance(poll_data[0], dict) else {}
+                        break
+                    elif isinstance(poll_data, dict) and "organic" in poll_data:
+                        data = poll_data
+                        break
+            else:
+                logger.warning("Broad SERP snapshot not ready after 15s — skipping")
+                return []
+
+        # Handle list-wrapped response
+        if isinstance(data, list):
+            data = data[0] if data and isinstance(data[0], dict) else {}
+
+        organic = data.get("organic") or [] if isinstance(data, dict) else []
         urls = [
             r.get("link", "")
             for r in organic
@@ -579,7 +608,14 @@ async def _find_jobs_via_web(role: str, location: str) -> list[dict]:
     Returns real, apply-able job postings — not AI-generated content.
     """
     job_urls = await asyncio.to_thread(_serp_broad_jobs_sync, role, location)
+
+    # Dataset API SERP returned nothing — fall back to Web Unlocker SERP
     if not job_urls:
+        logger.info("Dataset SERP: 0 URLs — trying Web Unlocker SERP")
+        job_urls = await _serp_via_unlocker(role, location)
+
+    if not job_urls:
+        logger.warning("All SERP paths returned 0 job URLs for '%s' in '%s'", role, location)
         return []
 
     # Parallel Web Unlocker fetches (cap at 6)
@@ -1038,6 +1074,49 @@ def _html_to_text(html: str, max_chars: int = 3000) -> str:
     text = re.sub(r"<[^>]+>", " ", html)
     text = re.sub(r"\s+", " ", text).strip()
     return text[:max_chars]
+
+
+async def _serp_via_unlocker(role: str, location: str) -> list[str]:
+    """
+    Web Unlocker SERP fallback — fetches Google search page directly.
+    Used when BRIGHTDATA_DATASET_ID is not set or Dataset API returns no results.
+    Only needs BRIGHTDATA_API_TOKEN + BRIGHTDATA_UNLOCKER_ZONE.
+    """
+    from urllib.parse import quote_plus, unquote
+
+    gl = _gl_for_location(location) if location else "us"
+    query = f'"{role}" jobs {location}' if location else f'"{role}" remote jobs'
+    search_url = (
+        f"https://www.google.com/search"
+        f"?q={quote_plus(query)}&gl={gl}&num=20&hl=en"
+    )
+    try:
+        html = await _fetch_with_unlocker(search_url)
+        if not html or len(html) < 500:
+            logger.warning("Unlocker SERP returned too little HTML (%d chars)", len(html or ""))
+            return []
+
+        # Google wraps organic links as /url?q=https://... — extract the real URL
+        redirect_pattern = re.findall(r'/url\?q=(https?://[^&"\'<>\s]+)', html)
+        direct_pattern = re.findall(r'href=["\']?(https?://[^"\'<>\s]+)', html)
+
+        seen: set[str] = set()
+        job_urls: list[str] = []
+        for raw in redirect_pattern + direct_pattern:
+            url = unquote(raw).split("&")[0]  # strip Google tracking params
+            if "google.com" in url or "gstatic.com" in url or "googleapis.com" in url:
+                continue
+            if any(pat in url for pat in _JOB_BOARD_PATTERNS) and url not in seen:
+                seen.add(url)
+                job_urls.append(url)
+
+        logger.info(
+            "Unlocker SERP: %d job URLs for '%s' in '%s'", len(job_urls), role, location
+        )
+        return job_urls[:8]
+    except Exception as exc:
+        logger.warning("Unlocker SERP failed: %s", exc)
+        return []
 
 
 # ---------------------------------------------------------------------------
