@@ -149,6 +149,9 @@ _RATE_LIMITED_RESPONSE = {
 
 _SCRAPE_TIMEOUT_S = int(os.environ.get("SCRAPE_TIMEOUT_S", "45"))
 _FALLBACK_DIR = Path(__file__).parent / "fallback"
+# Static fallback / demo mode — opt-in only. Set DEMO_MODE=1 in Render to enable.
+# Without this flag, no hardcoded US data is ever served — callers get an empty result.
+_DEMO_MODE = os.environ.get("DEMO_MODE", "").lower() in ("1", "true", "yes")
 _PROCESS_START = time.monotonic()
 _STATIC_DEMO_PATH = Path(__file__).parent / "fallback" / "demo_state_data_analyst.json"
 _static_demo_cache: dict | None = None
@@ -339,19 +342,34 @@ def _load_fallback(role: str) -> list[dict]:
 # ---------------------------------------------------------------------------
 
 _JOB_BOARD_PATTERNS: tuple[str, ...] = (
+    # Domain-level match — SERP URLs use many path formats, don't over-constrain
     "linkedin.com/jobs/",
     "jobstreet.com",
     "jobsdb.com",
     "seek.com.au",
+    "seek.co.nz",
     "naukri.com",
     "reed.co.uk",
+    "totaljobs.com",
+    "cv-library.co.uk",
     "wobb.my",
-    "glassdoor.com/job",
-    "monster.com/jobs",
-    "indeed.com/viewjob",
-    "indeed.com/rc/",
+    "hiredly.com",
+    "jobscentral.com.sg",
+    "mycareersfuture.gov.sg",
+    "kalibrr.com",
+    "glints.com",
+    "glassdoor.com",
+    "monster.com",
+    "indeed.com",       # any Indeed URL — path varies by country/device
+    "stepstone.de",
+    "greenhouse.io",
+    "lever.co",
+    "myworkdayjobs.com",
+    "bamboohr.com",
+    # Generic path patterns
     "/jobs/view/",
     "/job-detail/",
+    "/job/",
     "/careers/jobs/",
     "/en/jobs/",
 )
@@ -379,6 +397,30 @@ def _detect_job_source(url: str) -> str:
     return "web"
 
 
+_GL_MAP: dict[str, str] = {
+    "malaysia": "my", "kuala lumpur": "my", "penang": "my", "johor": "my",
+    "singapore": "sg",
+    "australia": "au", "sydney": "au", "melbourne": "au", "brisbane": "au",
+    "new zealand": "nz", "auckland": "nz",
+    "india": "in", "bangalore": "in", "mumbai": "in", "delhi": "in", "chennai": "in",
+    "philippines": "ph", "manila": "ph",
+    "indonesia": "id", "jakarta": "id",
+    "thailand": "th", "bangkok": "th",
+    "united kingdom": "uk", "london": "uk", "manchester": "uk",
+    "germany": "de", "berlin": "de",
+    "canada": "ca", "toronto": "ca", "vancouver": "ca",
+    "united states": "us", "new york": "us", "san francisco": "us",
+}
+
+
+def _gl_for_location(location: str) -> str:
+    loc_lower = location.lower()
+    for kw, gl in _GL_MAP.items():
+        if kw in loc_lower:
+            return gl
+    return "us"
+
+
 def _serp_broad_jobs_sync(role: str, location: str) -> list[str]:
     """SERP for real job postings on ANY public job board — global coverage."""
     import requests as _req
@@ -389,13 +431,16 @@ def _serp_broad_jobs_sync(role: str, location: str) -> list[str]:
         return []
 
     if location:
-        keyword = f'"{role}" "{location}" jobs apply 2025'
+        # Unquoted location — double-quoting is too strict for regional SERP
+        keyword = f'"{role}" jobs {location}'
+        gl = _gl_for_location(location)
     else:
-        keyword = f'"{role}" remote jobs apply 2025'
+        keyword = f'"{role}" remote jobs'
+        gl = "us"
 
     payload = {
         "input": [{
-            "url": "https://www.google.com/",
+            "url": f"https://www.google.com/search?gl={gl}",
             "keyword": keyword,
             "language": "en",
             "tbs": "qdr:m",
@@ -594,9 +639,13 @@ async def _scrape_with_fallback(role: str, location: str) -> tuple[list[dict], s
     except Exception as exc:
         logger.warning("Web extraction error: %s", exc)
 
-    # Try 3: Static fallback (circuit breaker demo / total API failure)
-    logger.warning("All sources failed — using static fallback")
-    return _load_fallback(role), "fallback"
+    # Try 3: Static fallback — only when DEMO_MODE=1 is explicitly set
+    if _DEMO_MODE:
+        logger.warning("All sources failed — DEMO_MODE active, serving static fallback")
+        return _load_fallback(role), "fallback"
+
+    logger.warning("All sources failed — no hardcoded fallback (DEMO_MODE not set)")
+    return [], "no_results"
 
 
 # ---------------------------------------------------------------------------
@@ -792,9 +841,13 @@ async def search(req: SearchRequest, request: Request, background_tasks: Backgro
     # Must run before Gate 1 so a downed Bright Data stack costs zero LLM tokens.
     _maybe_reset(request.app.state)
     if request.app.state.shadow_forced:
-        logger.info("SHADOW_FORCED: Bright Data down — serving static demo state, zero LLM calls")
-        _ensure_static_cache()
-        return JSONResponse(content=_load_static_demo())
+        if _DEMO_MODE:
+            logger.info("SHADOW_FORCED + DEMO_MODE: serving static demo state")
+            _ensure_static_cache()
+            return JSONResponse(content=_load_static_demo())
+        else:
+            logger.info("SHADOW_FORCED: search budget exhausted, DEMO_MODE not set — returning error")
+            return {"status": "error", "message": "Live search unavailable right now. Please try again later."}
 
     # Gate 1: Claude Haiku normalisation (Addendum F)
     # Gate 0 already blocked garbage — if Gate 1 says invalid, log and proceed
