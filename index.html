@@ -78,8 +78,11 @@
   <!-- ── Header ─────────────────────────────────────────────────── -->
   <header class="border-b border-border sticky top-0 z-40" style="background:#080c14;">
     <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
-      <div class="flex items-center gap-2">
-        <span class="text-accent font-bold text-lg">GapHunter</span>
+      <div class="flex items-center gap-3">
+        <div class="flex flex-col leading-tight">
+          <span class="text-accent font-bold text-lg">GapHunter</span>
+          <span class="text-slate-500 text-xs tracking-wide">AI Labor Intelligence Agent</span>
+        </div>
         <span class="badge badge-blue">v2.0</span>
       </div>
       <nav class="flex gap-6">
@@ -147,7 +150,7 @@
             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
           </svg>
-          <span x-text="searching ? 'Analysing…' : 'Find My Gaps'"></span>
+          <span x-text="searching ? 'Agent Running…' : 'Run Agent'"></span>
         </button>
 
         <div x-show="totalPostings > 0" class="text-xs text-slate-500 text-center">
@@ -165,6 +168,25 @@
           Run a search to see your skill gaps
         </div>
         <div id="gaps-chart" x-show="gaps.length > 0" style="min-height: 220px;"></div>
+      </div>
+    </div>
+
+    <!-- Agent Pipeline strip -->
+    <div class="card mt-4 py-3 px-4" x-show="jobs.length > 0 || gaps.length > 0 || searching">
+      <div class="flex items-center justify-between flex-wrap gap-2">
+        <span class="text-xs text-slate-500 uppercase tracking-wider font-medium">Agent Pipeline</span>
+        <div class="flex items-center gap-1 text-xs text-slate-400 flex-wrap">
+          <span class="px-2 py-0.5 rounded bg-surface border border-border">① Validate</span>
+          <span class="text-slate-600">→</span>
+          <span class="px-2 py-0.5 rounded bg-surface border border-border">② Scrape</span>
+          <span class="text-slate-600">→</span>
+          <span class="px-2 py-0.5 rounded bg-surface border border-border">③ Extract</span>
+          <span class="text-slate-600">→</span>
+          <span class="px-2 py-0.5 rounded bg-surface border border-border">④ Synthesize</span>
+          <span class="text-slate-600">→</span>
+          <span class="px-2 py-0.5 rounded" :class="gaps.length > 0 ? 'bg-accent/10 border border-accent text-accent' : 'bg-surface border border-border'">⑤ Pre-fetch</span>
+        </div>
+        <span class="text-xs text-slate-600">Powered by Bright Data + Claude</span>
       </div>
     </div>
 

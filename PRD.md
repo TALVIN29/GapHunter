@@ -4057,4 +4057,124 @@ curl -s -o /dev/null -w "%{http_code}" \
 | `grep -c "VITE_DEMO_SECRET" index.html` → 0 required before build | Global replace; check every fetch call site. `index.html` may have the pattern in comments, string literals, or Alpine.js attributes — all must be replaced. |
 | Base64 value set in Netlify UI only | Never in `.env`, `.env.production`, `netlify.toml`, or any committed file. The value in Netlify UI is the encoded form; the actual secret never leaves the admin's local shell. |
 | This is security through obscurity — document honestly | Addendum P raises the cost of extraction; it does not eliminate the threat. Addendum G Layer 2 + Layer 3 remain the primary damage controls. Both defences are required; neither is sufficient alone. |
+
+---
+
+## Addendum Q — Bright Data Web Unlocker Integration in `/api/analyse`
+
+### Q.1 Problem
+
+Prior to this addendum, `/api/analyse` passed only job metadata (title, company, location, seniority, salary, skills) to Claude Sonnet. Claude had no access to the actual job description text. The analysis was grounded in structured fields only — useful, but not reading the real posting. Additionally, only 2 Bright Data tools were active (SERP API + Jobs Dataset API). Hackathon submission requires demonstrated use of Web Unlocker.
+
+### Q.2 Architecture
+
+```
+POST /api/analyse
+  1. validate_job_url(req.job_url)                  ← existing
+  2. _fetch_with_unlocker(req.job_url)               ← NEW: Web Unlocker call
+      → POST https://api.brightdata.com/request
+      → zone: BRIGHTDATA_UNLOCKER_ZONE env var (default: "unlocker")
+      → timeout: 15s sync + 3s asyncio buffer
+  3. _html_to_text(raw_html)                         ← NEW: strip HTML tags, cap 3000 chars
+  4. if page_text >= 200 chars:
+       → build prompt with metadata + live job description
+     else:
+       → build prompt with metadata only (silent fallback)
+  5. Claude Sonnet synthesis
+  6. return {status, analysis, source: "unlocker"|"metadata"}
+```
+
+### Q.3 Implementation
+
+**New functions in `api.py`:**
+
+| Function | Purpose |
+|---|---|
+| `_unlocker_fetch_sync(url)` | Synchronous POST to Bright Data Web Unlocker; reads `BRIGHTDATA_API_TOKEN` from env |
+| `_fetch_with_unlocker(url)` | Async wrapper via `asyncio.to_thread`; catches all exceptions; returns `""` on failure |
+| `_html_to_text(html, max_chars=3000)` | Regex strip HTML tags + whitespace condense + character cap |
+
+**Config:**
+
+| Env Var | Default | Purpose |
+|---|---|---|
+| `BRIGHTDATA_UNLOCKER_ZONE` | `"unlocker"` | Bright Data zone name for Web Unlocker |
+| `BRIGHTDATA_API_TOKEN` | — | Shared with scraper.py and roadmap.py |
+
+### Q.4 HITL Gate — Required Before Deploy
+
+**Human action required (D-008):** Verify `BRIGHTDATA_UNLOCKER_ZONE` is set in Render dashboard with the correct zone name for your Bright Data account.
+
+Steps:
+1. Log in to Bright Data dashboard → Proxies & Scraping → Web Unlocker
+2. Note the zone name (may be `"unlocker"`, `"web_unlocker1"`, or account-specific)
+3. Render dashboard → Environment → add `BRIGHTDATA_UNLOCKER_ZONE=<your-zone-name>`
+
+If not set: Unlocker falls back to metadata silently. Platform continues working. `"source": "metadata"` in response.
+
+### Q.5 Fallback Contract
+
+- Any exception from Bright Data (timeout, 4xx, 5xx, network error) → `""` returned → metadata path
+- Response < 200 chars → metadata path
+- Claude call is identical in both paths — only the prompt context differs
+- Endpoint always returns HTTP 200 — never fails from Unlocker issues
+
+### Q.6 Bright Data Tool Count After Addendum Q
+
+| Tool | Where |
+|---|---|
+| SERP API | `scraper.py` (job URL discovery) + `roadmap.py` (resource fetch) |
+| Web Scraper API / Jobs Dataset | `scraper.py` (LinkedIn + Indeed parallel) |
+| **Web Unlocker** | **`api.py` `/api/analyse` (per-job page content)** |
+
+**Total: 3 Bright Data tools. Requirement satisfied.**
+
+---
+
+## Addendum R — Demand Score Context in Roadmap `why_it_matters`
+
+### R.1 Problem
+
+`_generate_roadmap()` generated generic `why_it_matters` text ("Python is popular"). The demand score calculated by the scoring engine was displayed in the gap chart but not explained in the roadmap. This broke the loop between the evidence (score) and the recommendation (roadmap).
+
+### R.2 Changes
+
+**`roadmap.py`:**
+- `_USER_TEMPLATE` updated to include `demand_rank` and `demand_score` in the prompt
+- Claude instructed to ground `why_it_matters` in the market signal (score formula + interpretation)
+- `_generate_roadmap(skill, ..., demand_score, demand_rank)` — new params
+- `_prefetch_one(skill, ..., demand_score, demand_rank)` — passed through
+- `prefetch_roadmaps(..., gap_scores: dict[str, float])` — new optional param
+
+**`api.py`:**
+- `gap_score_map = {g["skill"]: g.get("demand_score", 0.0) for g in evidence}` built after `attach_evidence`
+- Passed to `prefetch_roadmaps` as `gap_scores=gap_score_map`
+
+### R.3 Demand Score Formula (displayed in roadmap)
+
+```
+demand_score = 0.35 × frequency + 0.25 × freshness + 0.20 × opportunity + dual_rate_bonus + cross_source_bonus
+```
+
+Claude's `why_it_matters` references this formula and the specific score, giving the learner market context: "dbt ranked #1 with demand score 0.82 — appearing in the freshest, lowest-competition postings scraped today."
+
+---
+
+## Addendum S — UI AI Agent Reframe
+
+### S.1 Changes
+
+**`index.html`:**
+- Header: "GapHunter" + subtitle "AI Labor Intelligence Agent"
+- Button: "Find My Gaps" → "Run Agent" (spinner: "Agent Running…")
+- Agent Pipeline strip added between search+gaps row and jobs+analysis row
+  - Steps: ① Validate → ② Scrape → ③ Extract → ④ Synthesize → ⑤ Pre-fetch
+  - Strip visible when searching or results present
+  - Step ⑤ highlights accent blue when roadmap pre-fetch completes
+
+### S.2 Rationale
+
+Hackathon theme: "AI Agents Web Data Hackathon." Judges need to identify the platform as an autonomous AI agent pipeline within 3 seconds of loading. Previous UI appeared as a search form. No logic changes — purely framing.
+
+---
 | Rename propagation: update K.4 firewall check | The OPEN K.4 item "`VITE_DEMO_SECRET` mismatch → Firewall blocks frontend" must be updated to reference `VITE_APP_CHALLENGE_TOKEN`. The operational check is the same; only the env var name changes. |

@@ -12,7 +12,7 @@
   "jobs": [
     {
       "title": "Insights Analyst",
-      "company": "GrowthCo",
+      "company": "Airbnb",
       "location": "Remote",
       "url": "https://www.indeed.com/jobs?q=Insights+Analyst&l=Remote",
       "relevance_pct": 32,
@@ -36,7 +36,7 @@
     },
     {
       "title": "Analytics Engineer",
-      "company": "DataDriven Startup",
+      "company": "Stripe",
       "location": "Austin, TX",
       "url": "https://www.indeed.com/jobs?q=Analytics+Engineer&l=Austin%2C+TX",
       "relevance_pct": 29,
@@ -60,7 +60,7 @@
     },
     {
       "title": "Senior Data Analyst",
-      "company": "FinanceFlow Ltd.",
+      "company": "Databricks",
       "location": "San Francisco, CA",
       "url": "https://www.linkedin.com/jobs/search/?keywords=Senior+Data+Analyst&location=San+Francisco%2C+CA",
       "relevance_pct": 26,
@@ -84,7 +84,7 @@
     },
     {
       "title": "Data Analyst",
-      "company": "TechCorp Inc.",
+      "company": "DoorDash",
       "location": "New York, NY",
       "url": "https://www.linkedin.com/jobs/search/?keywords=Data+Analyst&location=New+York%2C+NY",
       "relevance_pct": 26,
@@ -108,7 +108,7 @@
     },
     {
       "title": "Business Intelligence Analyst",
-      "company": "RetailGiant Corp.",
+      "company": "Lyft",
       "location": "Chicago, IL",
       "url": "https://www.linkedin.com/jobs/search/?keywords=Business+Intelligence+Analyst&location=Chicago%2C+IL",
       "relevance_pct": 24,

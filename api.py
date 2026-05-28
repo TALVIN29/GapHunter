@@ -589,9 +589,11 @@ async def search(req: SearchRequest, request: Request, background_tasks: Backgro
 
     # Addendum D: fire-and-forget roadmap pre-fetch
     gap_skills = [g["skill"] for g in gaps]
+    # F5: pass demand scores so roadmap why_it_matters is market-grounded
+    gap_score_map = {g["skill"]: round(g.get("demand_score", 0.0), 4) for g in evidence}
     init_roadmap_cache(session_id, gap_skills)
     asyncio.create_task(
-        prefetch_roadmaps(_client, session_id, gap_skills, job_descriptions)
+        prefetch_roadmaps(_client, session_id, gap_skills, job_descriptions, gap_score_map)
     )
 
     return {
@@ -644,6 +646,52 @@ async def get_roadmap(skill: str, session_id: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Bright Data Web Unlocker — Addendum Q
+# ---------------------------------------------------------------------------
+
+_UNLOCKER_ENDPOINT = "https://api.brightdata.com/request"
+_UNLOCKER_ZONE = os.environ.get("BRIGHTDATA_UNLOCKER_ZONE", "unlocker")
+_UNLOCKER_TIMEOUT_S = 15
+
+
+def _unlocker_fetch_sync(url: str) -> str:
+    """Synchronous Web Unlocker fetch — run via asyncio.to_thread."""
+    import requests as _req  # lazy: requests present (scraper.py dep)
+    token = os.environ.get("BRIGHTDATA_API_TOKEN", "")
+    if not token:
+        return ""
+    resp = _req.post(
+        _UNLOCKER_ENDPOINT,
+        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+        json={"url": url, "zone": _UNLOCKER_ZONE, "format": "raw"},
+        timeout=_UNLOCKER_TIMEOUT_S,
+    )
+    resp.raise_for_status()
+    return resp.text
+
+
+async def _fetch_with_unlocker(url: str) -> str:
+    """Addendum Q: Bright Data Web Unlocker — real job page HTML. Silent fallback."""
+    try:
+        async with asyncio.timeout(_UNLOCKER_TIMEOUT_S + 3):
+            text = await asyncio.to_thread(_unlocker_fetch_sync, url)
+        if len(text) >= 200:
+            logger.info("Web Unlocker: %d chars from %s", len(text), url)
+            return text
+        logger.warning("Web Unlocker: too short (%d chars), falling back", len(text))
+    except Exception as exc:
+        logger.warning("Web Unlocker failed for %s: %s — metadata fallback", url, exc)
+    return ""
+
+
+def _html_to_text(html: str, max_chars: int = 3000) -> str:
+    """Strip HTML tags, condense whitespace for Claude prompt injection."""
+    text = re.sub(r"<[^>]+>", " ", html)
+    text = re.sub(r"\s+", " ", text).strip()
+    return text[:max_chars]
+
+
+# ---------------------------------------------------------------------------
 # Per-job gap analysis (F3)
 # ---------------------------------------------------------------------------
 
@@ -651,12 +699,17 @@ async def get_roadmap(skill: str, session_id: str) -> dict:
 async def analyse_job(req: AnalyseRequest) -> dict:
     """
     Detailed gap analysis for a single job: Claude Sonnet synthesis.
-    Uses already-scraped data from the session (no second Bright Data call).
+    Addendum Q: Bright Data Web Unlocker fetches real job page content first.
+    Falls back to scraped metadata if Unlocker fails or returns < 200 chars.
     """
     if not validate_job_url(req.job_url):
         return {"status": "error", "message": "Invalid job URL"}
 
-    # Build rich context from metadata already scraped — no second LinkedIn call needed
+    # Addendum Q: fetch real job page via Web Unlocker
+    raw_html = await _fetch_with_unlocker(req.job_url)
+    page_text = _html_to_text(raw_html) if raw_html else ""
+
+    # Build metadata context from already-scraped fields
     job_context_lines = []
     if req.job_title:
         job_context_lines.append(f"Role: {req.job_title}")
@@ -671,17 +724,31 @@ async def analyse_job(req: AnalyseRequest) -> dict:
     if req.skills_match:
         job_context_lines.append(f"Required skills already matched: {', '.join(req.skills_match)}")
 
-    job_context = "\n".join(job_context_lines) or f"Job URL: {req.job_url}"
+    metadata_context = "\n".join(job_context_lines) or f"Job URL: {req.job_url}"
 
-    prompt = (
-        f"A candidate wants to apply to this job posting:\n\n{job_context}\n\n"
-        "Based on the role, company, seniority level, and matched skills above, provide:\n"
-        "1. Top 5 specific skills to highlight in the application (use the matched skills as anchors)\n"
-        "2. Top 3 skill gaps likely expected for this role and seniority that the candidate should address\n"
-        "3. One specific, actionable tip tailored to this company and role to stand out\n\n"
-        "Return JSON only:\n"
-        '{{"highlight_skills": [...], "gap_skills": [...], "application_tip": "..."}}'
-    )
+    if page_text:
+        prompt = (
+            f"A candidate wants to apply to this job posting.\n\n"
+            f"**Job Metadata:**\n{metadata_context}\n\n"
+            f"**Live Job Description (fetched via Bright Data Web Unlocker):**\n{page_text}\n\n"
+            "Based on the full job description and metadata above, provide:\n"
+            "1. Top 5 specific skills to highlight in the application\n"
+            "2. Top 3 skill gaps likely expected for this role and seniority\n"
+            "3. One specific, actionable tip tailored to this company and role to stand out\n\n"
+            "Return JSON only:\n"
+            '{{"highlight_skills": [...], "gap_skills": [...], "application_tip": "..."}}'
+        )
+    else:
+        prompt = (
+            f"A candidate wants to apply to this job posting:\n\n{metadata_context}\n\n"
+            "Based on the role, company, seniority level, and matched skills above, provide:\n"
+            "1. Top 5 specific skills to highlight in the application (use the matched skills as anchors)\n"
+            "2. Top 3 skill gaps likely expected for this role and seniority that the candidate should address\n"
+            "3. One specific, actionable tip tailored to this company and role to stand out\n\n"
+            "Return JSON only:\n"
+            '{{"highlight_skills": [...], "gap_skills": [...], "application_tip": "..."}}'
+        )
+
     try:
         async with asyncio.timeout(20):
             response = await _client.messages.create(
@@ -693,7 +760,7 @@ async def analyse_job(req: AnalyseRequest) -> dict:
         text = response.content[0].text.strip()
         if text.startswith("```"):
             text = text.split("\n", 1)[1].rsplit("```", 1)[0].strip()
-        return {"status": "ok", "analysis": json.loads(text)}
+        return {"status": "ok", "analysis": json.loads(text), "source": "unlocker" if page_text else "metadata"}
     except Exception as exc:
         logger.warning("Analyse failed: %s", exc)
         return {"status": "error", "message": "Analysis unavailable"}

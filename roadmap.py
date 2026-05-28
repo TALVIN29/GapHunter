@@ -33,10 +33,14 @@ _SYSTEM = (
 
 _USER_TEMPLATE = (
     "Create a learning roadmap for: {skill}\n\n"
+    "Market signal: This skill ranked #{demand_rank} in demand score {demand_score:.3f} (scale 0–1). "
+    "Score = 0.35×frequency + 0.25×freshness + 0.20×opportunity across live job postings scraped right now. "
+    "A score above 0.7 means the skill dominates the freshest, lowest-competition postings — "
+    "the market is actively hiring for it today, not based on historical trends.\n\n"
     "Available learning resources found online:\n{resources}\n\n"
     "Return JSON only:\n"
     '{{"skill": "{skill}", '
-    '"why_it_matters": "<1 sentence>", '
+    '"why_it_matters": "<1–2 sentences grounded in the demand signal above — quote the score and what it means for job market positioning>", '
     '"steps": [{{"step": 1, "action": "<what to do>", "resource_url": "<url>", '
     '"duration": "<e.g. 2 weeks>"}}, ...], '
     '"estimated_total": "<e.g. 6 weeks>"}}'
@@ -165,12 +169,19 @@ async def _generate_roadmap(
     client: anthropic.AsyncAnthropic,
     skill: str,
     job_descriptions: list[str],
+    demand_score: float = 0.0,
+    demand_rank: int = 1,
 ) -> dict | None:
     """Single roadmap generation: SERP resources → Claude Sonnet synthesis."""
     resources = await asyncio.to_thread(_fetch_learning_resources, skill)
     resources_text = "\n".join(f"- {u}" for u in resources) or "No specific resources found"
 
-    prompt = _USER_TEMPLATE.format(skill=skill, resources=resources_text)
+    prompt = _USER_TEMPLATE.format(
+        skill=skill,
+        resources=resources_text,
+        demand_score=demand_score,
+        demand_rank=demand_rank,
+    )
     try:
         async with asyncio.timeout(30):
             response = await client.messages.create(
@@ -196,6 +207,8 @@ async def _prefetch_one(
     session_id: str,
     skill: str,
     job_descriptions: list[str],
+    demand_score: float = 0.0,
+    demand_rank: int = 1,
 ) -> None:
     """Generate roadmap for one skill, write result to cache."""
     entry = ROADMAP_CACHE.get(session_id, {}).get(skill)
@@ -203,7 +216,7 @@ async def _prefetch_one(
         return
     entry.status = RoadmapStatus.GENERATING
     async with ROADMAP_SEMAPHORE:
-        result = await _generate_roadmap(client, skill, job_descriptions)
+        result = await _generate_roadmap(client, skill, job_descriptions, demand_score, demand_rank)
     if result:
         entry.status = RoadmapStatus.READY
         entry.roadmap = result
@@ -216,14 +229,24 @@ async def prefetch_roadmaps(
     session_id: str,
     skills: list[str],
     job_descriptions: list[str],
+    gap_scores: dict[str, float] | None = None,
 ) -> None:
     """
     Addendum D: fire-and-forget task launched after F2 returns.
+    F5: gap_scores dict passes demand signal into each roadmap's why_it_matters.
     All skills generated concurrently (bounded by ROADMAP_SEMAPHORE=3).
     """
+    scores = gap_scores or {}
     try:
         await asyncio.gather(
-            *[_prefetch_one(client, session_id, skill, job_descriptions) for skill in skills]
+            *[
+                _prefetch_one(
+                    client, session_id, skill, job_descriptions,
+                    demand_score=scores.get(skill, 0.0),
+                    demand_rank=idx + 1,
+                )
+                for idx, skill in enumerate(skills)
+            ]
         )
         logger.info("Roadmap prefetch complete for session %s", session_id)
     except Exception as exc:
