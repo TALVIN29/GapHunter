@@ -226,8 +226,8 @@
             <div class="flex items-center justify-between text-xs text-slate-500">
               <span x-text="job.salary !== 'Not disclosed' ? job.salary : ''"></span>
               <div class="flex items-center gap-2">
-                <span x-show="job.source === 'ai_generated'" class="badge badge-purple" style="font-size:.65rem;" title="AI-generated representative job — not a live posting">AI Rep.</span>
-                <span x-show="job.is_verified !== false && job.source !== 'ai_generated'" class="badge badge-green" style="font-size:.65rem;" title="Scam-checked by GapHunter AI">✓ Verified</span>
+                <span x-show="job.source && job.source !== 'linkedin' && job.source !== 'indeed'" class="badge badge-purple" style="font-size:.65rem; text-transform:capitalize;" x-text="job.source" title="Job board source"></span>
+                <span x-show="job.is_verified !== false" class="badge badge-green" style="font-size:.65rem;" title="Scam-checked by GapHunter AI">✓ Verified</span>
                 <span x-show="job.is_remote" class="badge badge-blue" style="font-size:.65rem;">Remote</span>
                 <a x-show="job.url" :href="job.url" target="_blank" rel="noopener"
                   @click.stop class="text-accent hover:underline">Apply →</a>
@@ -865,16 +865,16 @@
             this.dataSource = data.data_source || 'live';
             this.locationSearched = data.location_searched || this.location;
 
-            if (this.dataSource === 'ai_generated') {
-              Swal.fire({ icon: 'info', title: `AI-representative jobs for "${this.locationSearched || this.role}"`,
-                text: `No live postings found. Generated ${this.role} jobs for ${this.locationSearched || 'your market'} using Claude AI — skill gaps, roadmaps, and salary intel are fully accurate.`,
+            if (this.dataSource === 'web_extracted') {
+              Swal.fire({ icon: 'success', title: `Real jobs found via web search`,
+                text: `LinkedIn/Indeed returned 0 results for "${this.locationSearched}". Found real ${this.role} jobs from regional job boards (Jobstreet, Seek, Naukri, Reed, etc.) via Bright Data web search — all jobs link to real listings you can apply to.`,
                 background: '#0f1623', color: '#e2e8f0', confirmButtonColor: '#3b82f6',
-                timer: 7000, timerProgressBar: true });
+                timer: 8000, timerProgressBar: true });
             } else if (this.dataSource === 'fallback') {
-              Swal.fire({ icon: 'warning', title: 'AI generation unavailable',
-                text: 'Showing cached example jobs. Skill gaps and analysis are still accurate.',
+              Swal.fire({ icon: 'warning', title: 'Live data unavailable',
+                text: 'All job sources are currently unavailable. Showing cached example jobs for skill analysis — do not apply to these listings.',
                 background: '#0f1623', color: '#e2e8f0', confirmButtonColor: '#3b82f6',
-                timer: 5000, timerProgressBar: true });
+                timer: 6000, timerProgressBar: true });
             }
 
             // fire salary intel in background (non-blocking)

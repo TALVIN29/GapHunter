@@ -331,93 +331,214 @@ def _load_fallback(role: str) -> list[dict]:
     return []
 
 
-async def _generate_ai_jobs(role: str, location: str) -> list[dict]:
-    """Claude Haiku generates representative job postings when scraper returns 0 results."""
-    from datetime import datetime
+# ---------------------------------------------------------------------------
+# Global job board web extraction — Addendum Y
+# Fallback when LinkedIn+Indeed APIs return 0: SERP any board → Web Unlocker → Claude extract
+# Covers: Jobstreet (MY/SG/PH), Jobsdb (MY/SG/HK), Seek (AU/NZ), Naukri (IN),
+#         Reed (UK), Wobb (MY), Monster, Glassdoor, company career pages
+# ---------------------------------------------------------------------------
 
-    today = datetime.now().strftime("%Y-%m-%d")
-    location_ctx = location or "global market"
+_JOB_BOARD_PATTERNS: tuple[str, ...] = (
+    "linkedin.com/jobs/",
+    "jobstreet.com",
+    "jobsdb.com",
+    "seek.com.au",
+    "naukri.com",
+    "reed.co.uk",
+    "wobb.my",
+    "glassdoor.com/job",
+    "monster.com/jobs",
+    "indeed.com/viewjob",
+    "indeed.com/rc/",
+    "/jobs/view/",
+    "/job-detail/",
+    "/careers/jobs/",
+    "/en/jobs/",
+)
+
+
+def _detect_job_source(url: str) -> str:
+    if "linkedin.com" in url:
+        return "linkedin"
+    if "jobstreet.com" in url:
+        return "jobstreet"
+    if "jobsdb.com" in url:
+        return "jobsdb"
+    if "seek.com.au" in url:
+        return "seek"
+    if "naukri.com" in url:
+        return "naukri"
+    if "reed.co.uk" in url:
+        return "reed"
+    if "wobb.my" in url:
+        return "wobb"
+    if "indeed.com" in url:
+        return "indeed"
+    if "glassdoor.com" in url:
+        return "glassdoor"
+    return "web"
+
+
+def _serp_broad_jobs_sync(role: str, location: str) -> list[str]:
+    """SERP for real job postings on ANY public job board — global coverage."""
+    import requests as _req
+
+    token = os.environ.get("BRIGHTDATA_API_TOKEN", "")
+    dataset = os.environ.get("BRIGHTDATA_DATASET_ID", "")
+    if not token or not dataset:
+        return []
+
+    if location:
+        keyword = f'"{role}" "{location}" jobs apply 2025'
+    else:
+        keyword = f'"{role}" remote jobs apply 2025'
+
+    payload = {
+        "input": [{
+            "url": "https://www.google.com/",
+            "keyword": keyword,
+            "language": "en",
+            "tbs": "qdr:m",
+            "tbm": "",
+            "uule": "",
+            "nfpr": "",
+            "index": "",
+        }]
+    }
+    try:
+        resp = _req.post(
+            f"https://api.brightdata.com/datasets/v3/scrape"
+            f"?dataset_id={dataset}&notify=false&include_errors=true",
+            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+            json=payload,
+            timeout=20,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        if not isinstance(data, dict):
+            return []
+        organic = data.get("organic") or []
+        urls = [
+            r.get("link", "")
+            for r in organic
+            if any(pat in r.get("link", "") for pat in _JOB_BOARD_PATTERNS)
+        ]
+        logger.info("Broad SERP: %d job URLs for '%s' in '%s'", len(urls), role, location)
+        return urls[:8]
+    except Exception as exc:
+        logger.warning("Broad SERP failed: %s", exc)
+        return []
+
+
+async def _extract_job_from_page(url: str, page_text: str) -> dict | None:
+    """Claude Haiku extracts a normalized job posting from any job page's text."""
+    if len(page_text) < 200:
+        return None
     prompt = (
-        f"Generate 5 realistic job postings for the role '{role}' in '{location_ctx}'.\n\n"
-        "Return a JSON array only. Each object must have exactly these fields:\n"
-        "job_description (string, 250+ chars with realistic duties and required tools), "
-        "title (string, may be a seniority variant), "
-        "company_name (string, realistic company name for the region), "
-        "location (string), "
-        f"date_posted (YYYY-MM-DD, within 30 days before {today}), "
-        "salary_min (number, annual in local currency), "
-        "salary_max (number), "
-        "salary_currency (ISO code matching the location: MYR/SGD/USD/GBP/AUD/INR etc.), "
-        "skills_listed (array of 5-8 skill strings), "
-        "seniority_level (one of: entry/mid/senior), "
-        "employment_type (full-time), "
-        "is_remote (boolean), "
-        "remote_type (remote/hybrid/on-site), "
-        "company_industry (string), "
-        "company_size (e.g. 51-200).\n\n"
-        "Use realistic local salaries — not USD if outside the US. "
-        "Return ONLY the JSON array, no explanation."
+        f"Extract job posting data from this page text. Source URL: {url}\n\n"
+        f"{page_text}\n\n"
+        "Return JSON only with these exact fields (null if not found):\n"
+        "job_description (string 200+ chars), title (string), company_name (string), "
+        "location (string), salary_min (number or null), salary_max (number or null), "
+        "salary_currency (ISO code), seniority_level (entry/mid/senior/unknown), "
+        "employment_type (full-time/part-time/contract), is_remote (boolean), "
+        "remote_type (remote/hybrid/on-site), skills_listed (array of strings), "
+        "date_posted (YYYY-MM-DD or null).\n"
+        'Return the JSON object. Return {"not_a_job": true} if this is not a job posting.'
     )
     try:
-        async with asyncio.timeout(30):
+        async with asyncio.timeout(12):
             resp = await _client.messages.create(
                 model="claude-haiku-4-5-20251001",
-                max_tokens=2000,
-                system="You are a job data generator. Return valid JSON only.",
+                max_tokens=500,
+                system="Extract job posting data. Return valid JSON only.",
                 messages=[{"role": "user", "content": prompt}],
             )
         text = resp.content[0].text.strip()
         if text.startswith("```"):
             text = text.split("\n", 1)[1].rsplit("```", 1)[0].strip()
-        raw = json.loads(text)
-        if not isinstance(raw, list):
-            raise ValueError("expected list")
-        result = []
-        for r in raw[:5]:
-            result.append({
-                "job_description": r.get("job_description") or "",
-                "title": r.get("title") or role,
-                "company_name": r.get("company_name") or "",
-                "url": "",
-                "apply_link": "",
-                "location": r.get("location") or location,
-                "skills_listed": r.get("skills_listed") or [],
-                "date_posted": r.get("date_posted") or "",
-                "num_applicants": None,
-                "salary_min": float(r.get("salary_min") or 0),
-                "salary_max": float(r.get("salary_max") or 0),
-                "salary_currency": r.get("salary_currency") or "USD",
-                "is_remote": bool(r.get("is_remote", False)),
-                "remote_type": (r.get("remote_type") or "").lower(),
-                "seniority_level": (r.get("seniority_level") or "mid").lower(),
-                "employment_type": (r.get("employment_type") or "full-time").lower(),
-                "company_industry": r.get("company_industry") or "",
-                "company_size": r.get("company_size") or "",
-                "company_description": "",
-                "source": "ai_generated",
-                "is_verified": False,
-                "extracted_skills": [],
-                "freshness_score": 0.5,
-                "competition_score": 0.5,
-                "dual_signal": {},
-                "cross_source_confirmed": {},
-            })
-        logger.info("AI generation: %d jobs for '%s' in '%s'", len(result), role, location)
-        return result
+        r = json.loads(text)
+        if not isinstance(r, dict) or r.get("not_a_job") or not r.get("title") or not r.get("company_name"):
+            return None
+        desc = r.get("job_description") or ""
+        if len(desc) < 200:
+            return None
+        return {
+            "job_description": desc,
+            "title": r.get("title") or "",
+            "company_name": r.get("company_name") or "",
+            "url": url,
+            "apply_link": url,
+            "location": r.get("location") or "",
+            "skills_listed": r.get("skills_listed") or [],
+            "date_posted": r.get("date_posted") or "",
+            "num_applicants": None,
+            "salary_min": float(r.get("salary_min") or 0),
+            "salary_max": float(r.get("salary_max") or 0),
+            "salary_currency": r.get("salary_currency") or "USD",
+            "is_remote": bool(r.get("is_remote", False)),
+            "remote_type": (r.get("remote_type") or "").lower(),
+            "seniority_level": (r.get("seniority_level") or "unknown").lower(),
+            "employment_type": (r.get("employment_type") or "full-time").lower(),
+            "company_industry": "",
+            "company_size": "",
+            "company_description": "",
+            "source": _detect_job_source(url),
+            "is_verified": False,
+            "extracted_skills": [],
+            "freshness_score": 0.5,
+            "competition_score": 0.5,
+            "dual_signal": {},
+            "cross_source_confirmed": {},
+        }
     except Exception as exc:
-        logger.warning("AI job generation failed: %s", exc)
+        logger.warning("Job extraction failed for %s: %s", url, exc)
+        return None
+
+
+async def _find_jobs_via_web(role: str, location: str) -> list[dict]:
+    """
+    Global fallback: SERP any public job board → Web Unlocker fetch → Claude extract.
+    Covers Malaysia (Jobstreet/Jobsdb/Wobb), AU (Seek), UK (Reed), IN (Naukri), etc.
+    Returns real, apply-able job postings — not AI-generated content.
+    """
+    job_urls = await asyncio.to_thread(_serp_broad_jobs_sync, role, location)
+    if not job_urls:
         return []
+
+    # Parallel Web Unlocker fetches (cap at 6)
+    async def _fetch_safe(url: str) -> tuple[str, str]:
+        try:
+            html = await _fetch_with_unlocker(url)
+            return url, _html_to_text(html, max_chars=3000) if html else ""
+        except Exception:
+            return url, ""
+
+    fetch_results = await asyncio.gather(*[_fetch_safe(u) for u in job_urls[:6]])
+
+    # Extract each job in parallel via Claude Haiku
+    extract_tasks = [
+        _extract_job_from_page(url, text)
+        for url, text in fetch_results
+        if text
+    ]
+    extracted = await asyncio.gather(*extract_tasks)
+
+    jobs = [j for j in extracted if j is not None]
+    logger.info("Web extraction: %d jobs for '%s' in '%s'", len(jobs), role, location)
+    return jobs
 
 
 async def _scrape_with_fallback(role: str, location: str) -> tuple[list[dict], str]:
     """
-    Returns (postings, data_source) where data_source is one of:
-    - "live":         Bright Data scrape returned verified results
-    - "ai_generated": Claude generated representative jobs (scrape returned 0)
-    - "fallback":     static JSON file (last resort if AI generation also fails)
+    Returns (postings, data_source) where data_source is:
+    - "live":          Bright Data LinkedIn+Indeed structured APIs returned results
+    - "web_extracted": SERP + Web Unlocker found real jobs from regional job boards
+    - "fallback":      static JSON (last resort — circuit breaker / all APIs down)
     """
     from scraper import scrape_jobs
 
+    # Try 1: Structured LinkedIn + Indeed APIs
     try:
         postings = await asyncio.wait_for(
             asyncio.to_thread(scrape_jobs, role, location),
@@ -425,17 +546,25 @@ async def _scrape_with_fallback(role: str, location: str) -> tuple[list[dict], s
         )
         if postings:
             return postings, "live"
-        logger.warning("Scrape returned 0 postings — trying AI generation")
+        logger.warning("Scrape returned 0 — trying web extraction")
     except asyncio.TimeoutError:
-        logger.warning("Scrape timed out after %ds — trying AI generation", _SCRAPE_TIMEOUT_S)
+        logger.warning("Scrape timed out after %ds — trying web extraction", _SCRAPE_TIMEOUT_S)
     except Exception as exc:
-        logger.warning("Scrape error: %s — trying AI generation", exc)
+        logger.warning("Scrape error: %s — trying web extraction", exc)
 
-    ai_jobs = await _generate_ai_jobs(role, location)
-    if ai_jobs:
-        return ai_jobs, "ai_generated"
+    # Try 2: SERP + Web Unlocker — real jobs from any public job board
+    try:
+        async with asyncio.timeout(30):
+            web_jobs = await _find_jobs_via_web(role, location)
+        if web_jobs:
+            return web_jobs, "web_extracted"
+    except asyncio.TimeoutError:
+        logger.warning("Web extraction timed out")
+    except Exception as exc:
+        logger.warning("Web extraction error: %s", exc)
 
-    logger.warning("AI generation failed — using static fallback")
+    # Try 3: Static fallback (circuit breaker demo / total API failure)
+    logger.warning("All sources failed — using static fallback")
     return _load_fallback(role), "fallback"
 
 
