@@ -667,54 +667,301 @@ async def _ddg_job_search(role: str, location: str) -> tuple[list[str], str]:
     return job_urls[:8], html
 
 
+def _currency_for_location(location: str) -> str:
+    loc = location.lower()
+    for kw, cur in [
+        ("malaysia", "MYR"), ("kuala lumpur", "MYR"), ("penang", "MYR"), ("johor", "MYR"),
+        ("singapore", "SGD"),
+        ("australia", "AUD"), ("sydney", "AUD"), ("melbourne", "AUD"),
+        ("new zealand", "NZD"), ("auckland", "NZD"),
+        ("india", "INR"), ("bangalore", "INR"), ("mumbai", "INR"),
+        ("philippines", "PHP"), ("manila", "PHP"),
+        ("united kingdom", "GBP"), ("london", "GBP"),
+        ("germany", "EUR"), ("berlin", "EUR"),
+        ("canada", "CAD"), ("toronto", "CAD"),
+    ]:
+        if kw in loc:
+            return cur
+    return "USD"
+
+
+def _extract_jsonld_jobs(html: str, source_url: str) -> list[dict]:
+    """Parse <script type="application/ld+json"> JobPosting objects — zero Claude calls."""
+    jobs: list[dict] = []
+    for block in re.findall(
+        r'<script[^>]+type=["\']application/ld\+json["\'][^>]*>(.*?)</script>',
+        html, re.DOTALL | re.IGNORECASE
+    ):
+        try:
+            data = json.loads(block.strip())
+            items = data if isinstance(data, list) else [data]
+            # flatten @graph
+            flat: list = []
+            for item in items:
+                if isinstance(item, dict) and "@graph" in item:
+                    flat.extend(item["@graph"])
+                else:
+                    flat.append(item)
+            for item in flat:
+                if not isinstance(item, dict):
+                    continue
+                if item.get("@type") != "JobPosting":
+                    continue
+                title = item.get("title") or item.get("name") or ""
+                company = ""
+                ho = item.get("hiringOrganization")
+                if isinstance(ho, dict):
+                    company = ho.get("name", "")
+                elif isinstance(ho, str):
+                    company = ho
+                loc_str = ""
+                jl = item.get("jobLocation")
+                if isinstance(jl, dict):
+                    addr = jl.get("address", {})
+                    if isinstance(addr, dict):
+                        parts = [addr.get("addressLocality"), addr.get("addressRegion"), addr.get("addressCountry")]
+                        loc_str = ", ".join(p for p in parts if p)
+                    elif isinstance(addr, str):
+                        loc_str = addr
+                elif isinstance(jl, list) and jl:
+                    first = jl[0]
+                    if isinstance(first, dict):
+                        addr = first.get("address", {})
+                        if isinstance(addr, dict):
+                            parts = [addr.get("addressLocality"), addr.get("addressCountry")]
+                            loc_str = ", ".join(p for p in parts if p)
+                desc = item.get("description") or ""
+                if isinstance(desc, list):
+                    desc = " ".join(str(d) for d in desc)
+                desc = re.sub(r"<[^>]+>", " ", str(desc))
+                desc = re.sub(r"\s+", " ", desc).strip()
+                salary_min = 0.0
+                salary_max = 0.0
+                currency = _currency_for_location(loc_str or source_url)
+                bs = item.get("baseSalary")
+                if isinstance(bs, dict):
+                    currency = bs.get("currency", currency)
+                    val = bs.get("value", {})
+                    if isinstance(val, dict):
+                        salary_min = float(val.get("minValue") or 0)
+                        salary_max = float(val.get("maxValue") or 0)
+                    elif isinstance(val, (int, float)):
+                        salary_min = salary_max = float(val)
+                apply_url = item.get("url") or source_url
+                if not title or not company:
+                    continue
+                if len(desc) < 30:
+                    desc = f"{title} at {company} in {loc_str or 'Unknown'}."
+                jobs.append({
+                    "job_description": desc[:2000],
+                    "title": title,
+                    "company_name": company,
+                    "url": apply_url,
+                    "apply_link": apply_url,
+                    "location": loc_str,
+                    "skills_listed": [],
+                    "date_posted": item.get("datePosted") or "",
+                    "num_applicants": None,
+                    "salary_min": salary_min,
+                    "salary_max": salary_max,
+                    "salary_currency": currency,
+                    "is_remote": item.get("jobLocationType") == "TELECOMMUTE",
+                    "remote_type": "remote" if item.get("jobLocationType") == "TELECOMMUTE" else "on-site",
+                    "seniority_level": "unknown",
+                    "employment_type": str(item.get("employmentType") or "full-time").lower().replace("_", "-"),
+                    "company_industry": "",
+                    "company_size": "",
+                    "company_description": "",
+                    "source": _detect_job_source(source_url),
+                    "is_verified": True,
+                    "extracted_skills": [],
+                    "freshness_score": 0.7,
+                    "competition_score": 0.5,
+                    "dual_signal": {},
+                    "cross_source_confirmed": {},
+                })
+        except Exception:
+            continue
+    logger.info("JSON-LD: %d JobPosting objects from %s", len(jobs), source_url)
+    return jobs[:8]
+
+
+def _extract_nextdata_text(html: str) -> str:
+    """Extract __NEXT_DATA__ script JSON — contains pre-rendered page props for Next.js apps."""
+    m = re.search(
+        r'<script[^>]+id=["\']__NEXT_DATA__["\'][^>]*>(.*?)</script>',
+        html, re.DOTALL | re.IGNORECASE
+    )
+    if not m:
+        return ""
+    return m.group(1).strip()[:8000]
+
+
+async def _fetch_indeed_rss(role: str, location: str) -> list[dict]:
+    """Indeed RSS feed via Web Unlocker — structured XML, no JS rendering required."""
+    import xml.etree.ElementTree as ET
+    from urllib.parse import quote_plus
+
+    loc = location.lower()
+    if any(k in loc for k in ["malaysia", "kuala lumpur", "penang", "johor"]):
+        base = "https://malaysia.indeed.com/rss"
+    elif "singapore" in loc:
+        base = "https://sg.indeed.com/rss"
+    elif any(k in loc for k in ["australia", "sydney", "melbourne", "brisbane"]):
+        base = "https://au.indeed.com/rss"
+    elif any(k in loc for k in ["new zealand", "auckland"]):
+        base = "https://nz.indeed.com/rss"
+    elif any(k in loc for k in ["india", "bangalore", "mumbai", "delhi"]):
+        base = "https://in.indeed.com/rss"
+    elif any(k in loc for k in ["philippines", "manila"]):
+        base = "https://ph.indeed.com/rss"
+    elif any(k in loc for k in ["united kingdom", "london"]):
+        base = "https://uk.indeed.com/rss"
+    else:
+        base = "https://www.indeed.com/rss"
+
+    url = f"{base}?q={quote_plus(role)}&l={quote_plus(location)}&sort=date"
+    try:
+        xml_text = await _fetch_with_unlocker(url)
+        if not xml_text or len(xml_text) < 100:
+            return []
+        root = ET.fromstring(xml_text)
+        channel = root.find("channel")
+        if channel is None:
+            return []
+        currency = _currency_for_location(location)
+        jobs: list[dict] = []
+        for item in channel.findall("item")[:8]:
+            title = (item.findtext("title") or "").strip()
+            if not title:
+                continue
+            description = re.sub(r"<[^>]+>", " ", item.findtext("description") or "")
+            description = re.sub(r"\s+", " ", description).strip()
+            apply_url = (item.findtext("link") or "").strip()
+            date_posted = (item.findtext("pubDate") or "").strip()
+            company = ""
+            src = item.find("source")
+            if src is not None and src.text:
+                company = src.text.strip()
+            if len(description) < 30:
+                description = f"{title} position in {location}."
+            jobs.append({
+                "job_description": description[:1000],
+                "title": title,
+                "company_name": company or "Unknown",
+                "url": apply_url,
+                "apply_link": apply_url,
+                "location": location,
+                "skills_listed": [],
+                "date_posted": date_posted,
+                "num_applicants": None,
+                "salary_min": 0.0,
+                "salary_max": 0.0,
+                "salary_currency": currency,
+                "is_remote": False,
+                "remote_type": "on-site",
+                "seniority_level": "unknown",
+                "employment_type": "full-time",
+                "company_industry": "",
+                "company_size": "",
+                "company_description": "",
+                "source": "indeed",
+                "is_verified": True,
+                "extracted_skills": [],
+                "freshness_score": 0.7,
+                "competition_score": 0.5,
+                "dual_signal": {},
+                "cross_source_confirmed": {},
+            })
+        logger.info("Indeed RSS: %d jobs for '%s' in '%s'", len(jobs), role, location)
+        return jobs
+    except Exception as exc:
+        logger.warning("Indeed RSS failed for '%s' in '%s': %s", role, location, exc)
+        return []
+
+
 async def _find_jobs_via_web(role: str, location: str) -> list[dict]:
     """
     Multi-tier job discovery — no hardcoded fallback, all real postings.
-    Tier 1: Bright Data Dataset SERP → individual pages via Web Unlocker
-    Tier 2: DDG plain HTTP SERP → individual pages via plain GET + Web Unlocker
-    Tier 3: Direct job board search pages (location-mapped) via plain GET + Unlocker
-    Tier 4: Extract listings from DDG snippet text when page fetches all fail
+    Tier 0: Indeed RSS via Web Unlocker — structured XML, no JS rendering
+    Tier 1: Bright Data Dataset SERP → pages via Web Unlocker + JSON-LD/NEXT_DATA extraction
+    Tier 2: DDG plain (blocked on Render) → DDG via Web Unlocker SERP
+    Tier 3: Direct job board search pages → JSON-LD/NEXT_DATA + Claude extraction
+    Tier 4: Extract listings from DDG snippet text when all page fetches fail
     """
+    # Tier 0: Indeed RSS — structured XML via Web Unlocker, no JS rendering needed
+    rss_jobs = await _fetch_indeed_rss(role, location)
+    if rss_jobs:
+        return rss_jobs
+
     # Tier 1: Dataset API SERP
     job_urls: list[str] = await asyncio.to_thread(_serp_broad_jobs_sync, role, location)
     ddg_html = ""
 
-    # Tier 2: DDG plain requests (no Web Unlocker needed)
+    # Tier 2: DDG plain (blocked on Render — expected to return empty)
     if not job_urls:
         logger.info("Dataset SERP: 0 — trying DDG plain")
         job_urls, ddg_html = await _ddg_job_search(role, location)
 
+    # Tier 2b: DDG via Web Unlocker (since plain is blocked on Render)
+    if not job_urls:
+        logger.info("DDG plain: 0 — trying DDG via Web Unlocker")
+        job_urls = await _serp_via_unlocker(role, location)
+
     # Tier 3: Direct job board search pages
     if not job_urls:
-        logger.info("DDG: 0 — trying direct board URLs")
+        logger.info("DDG Unlocker: 0 — trying direct board URLs")
         job_urls = _direct_board_urls(role, location)
 
-    # Fetch each page: plain GET first, Web Unlocker as fallback
+    # Fetch pages — return raw HTML (not stripped text) for structured extraction
     async def _fetch_safe(url: str) -> tuple[str, str]:
         try:
             html = await _fetch_best_effort(url)
-            return url, _html_to_text(html, max_chars=4000) if html else ""
+            return url, html or ""
         except Exception:
             return url, ""
 
     fetch_results = await asyncio.gather(*[_fetch_safe(u) for u in job_urls[:6]])
-    page_texts = [(url, text) for url, text in fetch_results if text]
+    page_htmls = [(url, html) for url, html in fetch_results if html and len(html) > 500]
 
-    # Try extracting individual job pages first
-    if page_texts:
+    if page_htmls:
+        # Path A: JSON-LD structured data — zero Claude calls, works for most job boards
+        jsonld_jobs: list[dict] = []
+        for url, html in page_htmls:
+            jsonld_jobs.extend(_extract_jsonld_jobs(html, url))
+        if jsonld_jobs:
+            logger.info("JSON-LD extraction: %d jobs for '%s'", len(jsonld_jobs), role)
+            return jsonld_jobs[:8]
+
+        # Path B: __NEXT_DATA__ — Next.js boards (Jobstreet, Reed) pre-render data here
+        nextdata_jobs: list[dict] = []
+        for url, html in page_htmls[:3]:
+            nextdata_text = _extract_nextdata_text(html)
+            if nextdata_text:
+                source = _detect_job_source(url)
+                nd_jobs = await _extract_jobs_from_search_page(url, nextdata_text, role, location, source)
+                nextdata_jobs.extend(nd_jobs)
+        if nextdata_jobs:
+            logger.info("__NEXT_DATA__ extraction: %d jobs for '%s'", len(nextdata_jobs), role)
+            return nextdata_jobs[:8]
+
+        # Path C: individual job page text extraction (original path)
+        page_texts = [(url, _html_to_text(html, max_chars=4000)) for url, html in page_htmls]
         extracted = await asyncio.gather(*[
             _extract_job_from_page(url, text) for url, text in page_texts
         ])
         jobs = [j for j in extracted if j is not None]
         if jobs:
-            logger.info("Page extraction: %d jobs for '%s'", len(jobs), role)
+            logger.info("Page text extraction: %d jobs for '%s'", len(jobs), role)
             return jobs
 
-        # Individual page extraction failed — treat pages as search results listings
+        # Path D: treat pages as search result listings (wider text window)
         all_listing_jobs: list[dict] = []
-        for url, text in page_texts[:2]:
+        for url, html in page_htmls[:2]:
             source = _detect_job_source(url)
-            listing_jobs = await _extract_jobs_from_search_page(url, text, role, location, source)
+            listing_jobs = await _extract_jobs_from_search_page(
+                url, _html_to_text(html, max_chars=6000), role, location, source
+            )
             all_listing_jobs.extend(listing_jobs)
         if all_listing_jobs:
             logger.info("Listing extraction: %d jobs for '%s'", len(all_listing_jobs), role)
@@ -1372,6 +1619,14 @@ async def _search_direct_job_boards(role: str, location: str) -> list[dict]:
             html = await _fetch_with_unlocker(url)
             if not html or len(html) < 500:
                 return []
+            # Try structured extraction first (zero/fewer Claude calls)
+            jsonld = _extract_jsonld_jobs(html, url)
+            if jsonld:
+                return jsonld[:6]
+            nextdata = _extract_nextdata_text(html)
+            if nextdata:
+                return await _extract_jobs_from_search_page(url, nextdata, role, location, source)
+            # Fallback: stripped text extraction
             text = _html_to_text(html, max_chars=6000)
             return await _extract_jobs_from_search_page(url, text, role, location, source)
         except Exception as exc:
