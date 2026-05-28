@@ -393,6 +393,12 @@ class SearchRequest(BaseModel):
 class AnalyseRequest(BaseModel):
     job_url: str
     session_id: str
+    job_title: str | None = None
+    company: str | None = None
+    location: str | None = None
+    seniority: str | None = None
+    salary: str | None = None
+    skills_match: list[str] | None = None
 
 
 class HRRequest(BaseModel):
@@ -650,12 +656,29 @@ async def analyse_job(req: AnalyseRequest) -> dict:
     if not validate_job_url(req.job_url):
         return {"status": "error", "message": "Invalid job URL"}
 
+    # Build rich context from metadata already scraped — no second LinkedIn call needed
+    job_context_lines = []
+    if req.job_title:
+        job_context_lines.append(f"Role: {req.job_title}")
+    if req.company:
+        job_context_lines.append(f"Company: {req.company}")
+    if req.location:
+        job_context_lines.append(f"Location: {req.location}")
+    if req.seniority:
+        job_context_lines.append(f"Seniority: {req.seniority}")
+    if req.salary:
+        job_context_lines.append(f"Salary range: {req.salary}")
+    if req.skills_match:
+        job_context_lines.append(f"Required skills already matched: {', '.join(req.skills_match)}")
+
+    job_context = "\n".join(job_context_lines) or f"Job URL: {req.job_url}"
+
     prompt = (
-        f"A candidate wants to apply to this job: {req.job_url}\n\n"
-        "Based on typical requirements for this role, provide:\n"
-        "1. Top 5 skills to highlight in the application\n"
-        "2. Common skill gaps to address\n"
-        "3. One specific tip to stand out\n\n"
+        f"A candidate wants to apply to this job posting:\n\n{job_context}\n\n"
+        "Based on the role, company, seniority level, and matched skills above, provide:\n"
+        "1. Top 5 specific skills to highlight in the application (use the matched skills as anchors)\n"
+        "2. Top 3 skill gaps likely expected for this role and seniority that the candidate should address\n"
+        "3. One specific, actionable tip tailored to this company and role to stand out\n\n"
         "Return JSON only:\n"
         '{{"highlight_skills": [...], "gap_skills": [...], "application_tip": "..."}}'
     )

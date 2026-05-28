@@ -618,7 +618,16 @@
             const res = await fetch(`${API}/api/analyse`, {
               method: 'POST',
               headers: _headers(),
-              body: JSON.stringify({ job_url: job.url, session_id: this.sessionId }),
+              body: JSON.stringify({
+                job_url: job.url,
+                session_id: this.sessionId,
+                job_title: job.title || null,
+                company: job.company || null,
+                location: job.location || null,
+                seniority: job.seniority || null,
+                salary: job.salary || null,
+                skills_match: job.skills_match || null,
+              }),
             });
             const data = await res.json();
             if (data.status === 'ok') this.analysis = data.analysis;
