@@ -22,6 +22,7 @@ from dotenv import load_dotenv
 from fastapi import BackgroundTasks, Depends, FastAPI, File, HTTPException, Request, Response, UploadFile
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
 from pydantic import BaseModel, EmailStr, field_validator
 
 import auth as auth_module
@@ -58,6 +59,58 @@ _ALLOWED_ORIGINS = os.environ.get(
     "http://localhost:3000,http://127.0.0.1:5500",
 ).split(",")
 
+_MAX_REQUEST_BYTES = 2 * 1024 * 1024  # 2 MB hard cap — OOM bomb protection
+
+
+class ContentLengthGuard(BaseHTTPMiddleware):
+    """Defend against both Content-Length-declared and chunked OOM payloads.
+
+    Two-stage strategy:
+    1. Fast-fail: if Content-Length header is present and over limit, reject
+       immediately without reading a single byte of body.
+    2. Stream guard: for chunked (Transfer-Encoding: chunked) or missing
+       Content-Length bodies, asynchronously iterate request.stream(), maintain
+       a running byte counter, and abort with HTTP 413 the instant the limit is
+       crossed. Accepted bytes are buffered and re-injected into the request so
+       downstream handlers read them normally — zero double-read issues.
+    """
+
+    async def dispatch(self, request: Request, call_next):
+        # Stage 1: fast-fail on declared Content-Length
+        cl = request.headers.get("content-length")
+        if cl:
+            try:
+                if int(cl) > _MAX_REQUEST_BYTES:
+                    return JSONResponse(
+                        {"detail": "Payload Too Large — maximum request size is 2 MB"},
+                        status_code=413,
+                    )
+            except ValueError:
+                pass  # malformed header — let framework reject it downstream
+
+        # Stage 2: stream and count — catches chunked transfer without Content-Length
+        total = 0
+        chunks: list[bytes] = []
+        async for chunk in request.stream():
+            total += len(chunk)
+            if total > _MAX_REQUEST_BYTES:
+                return JSONResponse(
+                    {"detail": "Payload Too Large — maximum request size is 2 MB"},
+                    status_code=413,
+                )
+            chunks.append(chunk)
+
+        # Re-inject buffered body: replace the receive callable so downstream
+        # handlers (Pydantic parsing, UploadFile, etc.) can read the body normally.
+        body = b"".join(chunks)
+
+        async def _receive():
+            return {"type": "http.request", "body": body, "more_body": False}
+
+        request = Request(request.scope, _receive)
+        return await call_next(request)
+
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[o.strip() for o in _ALLOWED_ORIGINS],
@@ -66,6 +119,7 @@ app.add_middleware(
     # X-Demo-Secret must be here or browser preflight blocks the header — PRD §23.6
     allow_headers=["Content-Type", "Authorization", "X-Demo-Secret"],
 )
+app.add_middleware(ContentLengthGuard)
 
 _client: anthropic.AsyncAnthropic | None = None
 
@@ -93,6 +147,24 @@ def _load_static_demo() -> dict:
             raise FileNotFoundError(f"Static demo not found at {_STATIC_DEMO_PATH}")
         _static_demo_cache = json.loads(_STATIC_DEMO_PATH.read_text(encoding="utf-8"))
     return _static_demo_cache
+
+
+def _ensure_static_cache() -> None:
+    """Belt-and-suspenders: populate demo-static roadmap cache if missing.
+
+    Startup seeds this at boot; this guard covers the case where startup seeding
+    failed (e.g. file unreadable at init time) but succeeds later.
+    """
+    if "demo-static" not in ROADMAP_CACHE:
+        try:
+            roadmaps = _load_static_demo().get("roadmaps", {})
+            if roadmaps:
+                ROADMAP_CACHE["demo-static"] = {
+                    skill: RoadmapEntry(status=RoadmapStatus.READY, roadmap=rm)
+                    for skill, rm in roadmaps.items()
+                }
+        except Exception:
+            pass
 
 # ---------------------------------------------------------------------------
 # Addendum G — Demo-Day Financial Firewall
@@ -138,15 +210,18 @@ def _maybe_reset(state) -> None:
         logger.info("Circuit breaker reset for %s", today)
 
 def _tick_circuit_breaker(state) -> None:
-    """PRD §23.3. Increment counter. Trip breaker at limit."""
+    """PRD §23.3. Increment counter. Trip both flags independently at limit."""
     state.live_search_count += 1
-    if state.live_search_count >= CIRCUIT_BREAKER_LIMIT and not state.shadow_forced:
-        state.shadow_forced = True
-        state.circuit_open = True
-        logger.warning(
-            "CIRCUIT BREAKER TRIPPED: %d live searches today. Shadow Mode forced.",
-            state.live_search_count,
-        )
+    if state.live_search_count >= CIRCUIT_BREAKER_LIMIT:
+        if not state.shadow_forced:
+            state.shadow_forced = True
+            logger.warning(
+                "CIRCUIT BREAKER TRIPPED: %d live searches today. Shadow Mode forced.",
+                state.live_search_count,
+            )
+        if not state.circuit_open:
+            state.circuit_open = True
+            logger.warning("CIRCUIT_OPEN: static demo state will serve all subsequent requests.")
 
 
 @app.on_event("startup")
@@ -297,6 +372,7 @@ class SearchRequest(BaseModel):
     location: str = "United States"
     skills: str = ""
     preferences: SearchPreferences = SearchPreferences()
+    session_id: str | None = None  # client hint for tracking — never used as a cache key directly
 
 
 class AnalyseRequest(BaseModel):
@@ -393,16 +469,34 @@ async def search(req: SearchRequest, request: Request, background_tasks: Backgro
     # Addendum N: zero-token static fallback when circuit is open
     if getattr(request.app.state, "circuit_open", False):
         logger.warning("CIRCUIT_OPEN: serving static demo state — zero LLM calls")
+        _ensure_static_cache()
         return JSONResponse(content=_load_static_demo())
 
-    # Layer 2: IP rate limit (Addendum G §23.2)
-    ip = _client_ip(request)
-    if not _check_ip_rate(ip):
-        return _RATE_LIMITED_RESPONSE
+    # Layer 2: IP rate limit (Addendum G §23.2) — Fracture 4 fix.
+    # Authenticated requests (carrying a valid X-Demo-Secret) are exempt from the 5 req/hr cap.
+    # Rationale: the secret IS the whitelist. Judges behind a shared VPN/NAT would otherwise
+    # exhaust the global 5/hr window. Unauthenticated traffic is already blocked at Layer 1 (403),
+    # so this branch fires only if Layer 1 dependency is relaxed in future — defense-in-depth.
+    _secret_header = request.headers.get("x-demo-secret", "")
+    _is_authenticated = bool(
+        _DEMO_SECRET and _secrets.compare_digest(_secret_header, _DEMO_SECRET)
+    )
+    if not _is_authenticated:
+        ip = _client_ip(request)
+        if not _check_ip_rate(ip):
+            return _RATE_LIMITED_RESPONSE
 
     # Gate 0: pure Python (Addendum F)
     if not precheck_role_input(req.role):
         return _INVALID_QUERY_RESPONSE
+
+    # Layer 3: Daily reset + shadow forced early-exit (Fracture 3 fix)
+    # Must run before Gate 1 so a downed Bright Data stack costs zero LLM tokens.
+    _maybe_reset(request.app.state)
+    if request.app.state.shadow_forced:
+        logger.info("SHADOW_FORCED: Bright Data down — serving static demo state, zero LLM calls")
+        _ensure_static_cache()
+        return JSONResponse(content=_load_static_demo())
 
     # Gate 1: Claude Haiku validation + normalisation (Addendum F)
     validation = await validate_and_normalize(_client, req.role)
@@ -415,14 +509,9 @@ async def search(req: SearchRequest, request: Request, background_tasks: Backgro
 
     primary_title = titles[0]
 
-    # Layer 3: Circuit breaker (Addendum G §23.3)
-    _maybe_reset(request.app.state)
-    if request.app.state.shadow_forced:
-        logger.info("Circuit breaker active — Shadow Mode forced, $0 API cost")
-        postings = _load_fallback(primary_title)
-    else:
-        _tick_circuit_breaker(request.app.state)
-        postings = await _scrape_with_fallback(primary_title, req.location)
+    # Layer 3: Tick circuit breaker (only live path reaches here)
+    _tick_circuit_breaker(request.app.state)
+    postings = await _scrape_with_fallback(primary_title, req.location)
 
     if not postings:
         return {"status": "error", "message": "No job postings found. Try a different role or location."}
@@ -463,6 +552,12 @@ async def search(req: SearchRequest, request: Request, background_tasks: Backgro
     ranked_jobs = rank_jobs(list(postings), user_prefs)
 
     # Build job cards
+    # Patch 4: Cache poison guard — "demo-static" is a reserved partition owned by the golden path.
+    # A client sending session_id="demo-static" on the live path would, if ever used as a cache key,
+    # overwrite startup-seeded roadmap entries with pending stubs, breaking Addendum O.
+    # Force a fresh UUID regardless; log any attempt to claim the reserved ID.
+    if req.session_id == "demo-static":
+        logger.warning("POISON_GUARD: client claimed reserved session_id='demo-static' on live path — issuing new UUID")
     session_id = str(uuid.uuid4())
     jobs_out = [_format_job(j) for j in ranked_jobs[:10]]
 

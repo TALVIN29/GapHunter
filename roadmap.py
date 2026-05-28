@@ -8,6 +8,7 @@ import json
 import logging
 import os
 import time
+from collections import OrderedDict
 from dataclasses import dataclass, field
 from enum import Enum
 
@@ -57,8 +58,53 @@ class RoadmapEntry:
     started_at: float = field(default_factory=time.monotonic)
 
 
+MAX_SESSIONS = 300  # hard cap — 301st session evicts the oldest immediately
+
+
+class _LRUSessionCache:
+    """OrderedDict-backed LRU cache for roadmap sessions.
+
+    Write-order eviction: the session written least recently is evicted first.
+    Thread-safety: asyncio single-threaded event loop — no lock required.
+    All dict-compatible methods used by callers are implemented; no other
+    external dependency. Renders a time-based cron eviction job obsolete.
+    """
+
+    def __init__(self, maxsize: int) -> None:
+        self._store: OrderedDict[str, dict[str, RoadmapEntry]] = OrderedDict()
+        self._maxsize = maxsize
+
+    def __setitem__(self, key: str, value: dict[str, RoadmapEntry]) -> None:
+        if key in self._store:
+            # Refresh recency on overwrite
+            self._store.move_to_end(key)
+        self._store[key] = value
+        if len(self._store) > self._maxsize:
+            evicted_key, _ = self._store.popitem(last=False)  # oldest = first
+            logger.info(
+                "LRU eviction: session '%s' dropped (cache full at %d sessions)",
+                evicted_key,
+                self._maxsize,
+            )
+
+    def __getitem__(self, key: str) -> dict[str, RoadmapEntry]:
+        return self._store[key]
+
+    def __contains__(self, key: object) -> bool:
+        return key in self._store
+
+    def __delitem__(self, key: str) -> None:
+        del self._store[key]
+
+    def __len__(self) -> int:
+        return len(self._store)
+
+    def get(self, key: str, default=None):
+        return self._store.get(key, default)
+
+
 # session_id → {skill → RoadmapEntry}
-ROADMAP_CACHE: dict[str, dict[str, RoadmapEntry]] = {}
+ROADMAP_CACHE: _LRUSessionCache = _LRUSessionCache(MAX_SESSIONS)
 
 
 def init_roadmap_cache(session_id: str, skills: list[str]) -> None:

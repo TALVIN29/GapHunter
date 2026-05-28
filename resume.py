@@ -7,6 +7,7 @@ import asyncio
 import io
 import json
 import logging
+import zipfile
 
 import anthropic
 
@@ -64,8 +65,32 @@ def _extract_pdf(file_bytes: bytes) -> str | None:
         return None
 
 
+_DOCX_UNZIP_LIMIT = 15 * 1024 * 1024  # 15 MB uncompressed ceiling
+
+
 def _extract_docx(file_bytes: bytes) -> str | None:
-    """Layer 3b: python-docx."""
+    """Layer 3b: python-docx with ZIP decompression bomb guard.
+
+    A DOCX is a ZIP. A malicious file can declare tiny compressed members
+    that expand to gigabytes (zip bomb). Inspect the central directory
+    (zero decompression) before handing bytes to python-docx.
+    """
+    # Guard: sum uncompressed sizes from ZIP central directory — no extraction needed
+    try:
+        with zipfile.ZipFile(io.BytesIO(file_bytes)) as zf:
+            total_uncompressed = sum(info.file_size for info in zf.infolist())
+        if total_uncompressed > _DOCX_UNZIP_LIMIT:
+            logger.warning(
+                "DOCX decompression bomb rejected: uncompressed=%d bytes (limit=%d)",
+                total_uncompressed,
+                _DOCX_UNZIP_LIMIT,
+            )
+            return None
+    except zipfile.BadZipFile:
+        logger.warning("DOCX magic bytes matched but ZIP is invalid — rejected")
+        return None
+
+    # Safe to extract
     try:
         import docx  # type: ignore
 
