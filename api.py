@@ -1898,6 +1898,58 @@ async def health(request: Request) -> dict:
 # Admin status — Addendum G §23.4 (optional, Day 29)
 # ---------------------------------------------------------------------------
 
+@app.get("/api/debug/connectivity")
+async def debug_connectivity() -> dict:
+    """No-auth outbound connectivity test — safe to expose, returns no user data."""
+    ddg_html = await asyncio.to_thread(
+        _plain_get_sync,
+        "https://html.duckduckgo.com/html/?q=data+analyst+jobs+malaysia",
+        15,
+    )
+    indeed_html = await asyncio.to_thread(
+        _plain_get_sync,
+        "https://malaysia.indeed.com/jobs?q=data+analyst",
+        10,
+    )
+    jobstreet_html = await asyncio.to_thread(
+        _plain_get_sync,
+        "https://www.jobstreet.com.my/en/job-search/data-analyst-jobs/in-malaysia/",
+        10,
+    )
+    token_present = bool(os.environ.get("BRIGHTDATA_API_TOKEN"))
+    zone = os.environ.get("BRIGHTDATA_UNLOCKER_ZONE", "(not set)")
+
+    unlocker_bytes = 0
+    unlocker_error = ""
+    if token_present:
+        try:
+            html = await _fetch_with_unlocker(
+                "https://www.jobstreet.com.my/en/job-search/data-analyst-jobs/in-malaysia/"
+            )
+            unlocker_bytes = len(html)
+        except Exception as exc:
+            unlocker_error = str(exc)
+
+    return {
+        "ddg": {"bytes": len(ddg_html), "accessible": len(ddg_html) > 300, "sample": ddg_html[:300]},
+        "indeed_plain": {"bytes": len(indeed_html), "accessible": len(indeed_html) > 300},
+        "jobstreet_plain": {"bytes": len(jobstreet_html), "accessible": len(jobstreet_html) > 300},
+        "web_unlocker": {
+            "token_present": token_present,
+            "zone": zone,
+            "bytes": unlocker_bytes,
+            "working": unlocker_bytes > 500,
+            "error": unlocker_error,
+        },
+        "env": {
+            "BRIGHTDATA_DATASET_ID": bool(os.environ.get("BRIGHTDATA_DATASET_ID")),
+            "BRIGHTDATA_DATASET_ID_LINKEDIN": bool(os.environ.get("BRIGHTDATA_DATASET_ID_LINKEDIN")),
+            "BRIGHTDATA_DATASET_ID_INDEED": bool(os.environ.get("BRIGHTDATA_DATASET_ID_INDEED")),
+            "DEMO_MODE": _DEMO_MODE,
+        },
+    }
+
+
 @app.get("/api/debug/scrape", dependencies=[Depends(_require_demo_secret)])
 async def debug_scrape(role: str = "Data Analyst", location: str = "Malaysia") -> dict:
     """Diagnose job discovery pipeline — tests each tier and reports what each returns."""
