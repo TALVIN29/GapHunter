@@ -899,6 +899,24 @@
         // ── search (Addendum L: rate_limited branch BEFORE no_results) ──
         async doSearch() {
           if (this.searching) return;
+
+          // Use inferred role from CV if user left role field empty
+          if (!this.role.trim() && this.inferredRole) {
+            this.role = this.inferredRole;
+          }
+
+          // Guard: role is still empty — prompt user instead of hitting backend
+          if (!this.role.trim()) {
+            Swal.fire({
+              icon: 'info',
+              title: 'What role are you looking for?',
+              text: 'Enter a job title (e.g. Data Analyst, Software Engineer) or upload your CV to auto-detect your role.',
+              background: '#0f1623', color: '#e2e8f0',
+              confirmButtonColor: '#3b82f6',
+            });
+            return;
+          }
+
           this.searching = true;
           this.jobs = [];
           this.gaps = [];
@@ -906,6 +924,8 @@
           this.totalPostings = 0;
           this.selectedJob = null;
           this.analysis = null;
+          this.companyProfile = null;
+          this.tailormanResult = null;
           this.salaryIntel = null;
           this.roadmaps = {};
           this.openRoadmap = null;
