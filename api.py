@@ -601,45 +601,138 @@ async def _infer_role_from_skills(skills_str: str) -> str | None:
         return None
 
 
+_PLAIN_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+    ),
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.5",
+}
+
+
+def _plain_get_sync(url: str, timeout: int = 12) -> str:
+    """Plain requests.get — no Web Unlocker. Works for bot-friendly pages (DDG, Indeed, Seek)."""
+    import requests as _req
+    try:
+        resp = _req.get(url, headers=_PLAIN_HEADERS, timeout=timeout, allow_redirects=True)
+        if resp.status_code == 200 and len(resp.text) >= 300:
+            return resp.text
+    except Exception as exc:
+        logger.debug("Plain GET failed for %s: %s", url, exc)
+    return ""
+
+
+async def _fetch_best_effort(url: str) -> str:
+    """Try plain GET first (free, fast), fall back to Web Unlocker for bot-protected pages."""
+    text = await asyncio.to_thread(_plain_get_sync, url)
+    if text:
+        logger.info("Plain GET: %d chars from %s", len(text), url)
+        return text
+    return await _fetch_with_unlocker(url)
+
+
+async def _ddg_job_search(role: str, location: str) -> tuple[list[str], str]:
+    """
+    Fetch DuckDuckGo HTML with plain requests (no Web Unlocker, no API key).
+    Returns (job_board_urls, raw_html_text) — html_text used by caller for snippet extraction.
+    DuckDuckGo HTML endpoint is publicly accessible and bot-friendly.
+    """
+    from urllib.parse import quote_plus, unquote
+    query = f'{role} jobs {location} 2025' if location else f'{role} remote jobs 2025'
+    url = f"https://html.duckduckgo.com/html/?q={quote_plus(query)}"
+    html = await asyncio.to_thread(_plain_get_sync, url, 15)
+    if not html:
+        logger.warning("DDG plain fetch returned empty")
+        return [], ""
+
+    seen: set[str] = set()
+    job_urls: list[str] = []
+    # DDG direct hrefs
+    for raw in re.findall(r'href=["\']?(https?://[^"\'<>\s]+)', html):
+        u = raw.split("&")[0]
+        if "duckduckgo.com" in u:
+            continue
+        if any(pat in u for pat in _JOB_BOARD_PATTERNS) and u not in seen:
+            seen.add(u)
+            job_urls.append(u)
+    # DDG redirect links: /l/?uddg=ENCODED
+    for encoded in re.findall(r'uddg=([^&"\'<>\s]+)', html):
+        u = unquote(encoded).split("&")[0]
+        if any(pat in u for pat in _JOB_BOARD_PATTERNS) and u not in seen:
+            seen.add(u)
+            job_urls.append(u)
+
+    logger.info("DDG plain: %d job URLs for '%s' in '%s'", len(job_urls), role, location)
+    return job_urls[:8], html
+
+
 async def _find_jobs_via_web(role: str, location: str) -> list[dict]:
     """
-    Global fallback: SERP any public job board → Web Unlocker fetch → Claude extract.
-    Covers Malaysia (Jobstreet/Jobsdb/Wobb), AU (Seek), UK (Reed), IN (Naukri), etc.
-    Returns real, apply-able job postings — not AI-generated content.
+    Multi-tier job discovery — no hardcoded fallback, all real postings.
+    Tier 1: Bright Data Dataset SERP → individual pages via Web Unlocker
+    Tier 2: DDG plain HTTP SERP → individual pages via plain GET + Web Unlocker
+    Tier 3: Direct job board search pages (location-mapped) via plain GET + Unlocker
+    Tier 4: Extract listings from DDG snippet text when page fetches all fail
     """
-    job_urls = await asyncio.to_thread(_serp_broad_jobs_sync, role, location)
+    # Tier 1: Dataset API SERP
+    job_urls: list[str] = await asyncio.to_thread(_serp_broad_jobs_sync, role, location)
+    ddg_html = ""
 
-    # Dataset SERP returned nothing — try DuckDuckGo via Web Unlocker
+    # Tier 2: DDG plain requests (no Web Unlocker needed)
     if not job_urls:
-        logger.info("Dataset SERP: 0 URLs — trying DuckDuckGo SERP")
-        job_urls = await _serp_via_unlocker(role, location)
+        logger.info("Dataset SERP: 0 — trying DDG plain")
+        job_urls, ddg_html = await _ddg_job_search(role, location)
 
-    # All SERP paths failed — fetch job board search pages directly (no SERP needed)
+    # Tier 3: Direct job board search pages
     if not job_urls:
-        logger.info("All SERP paths returned 0 — fetching job boards directly")
-        return await _search_direct_job_boards(role, location)
+        logger.info("DDG: 0 — trying direct board URLs")
+        job_urls = _direct_board_urls(role, location)
 
-    # Parallel Web Unlocker fetches (cap at 6)
+    # Fetch each page: plain GET first, Web Unlocker as fallback
     async def _fetch_safe(url: str) -> tuple[str, str]:
         try:
-            html = await _fetch_with_unlocker(url)
-            return url, _html_to_text(html, max_chars=3000) if html else ""
+            html = await _fetch_best_effort(url)
+            return url, _html_to_text(html, max_chars=4000) if html else ""
         except Exception:
             return url, ""
 
     fetch_results = await asyncio.gather(*[_fetch_safe(u) for u in job_urls[:6]])
+    page_texts = [(url, text) for url, text in fetch_results if text]
 
-    # Extract each job in parallel via Claude Haiku
-    extract_tasks = [
-        _extract_job_from_page(url, text)
-        for url, text in fetch_results
-        if text
-    ]
-    extracted = await asyncio.gather(*extract_tasks)
+    # Try extracting individual job pages first
+    if page_texts:
+        extracted = await asyncio.gather(*[
+            _extract_job_from_page(url, text) for url, text in page_texts
+        ])
+        jobs = [j for j in extracted if j is not None]
+        if jobs:
+            logger.info("Page extraction: %d jobs for '%s'", len(jobs), role)
+            return jobs
 
-    jobs = [j for j in extracted if j is not None]
-    logger.info("Web extraction: %d jobs for '%s' in '%s'", len(jobs), role, location)
-    return jobs
+        # Individual page extraction failed — treat pages as search results listings
+        all_listing_jobs: list[dict] = []
+        for url, text in page_texts[:2]:
+            source = _detect_job_source(url)
+            listing_jobs = await _extract_jobs_from_search_page(url, text, role, location, source)
+            all_listing_jobs.extend(listing_jobs)
+        if all_listing_jobs:
+            logger.info("Listing extraction: %d jobs for '%s'", len(all_listing_jobs), role)
+            return all_listing_jobs[:8]
+
+    # Tier 4: Last resort — extract from DDG snippet text if available
+    if ddg_html:
+        logger.info("All page fetches failed — extracting from DDG snippets")
+        snippet_jobs = await _extract_jobs_from_search_page(
+            f"https://html.duckduckgo.com/html/?q={role}+jobs+{location}",
+            _html_to_text(ddg_html, max_chars=8000),
+            role, location, "search"
+        )
+        if snippet_jobs:
+            return snippet_jobs[:8]
+
+    logger.warning("All tiers exhausted for '%s' in '%s'", role, location)
+    return []
 
 
 async def _scrape_with_fallback(role: str, location: str) -> tuple[list[dict], str]:
