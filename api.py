@@ -759,12 +759,15 @@ async def search(req: SearchRequest, request: Request, background_tasks: Backgro
         _ensure_static_cache()
         return JSONResponse(content=_load_static_demo())
 
-    # Gate 1: Claude Haiku validation + normalisation (Addendum F)
+    # Gate 1: Claude Haiku normalisation (Addendum F)
+    # Gate 0 already blocked garbage — if Gate 1 says invalid, log and proceed
+    # rather than hard-blocking legitimate but unusual job titles.
     validation = await validate_and_normalize(_client, req.role)
     if validation is None:
         titles = [req.role.strip()]  # degrade gracefully on timeout
     elif not validation["is_valid_role"]:
-        return _INVALID_QUERY_RESPONSE
+        logger.info("Gate 1 flagged '%s' as non-standard — proceeding (Gate 0 passed)", req.role)
+        titles = [req.role.strip()]
     else:
         titles = validation["canonical_titles"] or [req.role.strip()]
 
