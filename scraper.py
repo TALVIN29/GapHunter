@@ -134,7 +134,7 @@ def _fetch_indeed(job_role: str, location: str) -> list[dict]:
         "input": [
             {
                 "keyword": job_role,
-                "location": location or "United States",
+                "location": location or "",
                 "num_of_results": POSTINGS_CAP,
             }
         ]

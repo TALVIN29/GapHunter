@@ -384,7 +384,7 @@ class SearchPreferences(BaseModel):
 
 class SearchRequest(BaseModel):
     role: str
-    location: str = "United States"
+    location: str = ""
     skills: str = ""
     preferences: SearchPreferences = SearchPreferences()
     session_id: str | None = None  # client hint for tracking — never used as a cache key directly
@@ -404,7 +404,7 @@ class AnalyseRequest(BaseModel):
 class HRRequest(BaseModel):
     company_name: str
     role: str
-    location: str = "United States"
+    location: str = ""
 
 
 # ---------------------------------------------------------------------------
