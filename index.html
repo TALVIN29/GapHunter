@@ -272,6 +272,12 @@
           <button class="px-3 py-1.5 transition-all"
             :class="analysisTab === 'verify' ? 'tab-active' : 'tab-inactive'"
             @click="analysisTab = 'verify'">Verification</button>
+          <button class="px-3 py-1.5 transition-all flex items-center gap-1"
+            :class="analysisTab === 'tailor' ? 'tab-active' : 'tab-inactive'"
+            @click="analysisTab = 'tailor'; if(!tailormanResult && skills) runTailorman()">
+            Tailorman
+            <span class="badge badge-purple" style="font-size:.55rem; padding:.05rem .35rem;">PRO</span>
+          </button>
         </div>
 
         <!-- Tab: Gap Analysis -->
@@ -455,6 +461,96 @@
             <span class="text-slate-400" x-text="selectedJob?.source"></span>
             <span x-show="selectedJob?.date_posted" class="text-slate-600"> · Posted: </span>
             <span x-show="selectedJob?.date_posted" class="text-slate-400" x-text="selectedJob?.date_posted"></span>
+          </div>
+        </div>
+
+        <!-- Tab: Tailorman -->
+        <div x-show="selectedJob && analysisTab === 'tailor'" class="flex flex-col gap-3">
+
+          <!-- No skills — prompt to upload CV -->
+          <div x-show="!skills" class="flex flex-col items-center gap-3 py-6 text-center">
+            <div class="text-3xl">📄</div>
+            <p class="text-sm text-slate-300 font-medium">No resume uploaded</p>
+            <p class="text-xs text-slate-500 leading-relaxed">Upload your CV to get a tailored summary, cover letter, and interview prep for this role.</p>
+            <div class="mt-2 px-4 py-3 rounded-lg border border-purple-800/50 bg-purple-900/10 text-xs text-center">
+              <p class="text-purple-300 font-semibold mb-1">Tailorman Pro</p>
+              <p class="text-slate-400">Professional resume tailoring service — coming soon</p>
+              <p class="text-purple-400 font-medium mt-1">From RM 99 / resume</p>
+            </div>
+            <label class="btn-primary text-xs cursor-pointer px-3 py-1.5 mt-1">
+              Upload Resume
+              <input type="file" class="hidden" accept=".pdf,.docx" @change="uploadCV">
+            </label>
+          </div>
+
+          <!-- Has skills — show tailored materials -->
+          <div x-show="skills">
+
+            <!-- Loading -->
+            <div x-show="loadingTailor" class="flex items-center gap-2 text-slate-500 text-sm py-4">
+              <svg class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+              </svg>
+              Tailoring your application with Claude…
+            </div>
+
+            <!-- Result -->
+            <div x-show="!loadingTailor && tailormanResult" class="flex flex-col gap-3 text-xs">
+
+              <!-- Tailored summary -->
+              <div x-show="tailormanResult?.tailored_summary">
+                <p class="text-slate-500 uppercase tracking-wider mb-1">CV Summary (tailored)</p>
+                <p class="text-slate-300 leading-relaxed italic border-l-2 border-purple-600 pl-2"
+                  x-text="tailormanResult?.tailored_summary"></p>
+              </div>
+
+              <!-- Skills to emphasise -->
+              <div x-show="(tailormanResult?.skills_to_emphasise || []).length > 0">
+                <p class="text-slate-500 uppercase tracking-wider mb-1">Skills to Emphasise</p>
+                <div class="flex flex-wrap gap-1">
+                  <template x-for="sk in (tailormanResult?.skills_to_emphasise || [])" :key="sk">
+                    <span class="skill-pill" x-text="sk"></span>
+                  </template>
+                </div>
+              </div>
+
+              <!-- Cover letter opening -->
+              <div x-show="tailormanResult?.cover_letter_opening">
+                <p class="text-slate-500 uppercase tracking-wider mb-1">Cover Letter Opening</p>
+                <p class="text-slate-300 leading-relaxed italic border-l-2 border-blue-600 pl-2"
+                  x-text="tailormanResult?.cover_letter_opening"></p>
+              </div>
+
+              <!-- Gap framing -->
+              <div x-show="tailormanResult?.gap_framing">
+                <p class="text-slate-500 uppercase tracking-wider mb-1">How to Address Gaps</p>
+                <p class="text-slate-400 leading-relaxed" x-text="tailormanResult?.gap_framing"></p>
+              </div>
+
+              <!-- Interview talking points -->
+              <div x-show="(tailormanResult?.interview_talking_points || []).length > 0">
+                <p class="text-slate-500 uppercase tracking-wider mb-2">Interview Talking Points</p>
+                <div class="flex flex-col gap-2">
+                  <template x-for="(pt, i) in (tailormanResult?.interview_talking_points || [])" :key="i">
+                    <div class="flex gap-2">
+                      <span class="text-accent font-mono shrink-0 mt-0.5" x-text="String(i+1).padStart(2,'0')"></span>
+                      <div>
+                        <p class="text-slate-200" x-text="pt.point"></p>
+                        <p class="text-slate-500 mt-0.5" x-text="pt.why"></p>
+                      </div>
+                    </div>
+                  </template>
+                </div>
+              </div>
+
+              <button @click="runTailorman()" class="btn-ghost text-xs mt-1 w-full">Regenerate</button>
+            </div>
+
+            <!-- Not yet loaded + has skills -->
+            <div x-show="!loadingTailor && !tailormanResult" class="text-center py-4">
+              <button @click="runTailorman()" class="btn-primary text-xs px-4">Generate Application Materials</button>
+            </div>
           </div>
         </div>
 
@@ -778,6 +874,9 @@
         analysisTab: 'gaps',
         salaryIntel: null,
         loadingSalary: false,
+        inferredRole: '',
+        tailormanResult: null,
+        loadingTailor: false,
 
         // ── roadmap ──────────────────────────────────────────
         roadmaps: {},
@@ -906,6 +1005,7 @@
           this.selectedJob = job;
           this.analysis = null;
           this.companyProfile = null;
+          this.tailormanResult = null;
           this.analysisTab = 'gaps';
 
           // Fire both in parallel — don't block on company profile
@@ -989,6 +1089,34 @@
           }
         },
 
+        // ── tailorman ─────────────────────────────────────────
+        async runTailorman() {
+          if (!this.skills || !this.selectedJob) return;
+          this.tailormanResult = null;
+          this.loadingTailor = true;
+          try {
+            const res = await fetch(`${API}/api/tailorman`, {
+              method: 'POST',
+              headers: _headers(),
+              body: JSON.stringify({
+                user_skills: this.skills,
+                job_title: this.selectedJob.title || '',
+                job_company: this.selectedJob.company || '',
+                job_location: this.selectedJob.location || '',
+                highlight_skills: this.analysis?.highlight_skills || [],
+                gap_skills: this.analysis?.gap_skills || [],
+                seniority: this.selectedJob.seniority || '',
+              }),
+            });
+            const data = await res.json();
+            if (data.status === 'ok') this.tailormanResult = data.tailored;
+          } catch (err) {
+            console.warn('Tailorman failed', err);
+          } finally {
+            this.loadingTailor = false;
+          }
+        },
+
         // ── CV upload ─────────────────────────────────────────
         async uploadCV(event) {
           const file = event.target.files?.[0];
@@ -1004,7 +1132,13 @@
             const data = await res.json();
             if (data.status === 'ok') {
               this.skills = (data.skills || []).join(', ');
-              this.cvStatus = `✓ ${data.skills?.length || 0} skills extracted`;
+              this.inferredRole = data.inferred_role || '';
+              // Auto-fill role only if user hasn't typed one
+              if (this.inferredRole && !this.role.trim()) {
+                this.role = this.inferredRole;
+              }
+              const roleHint = this.inferredRole ? ` · Role detected: ${this.inferredRole}` : '';
+              this.cvStatus = `✓ ${data.skills?.length || 0} skills extracted${roleHint}`;
             } else {
               this.cvStatus = data.message || 'Parse failed — try manual entry';
             }

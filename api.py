@@ -637,6 +637,16 @@ class SalaryRequest(BaseModel):
     location: str = ""
 
 
+class TailormanRequest(BaseModel):
+    user_skills: str               # comma-separated skills from CV parse
+    job_title: str
+    job_company: str = ""
+    job_location: str = ""
+    highlight_skills: list[str] = []   # from gap analysis — skills user already has
+    gap_skills: list[str] = []         # from gap analysis — skills user is missing
+    seniority: str = ""
+
+
 # ---------------------------------------------------------------------------
 # Auth routes
 # ---------------------------------------------------------------------------
@@ -1304,6 +1314,68 @@ async def get_company_profile(req: CompanyRequest) -> dict:
         "profile": None,
         "sources_used": [],
     }
+
+
+# ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# Tailorman — Addendum Z
+# Resume-aware application tailoring: skills + job → tailored materials
+# ---------------------------------------------------------------------------
+
+@app.post("/api/tailorman", dependencies=[Depends(_require_demo_secret)])
+async def tailorman(req: TailormanRequest) -> dict:
+    """
+    Addendum Z: Tailorman — personalised job application materials.
+    Input: user's extracted skills + selected job details + gap analysis results.
+    Output: tailored CV summary, skills to emphasise, cover letter opening,
+            gap framing advice, interview talking points.
+    No resume storage — uses extracted skill list only.
+    """
+    if not req.user_skills.strip() or not req.job_title.strip():
+        return {"status": "error", "message": "Skills and job title are required"}
+
+    target = f"{req.job_title}" + (f" at {req.job_company}" if req.job_company else "")
+    highlight_str = ", ".join(req.highlight_skills) if req.highlight_skills else "not available"
+    gap_str = ", ".join(req.gap_skills) if req.gap_skills else "none identified"
+    seniority_str = f" ({req.seniority} level)" if req.seniority else ""
+
+    prompt = (
+        f"A job seeker{seniority_str} is applying for: {target}\n"
+        f"Location: {req.job_location or 'not specified'}\n\n"
+        f"Their skills: {req.user_skills}\n"
+        f"Skills they already match for this role: {highlight_str}\n"
+        f"Skill gaps for this role: {gap_str}\n\n"
+        "Generate tailored application materials. Return JSON only:\n"
+        '{\n'
+        '  "tailored_summary": "<3-4 sentence CV/resume professional summary tailored to this exact role>",\n'
+        '  "skills_to_emphasise": ["<skill1>", "<skill2>", "<skill3>", "<skill4>", "<skill5>"],\n'
+        '  "cover_letter_opening": "<strong 2-3 sentence opening paragraph for a cover letter — reference the company and role>",\n'
+        '  "gap_framing": "<1-2 sentences on how to address the skill gaps honestly and positively in the application>",\n'
+        '  "interview_talking_points": [\n'
+        '    {"point": "<specific talking point>", "why": "<why it resonates for this role>"},\n'
+        '    {"point": "...", "why": "..."},\n'
+        '    {"point": "...", "why": "..."}\n'
+        '  ]\n'
+        '}\n\n'
+        "Be specific to this role and company. Do not give generic advice. Return ONLY the JSON."
+    )
+
+    try:
+        async with asyncio.timeout(20):
+            resp = await _client.messages.create(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=700,
+                system="You are an expert career coach and resume writer. Return valid JSON only.",
+                messages=[{"role": "user", "content": prompt}],
+            )
+        text = resp.content[0].text.strip()
+        if text.startswith("```"):
+            text = text.split("\n", 1)[1].rsplit("```", 1)[0].strip()
+        result = json.loads(text)
+        return {"status": "ok", "tailored": result, "job": target}
+    except Exception as exc:
+        logger.warning("Tailorman failed for '%s': %s", req.job_title, exc)
+        return {"status": "error", "message": "Tailoring unavailable — try again"}
 
 
 # ---------------------------------------------------------------------------
