@@ -325,29 +325,42 @@
             <span x-show="selectedJob?.salary !== 'Not disclosed'" class="px-2 py-0.5 rounded bg-surface border border-border text-slate-400" x-text="selectedJob?.salary"></span>
           </div>
 
-          <!-- Glassdoor rating -->
-          <div x-show="companyProfile?.rating" class="flex items-center gap-2">
-            <div class="flex gap-0.5">
-              <template x-for="i in 5" :key="i">
-                <svg class="w-4 h-4" :class="i <= Math.round(companyProfile?.rating || 0) ? 'text-yellow-400' : 'text-slate-700'" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
-                </svg>
-              </template>
-            </div>
-            <span class="text-sm font-medium text-slate-300" x-text="companyProfile?.rating?.toFixed(1)"></span>
-            <span class="text-xs text-slate-500" x-show="companyProfile?.review_count" x-text="'(' + companyProfile?.review_count + ' reviews)'"></span>
-            <a x-show="companyProfile?.glassdoor_url" :href="companyProfile?.glassdoor_url" target="_blank" class="text-xs text-accent hover:underline ml-auto">Glassdoor →</a>
-          </div>
-
-          <!-- CEO approval + recommend -->
-          <div x-show="companyProfile?.ceo_approval_pct || companyProfile?.recommend_pct" class="flex gap-3 text-xs">
-            <div x-show="companyProfile?.ceo_approval_pct" class="flex flex-col gap-0.5">
-              <span class="text-slate-500">CEO Approval</span>
-              <span class="text-slate-300 font-medium" x-text="companyProfile?.ceo_approval_pct + '%'"></span>
-            </div>
-            <div x-show="companyProfile?.recommend_pct" class="flex flex-col gap-0.5">
-              <span class="text-slate-500">Would Recommend</span>
-              <span class="text-slate-300 font-medium" x-text="companyProfile?.recommend_pct + '%'"></span>
+          <!-- Multi-source rating comparison -->
+          <div x-show="companyProfile?.overall_rating || companyProfile?.glassdoor_rating || companyProfile?.indeed_rating">
+            <p class="text-xs text-slate-500 mb-2 uppercase tracking-wider">Rating Comparison</p>
+            <div class="flex gap-3 flex-wrap">
+              <div x-show="companyProfile?.overall_rating" class="flex flex-col items-center gap-1 px-3 py-2 rounded-lg bg-surface border border-border">
+                <div class="flex gap-0.5">
+                  <template x-for="i in 5" :key="i">
+                    <svg class="w-3.5 h-3.5" :class="i <= Math.round(companyProfile?.overall_rating || 0) ? 'text-yellow-400' : 'text-slate-700'" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
+                    </svg>
+                  </template>
+                </div>
+                <span class="text-xs font-semibold text-slate-200" x-text="(companyProfile?.overall_rating || 0).toFixed(1) + '/5'"></span>
+                <span class="text-xs text-slate-600">Overall</span>
+              </div>
+              <div x-show="companyProfile?.glassdoor_rating" class="flex flex-col items-center gap-1 px-3 py-2 rounded-lg bg-surface border border-border">
+                <span class="text-sm font-semibold text-emerald-400" x-text="(companyProfile?.glassdoor_rating || 0).toFixed(1)"></span>
+                <span class="text-xs text-slate-600">Glassdoor</span>
+                <a x-show="companyProfile?.glassdoor_url" :href="companyProfile?.glassdoor_url" target="_blank" class="text-xs text-accent hover:underline">→</a>
+              </div>
+              <div x-show="companyProfile?.indeed_rating" class="flex flex-col items-center gap-1 px-3 py-2 rounded-lg bg-surface border border-border">
+                <span class="text-sm font-semibold text-blue-400" x-text="(companyProfile?.indeed_rating || 0).toFixed(1)"></span>
+                <span class="text-xs text-slate-600">Indeed</span>
+                <a x-show="companyProfile?.indeed_url" :href="companyProfile?.indeed_url" target="_blank" class="text-xs text-accent hover:underline">→</a>
+              </div>
+              <div x-show="companyProfile?.recommend_pct || companyProfile?.ceo_approval_pct" class="flex flex-col gap-1 px-3 py-2 rounded-lg bg-surface border border-border text-xs">
+                <div x-show="companyProfile?.recommend_pct" class="flex justify-between gap-3">
+                  <span class="text-slate-500">Recommend</span>
+                  <span class="text-slate-300 font-medium" x-text="companyProfile?.recommend_pct + '%'"></span>
+                </div>
+                <div x-show="companyProfile?.ceo_approval_pct" class="flex justify-between gap-3">
+                  <span class="text-slate-500">CEO Approval</span>
+                  <span class="text-slate-300 font-medium" x-text="companyProfile?.ceo_approval_pct + '%'"></span>
+                </div>
+                <span x-show="companyProfile?.review_count" class="text-slate-600 text-xs" x-text="'(' + companyProfile?.review_count + ' reviews)'"></span>
+              </div>
             </div>
           </div>
 
@@ -357,29 +370,54 @@
             <p class="text-xs text-slate-400 leading-relaxed" x-text="companyProfile?.culture_summary || companyProfile?.description"></p>
           </div>
 
-          <!-- Pros -->
-          <div x-show="(companyProfile?.pros || []).length > 0">
-            <p class="text-xs text-slate-500 mb-1 uppercase tracking-wider">Employees Say — Pros</p>
-            <ul class="flex flex-col gap-1">
-              <template x-for="pro in (companyProfile?.pros || [])" :key="pro">
-                <li class="text-xs text-green-400 flex gap-1"><span>+</span><span x-text="pro"></span></li>
+          <!-- Employee reviews (verbatim) -->
+          <div x-show="(companyProfile?.employee_reviews || []).length > 0">
+            <p class="text-xs text-slate-500 mb-2 uppercase tracking-wider">Employee Reviews</p>
+            <div class="flex flex-col gap-2">
+              <template x-for="(rev, i) in (companyProfile?.employee_reviews || []).slice(0,3)" :key="i">
+                <div class="border-l-2 border-border pl-2.5 py-1">
+                  <p class="text-xs text-slate-300 leading-relaxed italic" x-text="'\"' + rev.text + '\"'"></p>
+                  <div class="flex gap-2 mt-1">
+                    <span x-show="rev.rating" class="text-yellow-400 text-xs" x-text="'★ ' + rev.rating"></span>
+                    <span class="text-xs text-slate-600 capitalize" x-text="rev.source"></span>
+                  </div>
+                </div>
               </template>
-            </ul>
+            </div>
           </div>
 
-          <!-- Cons -->
-          <div x-show="(companyProfile?.cons || []).length > 0">
-            <p class="text-xs text-slate-500 mb-1 uppercase tracking-wider">Employees Say — Cons</p>
-            <ul class="flex flex-col gap-1">
-              <template x-for="con in (companyProfile?.cons || [])" :key="con">
-                <li class="text-xs text-red-400 flex gap-1"><span>-</span><span x-text="con"></span></li>
-              </template>
-            </ul>
+          <!-- Pros / Cons -->
+          <div class="flex gap-3">
+            <div x-show="(companyProfile?.pros || []).length > 0" class="flex-1">
+              <p class="text-xs text-slate-500 mb-1 uppercase tracking-wider">Pros</p>
+              <ul class="flex flex-col gap-1">
+                <template x-for="pro in (companyProfile?.pros || [])" :key="pro">
+                  <li class="text-xs text-green-400 flex gap-1"><span>+</span><span x-text="pro"></span></li>
+                </template>
+              </ul>
+            </div>
+            <div x-show="(companyProfile?.cons || []).length > 0" class="flex-1">
+              <p class="text-xs text-slate-500 mb-1 uppercase tracking-wider">Cons</p>
+              <ul class="flex flex-col gap-1">
+                <template x-for="con in (companyProfile?.cons || [])" :key="con">
+                  <li class="text-xs text-red-400 flex gap-1"><span>-</span><span x-text="con"></span></li>
+                </template>
+              </ul>
+            </div>
+          </div>
+
+          <!-- Source attribution -->
+          <div x-show="companyProfile?.sources_used?.length > 0" class="flex items-center gap-1 flex-wrap mt-1">
+            <span class="text-xs text-slate-600">Sources:</span>
+            <template x-for="src in (companyProfile?.sources_used || [])" :key="src">
+              <span class="badge badge-blue" style="font-size:.6rem;" x-text="src === 'claude_knowledge' ? 'Claude AI' : src === 'google' ? 'Google SERP' : src"></span>
+            </template>
+            <span class="text-slate-700 text-xs">via Bright Data</span>
           </div>
 
           <!-- No data fallback -->
           <div x-show="!loadingCompany && !companyProfile" class="text-slate-600 text-xs">
-            No Glassdoor data found for this company.
+            No company data found for this company.
           </div>
         </div>
 
@@ -915,12 +953,13 @@
             const data = await res.json();
             if (data.status === 'ok') {
               this.companyProfile = {
-                ...data.profile,
+                ...(data.profile || {}),
                 glassdoor_url: data.glassdoor_url,
-                source: data.source,
-                // fallback: use scraped data from job card
-                description: (data.profile && data.profile.culture_summary) || job?.company_description || '',
-                size: (data.profile && data.profile.size_range) || job?.company_size || '',
+                indeed_url: data.indeed_url,
+                sources_used: data.sources_used || [],
+                // fallbacks from job card scraped data
+                description: (data.profile?.culture_summary) || job?.company_description || '',
+                size: (data.profile?.size_range) || job?.company_size || '',
                 industry: job?.company_industry || '',
               };
             }

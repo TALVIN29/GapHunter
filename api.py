@@ -918,14 +918,21 @@ async def hr_competitors(req: HRRequest) -> dict:
 # SERP → Glassdoor URL → Web Unlocker → Claude Haiku extraction
 # ---------------------------------------------------------------------------
 
-def _glassdoor_serp_sync(company_name: str) -> str:
-    """Find Glassdoor company reviews URL via Bright Data SERP."""
+def _company_serp_sync(company_name: str) -> dict:
+    """
+    Multi-source company SERP: discovers Glassdoor + Indeed URLs and extracts
+    rating/review snippets from Google knowledge graph and SERP results.
+    Returns: {glassdoor_url, indeed_url, serp_snippets, serp_rating}
+    """
     import requests as _req
+    import re
+
     token = os.environ.get("BRIGHTDATA_API_TOKEN", "")
     dataset = os.environ.get("BRIGHTDATA_DATASET_ID", "")
     if not token or not dataset:
-        return ""
-    keyword = f'site:glassdoor.com "{company_name}" reviews rating employees'
+        return {"glassdoor_url": "", "indeed_url": "", "serp_snippets": "", "serp_rating": None}
+
+    keyword = f'"{company_name}" company reviews rating employees glassdoor indeed'
     payload = {
         "input": [{
             "url": "https://www.google.com/",
@@ -938,6 +945,11 @@ def _glassdoor_serp_sync(company_name: str) -> str:
             "index": "",
         }]
     }
+    glassdoor_url = ""
+    indeed_url = ""
+    serp_rating = None
+    snippets: list[str] = []
+
     try:
         resp = _req.post(
             f"https://api.brightdata.com/datasets/v3/scrape"
@@ -948,57 +960,136 @@ def _glassdoor_serp_sync(company_name: str) -> str:
         )
         resp.raise_for_status()
         data = resp.json()
-        organic = data.get("organic", []) if isinstance(data, dict) else []
-        for r in organic:
+        if not isinstance(data, dict):
+            data = {}
+
+        # Knowledge graph may have aggregate rating
+        kg = data.get("knowledge_graph") or {}
+        for key in ("rating", "google_rating", "aggregate_rating"):
+            val = kg.get(key)
+            if val:
+                try:
+                    serp_rating = float(str(val).split("/")[0].split("out")[0].strip())
+                    break
+                except (ValueError, TypeError):
+                    pass
+
+        # Organic: collect URLs + snippets
+        for r in (data.get("organic") or []):
             link = r.get("link", "")
-            if "glassdoor.com" in link and any(
-                k in link for k in ("Reviews", "Overview", "reviews")
+            snippet = r.get("snippet", "")
+            if snippet:
+                snippets.append(snippet[:250])
+            if not glassdoor_url and "glassdoor.com" in link and any(
+                k in link for k in ("Reviews", "reviews", "Overview", "overview")
             ):
-                return link
+                glassdoor_url = link
+            if not indeed_url and "indeed.com/cmp/" in link:
+                indeed_url = link
+
+        # Try rating from snippets (e.g. "4.1 out of 5 stars" or "Rating: 3.9")
+        if serp_rating is None:
+            combined = " ".join(snippets[:4])
+            m = re.search(r"(\d\.\d)\s*(out of|/)\s*5", combined, re.I)
+            if not m:
+                m = re.search(r"[Rr]ating[:\s]+(\d\.\d)", combined)
+            if m:
+                try:
+                    serp_rating = float(m.group(1))
+                except (ValueError, IndexError):
+                    pass
+
     except Exception as exc:
-        logger.warning("Glassdoor SERP failed for %s: %s", company_name, exc)
-    return ""
+        logger.warning("Company SERP failed for %s: %s", company_name, exc)
+
+    logger.info(
+        "Company SERP '%s': glassdoor=%s indeed=%s rating=%s",
+        company_name, bool(glassdoor_url), bool(indeed_url), serp_rating,
+    )
+    return {
+        "glassdoor_url": glassdoor_url,
+        "indeed_url": indeed_url,
+        "serp_snippets": "\n".join(snippets[:5]),
+        "serp_rating": serp_rating,
+    }
 
 
 @app.post("/api/company", dependencies=[Depends(_require_demo_secret)])
 async def get_company_profile(req: CompanyRequest) -> dict:
     """
-    Addendum U: Company background + Glassdoor employee reviews.
-    Pipeline: SERP → Glassdoor URL → Web Unlocker fetch → Claude Haiku extraction.
-    Demonstrates: SERP API + Web Unlocker + Claude in one endpoint.
+    Addendum U (enhanced): Multi-source company profile.
+    Pipeline:
+      Step 1: SERP → discover Glassdoor URL + Indeed URL + extract SERP snippets/rating
+      Step 2: Web Unlocker (parallel) → fetch both pages
+      Step 3: Claude Haiku → synthesize multi-source profile with per-source ratings
+    Bright Data tools: SERP API + Web Unlocker (×2)
     """
     company = req.company_name.strip()
     if not company:
         return {"status": "error", "message": "Company name required"}
 
-    # Step 1: Find Glassdoor URL via SERP
+    # Step 1: Multi-source SERP
     try:
         async with asyncio.timeout(25):
-            glassdoor_url = await asyncio.to_thread(_glassdoor_serp_sync, company)
+            serp = await asyncio.to_thread(_company_serp_sync, company)
     except Exception:
-        glassdoor_url = ""
+        serp = {"glassdoor_url": "", "indeed_url": "", "serp_snippets": "", "serp_rating": None}
 
-    logger.info("Company profile: %s → Glassdoor URL: %s", company, glassdoor_url or "not found")
+    glassdoor_url = serp["glassdoor_url"]
+    indeed_url = serp["indeed_url"]
+    serp_snippets = serp["serp_snippets"]
+    serp_rating = serp["serp_rating"]
 
-    # Step 2: Fetch Glassdoor page via Web Unlocker
-    page_text = ""
-    if glassdoor_url:
-        raw_html = await _fetch_with_unlocker(glassdoor_url)
-        page_text = _html_to_text(raw_html, max_chars=5000) if raw_html else ""
+    # Step 2: Parallel Web Unlocker fetches (Glassdoor + Indeed)
+    async def _safe_fetch(url: str, label: str) -> str:
+        if not url:
+            return ""
+        try:
+            html = await _fetch_with_unlocker(url)
+            text = _html_to_text(html, max_chars=4000) if html else ""
+            if text:
+                logger.info("Company %s: %d chars from %s", label, len(text), url)
+            return text
+        except Exception as exc:
+            logger.warning("Company fetch %s failed: %s", label, exc)
+            return ""
 
-    # Step 3: Claude Haiku extracts structured profile
-    if page_text:
+    glassdoor_text, indeed_text = await asyncio.gather(
+        _safe_fetch(glassdoor_url, "glassdoor"),
+        _safe_fetch(indeed_url, "indeed"),
+    )
+
+    # Step 3: Build Claude context from all sources
+    source_blocks = []
+    sources_used = []
+    if glassdoor_text:
+        source_blocks.append(f"=== GLASSDOOR PAGE ===\n{glassdoor_text}")
+        sources_used.append("glassdoor")
+    if indeed_text:
+        source_blocks.append(f"=== INDEED COMPANY PAGE ===\n{indeed_text}")
+        sources_used.append("indeed")
+    if serp_snippets:
+        source_blocks.append(f"=== GOOGLE SEARCH SNIPPETS ===\n{serp_snippets}")
+        sources_used.append("google")
+
+    if source_blocks:
+        combined_text = "\n\n".join(source_blocks)
         prompt = (
-            f"Extract company profile data for '{company}' from this Glassdoor page.\n\n"
-            f"Page text:\n{page_text}\n\n"
+            f"Extract company review data for '{company}' from these web sources.\n\n"
+            f"{combined_text}\n\n"
             "Return JSON only — use null for fields not found:\n"
-            '{"rating": <float 1.0-5.0 or null>, '
-            '"review_count": <int or null>, '
+            '{"glassdoor_rating": <float 1.0-5.0 or null>, '
+            '"indeed_rating": <float 1.0-5.0 or null>, '
+            '"overall_rating": <float 1.0-5.0 or null — best available>, '
+            '"review_count": <int or null — total across sources>, '
             '"ceo_approval_pct": <int 0-100 or null>, '
             '"recommend_pct": <int 0-100 or null>, '
-            '"pros": ["<point>", "<point>", "<point>"], '
-            '"cons": ["<point>", "<point>", "<point>"], '
-            '"culture_summary": "<1 sentence describing the work culture>", '
+            '"pros": ["<employee quote or theme>", "<point>", "<point>", "<point>"], '
+            '"cons": ["<employee quote or theme>", "<point>", "<point>", "<point>"], '
+            '"employee_reviews": ['
+            '{"text": "<verbatim or paraphrased review>", "rating": <1-5 or null>, "source": "<glassdoor|indeed|google>"},'
+            '{"text": "...", "rating": null, "source": "..."}],'
+            '"culture_summary": "<1-2 sentences>", '
             '"headquarters": "<city, country or null>", '
             '"founded": <year int or null>, '
             '"size_range": "<e.g. 1001-5000 employees or null>"}'
@@ -1007,30 +1098,68 @@ async def get_company_profile(req: CompanyRequest) -> dict:
             async with asyncio.timeout(15):
                 resp = await _client.messages.create(
                     model="claude-haiku-4-5-20251001",
-                    max_tokens=400,
-                    system="Extract structured data from Glassdoor text. Return valid JSON only.",
+                    max_tokens=600,
+                    system="Extract structured company review data from web sources. Return valid JSON only.",
                     messages=[{"role": "user", "content": prompt}],
                 )
             text = resp.content[0].text.strip()
             if text.startswith("```"):
                 text = text.split("\n", 1)[1].rsplit("```", 1)[0].strip()
             profile = json.loads(text)
+            # Patch: if SERP found a rating but HTML didn't, use it
+            if serp_rating and not profile.get("overall_rating"):
+                profile["overall_rating"] = serp_rating
             return {
                 "status": "ok",
                 "company": company,
-                "glassdoor_url": glassdoor_url,
+                "glassdoor_url": glassdoor_url or None,
+                "indeed_url": indeed_url or None,
                 "profile": profile,
-                "source": "glassdoor",
+                "sources_used": sources_used,
             }
         except Exception as exc:
             logger.warning("Company profile extraction failed for %s: %s", company, exc)
 
+    # Fallback: Claude's own knowledge of the company
+    try:
+        async with asyncio.timeout(15):
+            fallback_resp = await _client.messages.create(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=400,
+                system="You are a company intelligence analyst. Return valid JSON only.",
+                messages=[{"role": "user", "content": (
+                    f"Provide what you know about '{company}' as an employer. "
+                    "Return JSON: "
+                    '{"overall_rating": <float or null>, "review_count": null, '
+                    '"ceo_approval_pct": null, "recommend_pct": null, '
+                    '"pros": ["<known strength>", ...], "cons": ["<known challenge>", ...], '
+                    '"employee_reviews": [], '
+                    '"culture_summary": "<1-2 sentences based on general knowledge>", '
+                    '"headquarters": "<city, country>", "founded": <year or null>, "size_range": "<range or null>"}'
+                )}],
+            )
+        ft = fallback_resp.content[0].text.strip()
+        if ft.startswith("```"):
+            ft = ft.split("\n", 1)[1].rsplit("```", 1)[0].strip()
+        profile = json.loads(ft)
+        return {
+            "status": "ok",
+            "company": company,
+            "glassdoor_url": glassdoor_url or None,
+            "indeed_url": indeed_url or None,
+            "profile": profile,
+            "sources_used": ["claude_knowledge"],
+        }
+    except Exception as exc:
+        logger.warning("Company fallback Claude failed for %s: %s", company, exc)
+
     return {
         "status": "ok",
         "company": company,
-        "glassdoor_url": glassdoor_url or None,
+        "glassdoor_url": None,
+        "indeed_url": None,
         "profile": None,
-        "source": "not_found",
+        "sources_used": [],
     }
 
 
