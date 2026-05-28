@@ -331,9 +331,90 @@ def _load_fallback(role: str) -> list[dict]:
     return []
 
 
-async def _scrape_with_fallback(role: str, location: str) -> tuple[list[dict], bool]:
-    """Addendum C: 45s timeout → silent fallback to pre-cached JSON.
-    Returns (postings, is_live) — is_live=False when fallback data is served.
+async def _generate_ai_jobs(role: str, location: str) -> list[dict]:
+    """Claude Haiku generates representative job postings when scraper returns 0 results."""
+    from datetime import datetime
+
+    today = datetime.now().strftime("%Y-%m-%d")
+    location_ctx = location or "global market"
+    prompt = (
+        f"Generate 5 realistic job postings for the role '{role}' in '{location_ctx}'.\n\n"
+        "Return a JSON array only. Each object must have exactly these fields:\n"
+        "job_description (string, 250+ chars with realistic duties and required tools), "
+        "title (string, may be a seniority variant), "
+        "company_name (string, realistic company name for the region), "
+        "location (string), "
+        f"date_posted (YYYY-MM-DD, within 30 days before {today}), "
+        "salary_min (number, annual in local currency), "
+        "salary_max (number), "
+        "salary_currency (ISO code matching the location: MYR/SGD/USD/GBP/AUD/INR etc.), "
+        "skills_listed (array of 5-8 skill strings), "
+        "seniority_level (one of: entry/mid/senior), "
+        "employment_type (full-time), "
+        "is_remote (boolean), "
+        "remote_type (remote/hybrid/on-site), "
+        "company_industry (string), "
+        "company_size (e.g. 51-200).\n\n"
+        "Use realistic local salaries — not USD if outside the US. "
+        "Return ONLY the JSON array, no explanation."
+    )
+    try:
+        async with asyncio.timeout(30):
+            resp = await _client.messages.create(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=2000,
+                system="You are a job data generator. Return valid JSON only.",
+                messages=[{"role": "user", "content": prompt}],
+            )
+        text = resp.content[0].text.strip()
+        if text.startswith("```"):
+            text = text.split("\n", 1)[1].rsplit("```", 1)[0].strip()
+        raw = json.loads(text)
+        if not isinstance(raw, list):
+            raise ValueError("expected list")
+        result = []
+        for r in raw[:5]:
+            result.append({
+                "job_description": r.get("job_description") or "",
+                "title": r.get("title") or role,
+                "company_name": r.get("company_name") or "",
+                "url": "",
+                "apply_link": "",
+                "location": r.get("location") or location,
+                "skills_listed": r.get("skills_listed") or [],
+                "date_posted": r.get("date_posted") or "",
+                "num_applicants": None,
+                "salary_min": float(r.get("salary_min") or 0),
+                "salary_max": float(r.get("salary_max") or 0),
+                "salary_currency": r.get("salary_currency") or "USD",
+                "is_remote": bool(r.get("is_remote", False)),
+                "remote_type": (r.get("remote_type") or "").lower(),
+                "seniority_level": (r.get("seniority_level") or "mid").lower(),
+                "employment_type": (r.get("employment_type") or "full-time").lower(),
+                "company_industry": r.get("company_industry") or "",
+                "company_size": r.get("company_size") or "",
+                "company_description": "",
+                "source": "ai_generated",
+                "is_verified": False,
+                "extracted_skills": [],
+                "freshness_score": 0.5,
+                "competition_score": 0.5,
+                "dual_signal": {},
+                "cross_source_confirmed": {},
+            })
+        logger.info("AI generation: %d jobs for '%s' in '%s'", len(result), role, location)
+        return result
+    except Exception as exc:
+        logger.warning("AI job generation failed: %s", exc)
+        return []
+
+
+async def _scrape_with_fallback(role: str, location: str) -> tuple[list[dict], str]:
+    """
+    Returns (postings, data_source) where data_source is one of:
+    - "live":         Bright Data scrape returned verified results
+    - "ai_generated": Claude generated representative jobs (scrape returned 0)
+    - "fallback":     static JSON file (last resort if AI generation also fails)
     """
     from scraper import scrape_jobs
 
@@ -343,15 +424,19 @@ async def _scrape_with_fallback(role: str, location: str) -> tuple[list[dict], b
             timeout=_SCRAPE_TIMEOUT_S,
         )
         if postings:
-            return postings, True
-        logger.warning("Scrape returned 0 postings — using fallback")
-        return _load_fallback(role), False
+            return postings, "live"
+        logger.warning("Scrape returned 0 postings — trying AI generation")
     except asyncio.TimeoutError:
-        logger.warning("Scrape timed out after %ds — using fallback", _SCRAPE_TIMEOUT_S)
-        return _load_fallback(role), False
+        logger.warning("Scrape timed out after %ds — trying AI generation", _SCRAPE_TIMEOUT_S)
     except Exception as exc:
-        logger.warning("Scrape error: %s — using fallback", exc)
-        return _load_fallback(role), False
+        logger.warning("Scrape error: %s — trying AI generation", exc)
+
+    ai_jobs = await _generate_ai_jobs(role, location)
+    if ai_jobs:
+        return ai_jobs, "ai_generated"
+
+    logger.warning("AI generation failed — using static fallback")
+    return _load_fallback(role), "fallback"
 
 
 # ---------------------------------------------------------------------------
@@ -412,6 +497,11 @@ class HRRequest(BaseModel):
 class CompanyRequest(BaseModel):
     company_name: str
     session_id: str
+
+
+class SalaryRequest(BaseModel):
+    role: str
+    location: str = ""
 
 
 # ---------------------------------------------------------------------------
@@ -539,7 +629,7 @@ async def search(req: SearchRequest, request: Request, background_tasks: Backgro
 
     # Layer 3: Tick circuit breaker (only live path reaches here)
     _tick_circuit_breaker(request.app.state)
-    postings, is_live = await _scrape_with_fallback(primary_title, req.location)
+    postings, data_source = await _scrape_with_fallback(primary_title, req.location)
 
     if not postings:
         return {"status": "error", "message": "No job postings found. Try a different role or location."}
@@ -610,7 +700,7 @@ async def search(req: SearchRequest, request: Request, background_tasks: Backgro
         "titles_searched": titles,
         "jobs": jobs_out,
         "gaps": evidence,
-        "data_source": "live" if is_live else "fallback",
+        "data_source": data_source,
         "location_searched": req.location,
     }
 
@@ -792,7 +882,7 @@ async def hr_competitors(req: HRRequest) -> dict:
     if not req.company_name.strip() or not req.role.strip():
         return {"status": "error", "message": "Company name and role are required"}
 
-    postings = await _scrape_with_fallback(
+    postings, _ = await _scrape_with_fallback(
         f"{req.role} {req.company_name}", req.location
     )
     if not postings:
@@ -942,6 +1032,61 @@ async def get_company_profile(req: CompanyRequest) -> dict:
         "profile": None,
         "source": "not_found",
     }
+
+
+# ---------------------------------------------------------------------------
+# Salary intelligence — Addendum W
+# ---------------------------------------------------------------------------
+
+@app.post("/api/salary", dependencies=[Depends(_require_demo_secret)])
+async def get_salary_intel(req: SalaryRequest) -> dict:
+    """
+    Addendum W: Market salary range + actionable increase tips.
+    Uses Claude Haiku market knowledge for the role + location.
+    Returns: market_min, market_median, market_max, currency, currency_symbol,
+             market_context, increase_tips[{action, impact, timeframe}].
+    """
+    role = req.role.strip()
+    if not role:
+        return {"status": "error", "message": "Role is required"}
+
+    location_ctx = req.location.strip() or "global market"
+    prompt = (
+        f"Role: {role}\n"
+        f"Market: {location_ctx}\n\n"
+        "Return JSON only with salary intelligence for this role in this market:\n"
+        "{\n"
+        '  "market_min": <annual min salary as integer>,\n'
+        '  "market_median": <annual median salary as integer>,\n'
+        '  "market_max": <annual max salary as integer>,\n'
+        '  "currency": "<ISO code e.g. USD/MYR/SGD/GBP/AUD>",\n'
+        '  "currency_symbol": "<symbol e.g. $/RM/S$/£/A$>",\n'
+        '  "market_context": "<1-2 sentences on salary drivers and market conditions for this role in this location>",\n'
+        '  "increase_tips": [\n'
+        '    {"action": "<specific skill, cert, or career move>", "impact": "<salary increase range or %>", "timeframe": "<realistic time to achieve>"},\n'
+        '    ... exactly 5 tips\n'
+        '  ]\n'
+        "}\n\n"
+        "Use 2025/2026 market data. Use local currency — not USD if outside the US. "
+        "For increase_tips: be specific — name exact tools, certifications, or skills, not generic advice. "
+        "Return ONLY the JSON object, no explanation."
+    )
+    try:
+        async with asyncio.timeout(20):
+            resp = await _client.messages.create(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=600,
+                system="You are a compensation intelligence analyst. Return valid JSON only.",
+                messages=[{"role": "user", "content": prompt}],
+            )
+        text = resp.content[0].text.strip()
+        if text.startswith("```"):
+            text = text.split("\n", 1)[1].rsplit("```", 1)[0].strip()
+        intel = json.loads(text)
+        return {"status": "ok", "role": role, "location": req.location, "intel": intel}
+    except Exception as exc:
+        logger.warning("Salary intel failed for '%s' in '%s': %s", role, location_ctx, exc)
+        return {"status": "error", "message": "Salary data unavailable"}
 
 
 # ---------------------------------------------------------------------------
