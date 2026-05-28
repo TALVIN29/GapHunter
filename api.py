@@ -609,14 +609,15 @@ async def _find_jobs_via_web(role: str, location: str) -> list[dict]:
     """
     job_urls = await asyncio.to_thread(_serp_broad_jobs_sync, role, location)
 
-    # Dataset API SERP returned nothing — fall back to Web Unlocker SERP
+    # Dataset SERP returned nothing — try DuckDuckGo via Web Unlocker
     if not job_urls:
-        logger.info("Dataset SERP: 0 URLs — trying Web Unlocker SERP")
+        logger.info("Dataset SERP: 0 URLs — trying DuckDuckGo SERP")
         job_urls = await _serp_via_unlocker(role, location)
 
+    # All SERP paths failed — fetch job board search pages directly (no SERP needed)
     if not job_urls:
-        logger.warning("All SERP paths returned 0 job URLs for '%s' in '%s'", role, location)
-        return []
+        logger.info("All SERP paths returned 0 — fetching job boards directly")
+        return await _search_direct_job_boards(role, location)
 
     # Parallel Web Unlocker fetches (cap at 6)
     async def _fetch_safe(url: str) -> tuple[str, str]:
@@ -1078,45 +1079,217 @@ def _html_to_text(html: str, max_chars: int = 3000) -> str:
 
 async def _serp_via_unlocker(role: str, location: str) -> list[str]:
     """
-    Web Unlocker SERP fallback — fetches Google search page directly.
-    Used when BRIGHTDATA_DATASET_ID is not set or Dataset API returns no results.
+    DuckDuckGo HTML SERP via Web Unlocker.
+    DuckDuckGo's HTML endpoint returns plain, JS-free HTML with direct hrefs —
+    unlike Google which is JS-heavy and often serves bot-detection pages.
     Only needs BRIGHTDATA_API_TOKEN + BRIGHTDATA_UNLOCKER_ZONE.
     """
     from urllib.parse import quote_plus, unquote
 
-    gl = _gl_for_location(location) if location else "us"
     query = f'"{role}" jobs {location}' if location else f'"{role}" remote jobs'
-    search_url = (
-        f"https://www.google.com/search"
-        f"?q={quote_plus(query)}&gl={gl}&num=20&hl=en"
-    )
+    # DuckDuckGo HTML endpoint: returns plain HTML, no JavaScript required
+    search_url = f"https://html.duckduckgo.com/html/?q={quote_plus(query)}"
+
     try:
         html = await _fetch_with_unlocker(search_url)
         if not html or len(html) < 500:
-            logger.warning("Unlocker SERP returned too little HTML (%d chars)", len(html or ""))
+            logger.warning("DDG SERP: too little HTML (%d chars)", len(html or ""))
             return []
 
-        # Google wraps organic links as /url?q=https://... — extract the real URL
-        redirect_pattern = re.findall(r'/url\?q=(https?://[^&"\'<>\s]+)', html)
-        direct_pattern = re.findall(r'href=["\']?(https?://[^"\'<>\s]+)', html)
-
+        # DDG HTML has direct hrefs and /l/?uddg=ENCODED_URL redirect links
         seen: set[str] = set()
         job_urls: list[str] = []
-        for raw in redirect_pattern + direct_pattern:
-            url = unquote(raw).split("&")[0]  # strip Google tracking params
-            if "google.com" in url or "gstatic.com" in url or "googleapis.com" in url:
+
+        for raw in re.findall(r'href=["\']?(https?://[^"\'<>\s]+)', html):
+            url = unquote(raw).split("&")[0]
+            if any(skip in url for skip in ("duckduckgo.com", "google.com", "gstatic.com")):
                 continue
             if any(pat in url for pat in _JOB_BOARD_PATTERNS) and url not in seen:
                 seen.add(url)
                 job_urls.append(url)
 
-        logger.info(
-            "Unlocker SERP: %d job URLs for '%s' in '%s'", len(job_urls), role, location
-        )
+        # DDG also wraps results as /l/?uddg=PERCENT_ENCODED_URL
+        for encoded in re.findall(r'uddg=([^&"\'<>\s]+)', html):
+            url = unquote(encoded).split("&")[0]
+            if any(pat in url for pat in _JOB_BOARD_PATTERNS) and url not in seen:
+                seen.add(url)
+                job_urls.append(url)
+
+        logger.info("DDG SERP: %d job URLs for '%s' in '%s'", len(job_urls), role, location)
         return job_urls[:8]
     except Exception as exc:
-        logger.warning("Unlocker SERP failed: %s", exc)
+        logger.warning("DDG SERP failed: %s", exc)
         return []
+
+
+def _direct_board_urls(role: str, location: str) -> list[str]:
+    """
+    Build job board search page URLs directly from role + location — no SERP needed.
+    Location keyword → regional boards → constructed search URLs.
+    """
+    from urllib.parse import quote_plus
+    role_slug = re.sub(r"[^a-z0-9]+", "-", role.lower()).strip("-")
+    role_q = quote_plus(role)
+    loc_q = quote_plus(location)
+    loc = location.lower()
+
+    if any(k in loc for k in ["malaysia", "kuala lumpur", " kl", "penang", "johor", "selangor", "petaling"]):
+        return [
+            f"https://www.jobstreet.com.my/en/job-search/{role_slug}-jobs/in-malaysia/",
+            f"https://malaysia.indeed.com/jobs?q={role_q}&l={loc_q}",
+            f"https://www.wobb.my/jobs?position={role_q}",
+        ]
+    if any(k in loc for k in ["singapore", " sg ", "sg,"]):
+        return [
+            f"https://www.jobstreet.com.sg/en/job-search/{role_slug}-jobs/in-singapore/",
+            f"https://sg.indeed.com/jobs?q={role_q}",
+            f"https://www.mycareersfuture.gov.sg/search?search={role_q}&sortBy=new_posting_date",
+        ]
+    if any(k in loc for k in ["australia", "sydney", "melbourne", "brisbane", "perth", "adelaide"]):
+        return [
+            f"https://www.seek.com.au/{role_slug}-jobs",
+            f"https://au.indeed.com/jobs?q={role_q}&l={loc_q}",
+        ]
+    if any(k in loc for k in ["new zealand", "auckland", "wellington", "christchurch"]):
+        return [
+            f"https://www.seek.co.nz/{role_slug}-jobs",
+            f"https://nz.indeed.com/jobs?q={role_q}&l={loc_q}",
+        ]
+    if any(k in loc for k in ["india", "bangalore", "bengaluru", "mumbai", "delhi", "hyderabad", "chennai", "pune"]):
+        return [
+            f"https://www.naukri.com/{role_slug}-jobs",
+            f"https://in.indeed.com/jobs?q={role_q}&l={loc_q}",
+        ]
+    if any(k in loc for k in ["philippines", "manila", "cebu", "davao"]):
+        return [
+            f"https://www.jobstreet.com.ph/en/job-search/{role_slug}-jobs/in-philippines/",
+            f"https://www.kalibrr.com/job-board?role={role_q}",
+        ]
+    if any(k in loc for k in ["united kingdom", " uk ", "uk,", "london", "manchester", "birmingham", "leeds"]):
+        return [
+            f"https://www.reed.co.uk/jobs/{role_slug}-jobs",
+            f"https://uk.indeed.com/jobs?q={role_q}&l={loc_q}",
+        ]
+    if any(k in loc for k in ["germany", "berlin", "munich", "hamburg", "frankfurt"]):
+        return [
+            f"https://www.stepstone.de/jobs/{role_slug}/in-deutschland.html",
+            f"https://de.indeed.com/jobs?q={role_q}&l={loc_q}",
+        ]
+    # Global / US default
+    return [
+        f"https://www.indeed.com/jobs?q={role_q}&l={loc_q}",
+        f"https://www.glassdoor.com/Job/{role_slug}-jobs.htm",
+    ]
+
+
+async def _extract_jobs_from_search_page(
+    board_url: str, text: str, role: str, location: str, source: str
+) -> list[dict]:
+    """Claude Haiku extracts multiple job listings from a job board search results page."""
+    currency = {
+        "malaysia": "MYR", "kuala lumpur": "MYR", "kl": "MYR",
+        "singapore": "SGD", "australia": "AUD", "new zealand": "NZD",
+        "india": "INR", "philippines": "PHP", "united kingdom": "GBP",
+        "london": "GBP", "germany": "EUR", "uk": "GBP",
+    }.get(next((k for k in ["malaysia","kuala lumpur","singapore","australia",
+                             "new zealand","india","philippines","united kingdom",
+                             "london","germany","uk"] if k in location.lower()), ""), "USD")
+
+    prompt = (
+        f'Extract all visible job listings from this {source} search results page.\n'
+        f'Role searched: "{role}". Location: "{location}".\n\n'
+        "For each job listing found, return a JSON object with:\n"
+        "title, company_name, location (string), "
+        "salary_min (annual integer or null), salary_max (annual integer or null), "
+        f"salary_currency (use {currency!r} for this location unless stated otherwise), "
+        "seniority_level (entry/mid/senior/unknown), employment_type (full-time/part-time/contract), "
+        "is_remote (boolean), job_description (any visible description text, min 30 chars).\n\n"
+        "Return a JSON array. Return [] if no listings visible. Do not invent jobs.\n\n"
+        f"Page text:\n{text}"
+    )
+    try:
+        async with asyncio.timeout(15):
+            resp = await _client.messages.create(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=3000,
+                system="Extract job listings from job board pages. Return valid JSON array only.",
+                messages=[{"role": "user", "content": prompt}],
+            )
+        raw = resp.content[0].text.strip()
+        if raw.startswith("```"):
+            raw = raw.split("\n", 1)[1].rsplit("```", 1)[0].strip()
+        items = json.loads(raw)
+        if not isinstance(items, list):
+            return []
+
+        results = []
+        for j in items[:6]:
+            if not j.get("title") or not j.get("company_name"):
+                continue
+            desc = j.get("job_description") or ""
+            if len(desc) < 30:
+                desc = f"{j.get('title')} at {j.get('company_name')} in {j.get('location') or location}."
+            results.append({
+                "job_description": desc,
+                "title": str(j.get("title") or ""),
+                "company_name": str(j.get("company_name") or ""),
+                "url": board_url,
+                "apply_link": board_url,
+                "location": str(j.get("location") or location),
+                "skills_listed": [],
+                "date_posted": "",
+                "num_applicants": None,
+                "salary_min": float(j.get("salary_min") or 0),
+                "salary_max": float(j.get("salary_max") or 0),
+                "salary_currency": str(j.get("salary_currency") or currency),
+                "is_remote": bool(j.get("is_remote", False)),
+                "remote_type": "remote" if j.get("is_remote") else "on-site",
+                "seniority_level": str(j.get("seniority_level") or "unknown").lower(),
+                "employment_type": str(j.get("employment_type") or "full-time").lower(),
+                "company_industry": "",
+                "company_size": "",
+                "company_description": "",
+                "source": source,
+                "is_verified": True,
+                "extracted_skills": [],
+                "freshness_score": 0.6,
+                "competition_score": 0.5,
+                "dual_signal": {},
+                "cross_source_confirmed": {},
+            })
+        logger.info("Search page extraction: %d jobs from %s", len(results), source)
+        return results
+    except Exception as exc:
+        logger.warning("Search page extraction failed for %s: %s", board_url, exc)
+        return []
+
+
+async def _search_direct_job_boards(role: str, location: str) -> list[dict]:
+    """
+    Skip SERP entirely — fetch job board search pages directly based on location,
+    then extract multiple job listings from each page via Claude Haiku.
+    Requires only Web Unlocker (no SERP dataset).
+    """
+    board_urls = _direct_board_urls(role, location)
+
+    async def _fetch_board(url: str) -> list[dict]:
+        source = _detect_job_source(url)
+        try:
+            html = await _fetch_with_unlocker(url)
+            if not html or len(html) < 500:
+                return []
+            text = _html_to_text(html, max_chars=6000)
+            return await _extract_jobs_from_search_page(url, text, role, location, source)
+        except Exception as exc:
+            logger.warning("Board fetch failed for %s: %s", url, exc)
+            return []
+
+    results = await asyncio.gather(*[_fetch_board(u) for u in board_urls[:3]])
+    jobs: list[dict] = []
+    for batch in results:
+        jobs.extend(batch)
+    logger.info("Direct boards: %d total jobs for '%s' in '%s'", len(jobs), role, location)
+    return jobs[:8]
 
 
 # ---------------------------------------------------------------------------
