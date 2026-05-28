@@ -985,8 +985,9 @@
             this.locationSearched = data.location_searched || this.location;
 
             if (this.dataSource === 'web_extracted') {
+              const locLabel = this.locationSearched ? `for "${this.locationSearched}" ` : '';
               Swal.fire({ icon: 'success', title: `Real jobs found via web search`,
-                text: `LinkedIn/Indeed returned 0 results for "${this.locationSearched}". Found real ${this.role} jobs from regional job boards (Jobstreet, Seek, Naukri, Reed, etc.) via Bright Data web search — all jobs link to real listings you can apply to.`,
+                text: `LinkedIn/Indeed returned 0 results ${locLabel}— found real ${this.role} jobs from regional job boards (Jobstreet, Seek, Naukri, Reed, etc.) via Bright Data web search. All listings link to real postings you can apply to.`,
                 background: '#0f1623', color: '#e2e8f0', confirmButtonColor: '#3b82f6',
                 timer: 8000, timerProgressBar: true });
             } else if (this.dataSource === 'fallback') {
