@@ -500,6 +500,33 @@ async def _extract_job_from_page(url: str, page_text: str) -> dict | None:
         return None
 
 
+async def _infer_role_from_skills(skills_str: str) -> str | None:
+    """Backend fallback: infer job title from skills when role field is empty."""
+    if not _client or not skills_str.strip():
+        return None
+    skills_sample = ", ".join(s.strip() for s in skills_str.split(",") if s.strip())[:300]
+    try:
+        async with asyncio.timeout(8):
+            resp = await _client.messages.create(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=64,
+                system="You are a career advisor. Return one job title only — no explanation.",
+                messages=[{
+                    "role": "user",
+                    "content": (
+                        f"Given these skills: {skills_sample}\n"
+                        "What is the single most likely job title this person should search for? "
+                        "Return the job title only, nothing else."
+                    ),
+                }],
+            )
+        title = resp.content[0].text.strip().strip('"').strip("'")
+        return title if title else None
+    except Exception as exc:
+        logger.warning("_infer_role_from_skills failed: %s", exc)
+        return None
+
+
 async def _find_jobs_via_web(role: str, location: str) -> list[dict]:
     """
     Global fallback: SERP any public job board → Web Unlocker fetch → Claude extract.
@@ -747,8 +774,18 @@ async def search(req: SearchRequest, request: Request, background_tasks: Backgro
         if not _check_ip_rate(ip):
             return _RATE_LIMITED_RESPONSE
 
+    # Pre-Gate: if role is empty but skills were sent (CV uploaded), infer role
+    role_input = req.role.strip()
+    if not precheck_role_input(role_input) and req.skills.strip():
+        inferred = await _infer_role_from_skills(req.skills)
+        if inferred:
+            logger.info("Role inferred from skills: '%s'", inferred)
+            role_input = inferred
+        else:
+            return _INVALID_QUERY_RESPONSE
+
     # Gate 0: pure Python (Addendum F)
-    if not precheck_role_input(req.role):
+    if not precheck_role_input(role_input):
         return _INVALID_QUERY_RESPONSE
 
     # Layer 3: Daily reset + shadow forced early-exit (Fracture 3 fix)
@@ -762,14 +799,14 @@ async def search(req: SearchRequest, request: Request, background_tasks: Backgro
     # Gate 1: Claude Haiku normalisation (Addendum F)
     # Gate 0 already blocked garbage — if Gate 1 says invalid, log and proceed
     # rather than hard-blocking legitimate but unusual job titles.
-    validation = await validate_and_normalize(_client, req.role)
+    validation = await validate_and_normalize(_client, role_input)
     if validation is None:
-        titles = [req.role.strip()]  # degrade gracefully on timeout
+        titles = [role_input]  # degrade gracefully on timeout
     elif not validation["is_valid_role"]:
-        logger.info("Gate 1 flagged '%s' as non-standard — proceeding (Gate 0 passed)", req.role)
-        titles = [req.role.strip()]
+        logger.info("Gate 1 flagged '%s' as non-standard — proceeding (Gate 0 passed)", role_input)
+        titles = [role_input]
     else:
-        titles = validation["canonical_titles"] or [req.role.strip()]
+        titles = validation["canonical_titles"] or [role_input]
 
     primary_title = titles[0]
 
