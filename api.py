@@ -148,6 +148,9 @@ _RATE_LIMITED_RESPONSE = {
 }
 
 _SCRAPE_TIMEOUT_S = int(os.environ.get("SCRAPE_TIMEOUT_S", "150"))
+# Global scrape semaphore — cap at 1 concurrent scrape to stay within 512MB RAM on Render free tier.
+# Two simultaneous scrapes (LinkedIn NDJSON + Claude extractions) exceed the limit.
+_scrape_sem = asyncio.Semaphore(1)
 _FALLBACK_DIR = Path(__file__).parent / "fallback"
 # Static fallback / demo mode — opt-in only. Set DEMO_MODE=1 in Render to enable.
 # Without this flag, no hardcoded US data is ever served — callers get an empty result.
@@ -1385,7 +1388,8 @@ async def search(req: SearchRequest, request: Request, background_tasks: Backgro
 
     # Layer 3: Tick circuit breaker (only live path reaches here)
     _tick_circuit_breaker(request.app.state)
-    postings, data_source = await _scrape_with_fallback(primary_title, req.location)
+    async with _scrape_sem:
+        postings, data_source = await _scrape_with_fallback(primary_title, req.location)
 
     if not postings:
         return {"status": "error", "message": "No job postings found. Try a different role or location."}
@@ -2062,13 +2066,15 @@ async def hr_competitors(req: HRRequest) -> dict:
     except Exception:
         normalized_role = role_input
 
-    # Use LinkedIn-only scrape — skip web extraction fallback (too memory-heavy for HR path)
+    # Use LinkedIn-only scrape — skip web extraction fallback (too memory-heavy for HR path).
+    # Semaphore ensures only 1 concurrent scrape runs — prevents OOM on 512MB Render free tier.
     try:
         from scraper import scrape_jobs
-        postings = await asyncio.wait_for(
-            asyncio.to_thread(scrape_jobs, f"{normalized_role} {req.company_name}", req.location),
-            timeout=_SCRAPE_TIMEOUT_S,
-        )
+        async with _scrape_sem:
+            postings = await asyncio.wait_for(
+                asyncio.to_thread(scrape_jobs, f"{normalized_role} {req.company_name}", req.location),
+                timeout=_SCRAPE_TIMEOUT_S,
+            )
     except (asyncio.TimeoutError, Exception) as exc:
         logger.warning("HR scrape failed: %s", exc)
         postings = []
