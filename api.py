@@ -2041,8 +2041,19 @@ async def hr_competitors(req: HRRequest) -> dict:
     if not req.company_name.strip() or not req.role.strip():
         return {"status": "error", "message": "Company name and role are required"}
 
+    # Normalize role via Gate 1 — corrects typos and expands to canonical title
+    role_input = req.role.strip()
+    if " - " in role_input:
+        role_input = role_input.split(" - ")[0].strip()
+    validation = await validate_and_normalize(_client, role_input)
+    if validation and validation["is_valid_role"] and validation["canonical_titles"]:
+        normalized_role = validation["canonical_titles"][0]
+        logger.info("HR role normalized: '%s' → '%s'", role_input, normalized_role)
+    else:
+        normalized_role = role_input  # fallback to raw input
+
     postings, _ = await _scrape_with_fallback(
-        f"{req.role} {req.company_name}", req.location
+        f"{normalized_role} {req.company_name}", req.location
     )
     if not postings:
         return {"status": "error", "message": "No competitor postings found"}
