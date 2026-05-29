@@ -147,7 +147,7 @@ _RATE_LIMITED_RESPONSE = {
     "message": "Too many searches from your IP. Please wait 1 hour.",
 }
 
-_SCRAPE_TIMEOUT_S = int(os.environ.get("SCRAPE_TIMEOUT_S", "120"))
+_SCRAPE_TIMEOUT_S = int(os.environ.get("SCRAPE_TIMEOUT_S", "150"))
 _FALLBACK_DIR = Path(__file__).parent / "fallback"
 # Static fallback / demo mode — opt-in only. Set DEMO_MODE=1 in Render to enable.
 # Without this flag, no hardcoded US data is ever served — callers get an empty result.
@@ -1681,15 +1681,18 @@ async def _extract_jobs_from_search_page(
                              "london","germany","uk"] if k in location.lower()), ""), "USD")
 
     prompt = (
-        f'Extract all visible job listings from this {source} search results page.\n'
-        f'Role searched: "{role}". Location: "{location}".\n\n'
-        "For each job listing found, return a JSON object with:\n"
+        f'Extract job listings RELEVANT TO "{role}" from this {source} search results page.\n'
+        f'Location context: "{location}".\n\n'
+        f'IMPORTANT: Only include jobs where the title is directly related to "{role}" '
+        f'(e.g. Data Analyst, Senior Data Analyst, Business Analyst, Analytics Engineer). '
+        f'Skip unrelated jobs (e.g. Sales, Marketing, HR, Engineering if role is Data Analyst).\n\n'
+        "For each matching job listing, return a JSON object with:\n"
         "title, company_name, location (string), "
         "salary_min (annual integer or null), salary_max (annual integer or null), "
         f"salary_currency (use {currency!r} for this location unless stated otherwise), "
         "seniority_level (entry/mid/senior/unknown), employment_type (full-time/part-time/contract), "
         "is_remote (boolean), job_description (any visible description text, min 30 chars).\n\n"
-        "Return a JSON array. Return [] if no listings visible. Do not invent jobs.\n\n"
+        f"Return a JSON array of only relevant jobs. Return [] if none match '{role}'. Do not invent jobs.\n\n"
         f"Page text:\n{text}"
     )
     try:

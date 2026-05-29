@@ -30,8 +30,8 @@ load_dotenv()
 logger = logging.getLogger(__name__)
 
 POSTINGS_CAP = 10
-SERP_TIMEOUT = 20       # initial POST — fail fast; async handled by polling
-SERP_POLL_MAX_S = 70    # total poll budget after initial response
+SERP_TIMEOUT = 75       # Bright Data SERP takes 30-60s — wait it out
+SERP_POLL_MAX_S = 70    # poll budget if async snapshot returned
 LINKEDIN_TIMEOUT = 55
 INDEED_TIMEOUT = 45
 
