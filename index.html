@@ -46,12 +46,14 @@
 
   <style>
     * { box-sizing: border-box; }
+    html { overflow-x: hidden; }
     html, body { height: 100%; }
     body {
       background: #080d18;
       color: #e2e8f0;
       font-family: 'Inter', sans-serif;
       overflow-x: hidden;
+      max-width: 100vw;
     }
 
     /* Scrollbar */
@@ -505,11 +507,17 @@
         <!-- Job cards -->
         <div x-show="jobs.length > 0" class="flex flex-col gap-2.5" id="jobs-list">
           <div class="flex items-center justify-between mb-1">
-            <h2 class="font-semibold text-slate-300 flex items-center gap-2">
-              <i class="fa-solid fa-list-check text-accent text-sm"></i>
-              Jobs
-              <span class="text-slate-500 font-normal text-sm">(<span x-text="jobs.length"></span>)</span>
-            </h2>
+            <div>
+              <h2 class="font-semibold text-slate-300 flex items-center gap-2">
+                <i class="fa-solid fa-list-check text-accent text-sm"></i>
+                Jobs
+                <span class="text-slate-500 font-normal text-sm">(<span x-text="jobs.length"></span>)</span>
+              </h2>
+              <p class="text-xs text-slate-600 mt-0.5">
+                <i class="fa-solid fa-circle-info text-xs mr-1"></i>
+                % = skill match score — higher when you add your skills above
+              </p>
+            </div>
             <span class="badge badge-green text-xs" x-show="dataSource === 'live'">
               <i class="fa-solid fa-circle text-xs" style="font-size:.45rem"></i> Live LinkedIn data
             </span>
@@ -520,43 +528,46 @@
 
           <template x-for="job in jobs" :key="job.url + job.title">
             <div class="job-card" :class="selectedJob?.url === job.url ? 'job-card-active' : ''" @click="selectJob(job)">
-              <div class="flex justify-between items-start gap-3 mb-2.5">
-                <div class="min-w-0">
-                  <p class="font-semibold text-sm text-white truncate" x-text="job.title"></p>
-                  <p class="text-slate-400 text-xs mt-0.5 flex items-center gap-1.5">
-                    <i class="fa-solid fa-building text-slate-600 text-xs"></i>
-                    <span x-text="job.company"></span>
-                    <span class="text-slate-600">·</span>
+              <!-- Title row -->
+              <div class="flex justify-between items-start gap-3 mb-2">
+                <div class="min-w-0 flex-1">
+                  <p class="font-bold text-base text-white leading-snug" x-text="job.title"></p>
+                  <p class="text-slate-300 text-sm mt-0.5 font-medium" x-text="job.company"></p>
+                  <p class="text-slate-500 text-xs mt-0.5 flex items-center gap-1">
                     <i class="fa-solid fa-location-dot text-slate-600 text-xs"></i>
-                    <span class="truncate" x-text="job.location"></span>
+                    <span x-text="job.location"></span>
                   </p>
                 </div>
-                <span class="badge shrink-0 text-xs"
-                  :class="job.relevance_pct >= 70 ? 'badge-green' : job.relevance_pct >= 40 ? 'badge-yellow' : 'badge-red'"
-                  x-text="job.relevance_pct + '%'"></span>
+                <div class="flex flex-col items-end gap-1 shrink-0">
+                  <div class="text-center">
+                    <span class="badge text-xs font-bold"
+                      :class="job.relevance_pct >= 70 ? 'badge-green' : job.relevance_pct >= 40 ? 'badge-yellow' : 'badge-red'"
+                      x-text="job.relevance_pct + '%'"></span>
+                    <p class="text-slate-600 text-xs mt-0.5">match</p>
+                  </div>
+                </div>
               </div>
 
-              <div class="flex flex-wrap gap-1 mb-2.5">
-                <template x-for="sk in (job.skills_match || []).slice(0,4)" :key="sk">
-                  <span class="skill-pill" x-text="sk"></span>
+              <!-- Skills -->
+              <div class="flex flex-wrap gap-1.5 mb-2.5" x-show="(job.skills_match || []).length > 0">
+                <template x-for="sk in (job.skills_match || []).slice(0,5)" :key="sk">
+                  <span class="skill-pill text-xs" x-text="sk"></span>
                 </template>
               </div>
 
-              <div class="flex items-center justify-between text-xs">
-                <div class="flex items-center gap-2">
-                  <span x-show="job.is_verified !== false" class="badge badge-green" style="padding:.1rem .5rem; font-size:.6rem;">
-                    <i class="fa-solid fa-shield-check text-xs"></i> Verified
+              <!-- Footer -->
+              <div class="flex items-center justify-between pt-2 border-t border-white/5">
+                <div class="flex items-center gap-2 flex-wrap">
+                  <span x-show="job.is_verified !== false" class="badge badge-green" style="font-size:.65rem;">
+                    <i class="fa-solid fa-shield-check"></i> Verified
                   </span>
-                  <span x-show="job.is_remote" class="badge badge-blue" style="padding:.1rem .5rem; font-size:.6rem;">
-                    <i class="fa-solid fa-wifi text-xs"></i> Remote
-                  </span>
-                  <span x-show="job.salary !== 'Not disclosed'" class="text-slate-500 text-xs" x-text="job.salary"></span>
+                  <span x-show="job.is_remote" class="badge badge-blue" style="font-size:.65rem;">Remote</span>
+                  <span x-show="job.salary && job.salary !== 'Not disclosed'" class="text-slate-400 text-xs font-medium" x-text="job.salary"></span>
                 </div>
-                <div class="flex items-center gap-2">
-                  <span class="text-slate-600 text-xs" x-text="fmtDate(job.date_posted)"></span>
-                  <a x-show="job.url" :href="job.url" target="_blank" rel="noopener"
-                    @click.stop
-                    class="flex items-center gap-1 text-accent hover:text-blue-300 transition-colors font-medium">
+                <div class="flex items-center gap-3">
+                  <span class="text-slate-500 text-xs" x-text="fmtDate(job.date_posted)"></span>
+                  <a x-show="job.url" :href="job.url" target="_blank" rel="noopener" @click.stop
+                    class="flex items-center gap-1 text-accent hover:text-blue-300 font-semibold text-sm transition-colors">
                     Apply <i class="fa-solid fa-arrow-up-right-from-square text-xs"></i>
                   </a>
                 </div>
