@@ -173,8 +173,20 @@
             </div>
           </template>
         </div>
-        <div x-show="totalPostings > 0 && !searching" class="text-xs text-slate-500 text-center">
-          Analysed <span x-text="totalPostings" class="text-slate-300"></span> postings
+        <div x-show="jobs.length > 0 && !searching" class="text-xs text-center space-y-1">
+          <div class="text-slate-500">
+            <span class="text-slate-300" x-text="jobs.length"></span> jobs from
+            <span x-text="totalPostings" class="text-slate-300"></span> postings analysed
+            <span x-show="locationSearched"> in <span class="text-accent" x-text="locationSearched"></span></span>
+          </div>
+          <div class="flex items-center justify-center gap-1.5 flex-wrap">
+            <span class="text-slate-600 text-xs">Powered by</span>
+            <span class="badge badge-blue text-xs">Bright Data SERP</span>
+            <span class="badge badge-blue text-xs" x-show="dataSource === 'live'">LinkedIn Dataset</span>
+            <span class="badge badge-blue text-xs" x-show="dataSource === 'web_extracted'">Web Unlocker</span>
+            <span class="badge badge-blue text-xs">Scraping Browser</span>
+            <span class="badge badge-yellow text-xs">Claude AI</span>
+          </div>
         </div>
       </div>
 
@@ -956,7 +968,7 @@
         loadingSalary: false,
         inferredRole: '',
         roleError: false,
-        searchSteps: ['Validating role…', 'Scraping LinkedIn & job boards via Bright Data…', 'Running scam detection & verification…', 'Extracting skill signals from postings…', 'Scoring market demand…', 'Ranking gaps & jobs…'],
+        searchSteps: ['Validating role with Claude AI…', 'Bright Data SERP → LinkedIn job URLs…', 'Bright Data LinkedIn Dataset → full job data…', 'Scam detection + 5-layer verification…', 'Claude extracts skills · scoring demand…', 'Ranking gaps by market demand score…'],
         searchStepIdx: 0,
         _stepTimer: null,
         tailormanResult: null,
