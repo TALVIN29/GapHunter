@@ -213,14 +213,23 @@ def _step1_serp(job_role: str, location: str) -> list[str]:
 
     Handles both sync responses (organic results) and async (snapshot_id).
     Quotes role for precision; location unquoted for recall.
-    gl parameter geo-filters Google results to the correct country.
     """
+    # Expand country names to their primary city for better SERP recall
+    # (country-level searches return fewer LinkedIn job view URLs)
+    _city_map = {
+        "malaysia": "Kuala Lumpur", "my": "Kuala Lumpur",
+        "singapore": "Singapore",
+        "indonesia": "Jakarta",
+        "philippines": "Manila",
+        "thailand": "Bangkok",
+        "australia": "Sydney",
+        "india": "Bangalore",
+    }
     if location:
-        keyword = f'"{job_role}" {location} site:linkedin.com/jobs/view'
-        gl = _serp_gl(location)
+        loc_norm = _city_map.get(location.strip().lower(), location)
+        keyword = f'"{job_role}" {loc_norm} site:linkedin.com/jobs/view'
     else:
         keyword = f'"{job_role}" jobs site:linkedin.com/jobs/view'
-        gl = "us"
 
     payload = {
         "input": [
@@ -228,7 +237,6 @@ def _step1_serp(job_role: str, location: str) -> list[str]:
                 "url": "https://www.google.com/",
                 "keyword": keyword,
                 "language": "en",
-                "gl": gl,
                 "tbs": "qdr:m",
                 "tbm": "",
                 "uule": "",
