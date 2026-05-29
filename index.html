@@ -1293,31 +1293,68 @@
               </tbody>
             </table>
           </div>
-        <!-- Hire Profile + Training Plan -->
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4" x-show="hrSkills.length > 0" data-aos="fade-up">
+        <!-- Outreach Message + Training Roadmap -->
+        <div class="flex flex-col gap-4" x-show="hrSkills.length > 0" data-aos="fade-up">
 
-          <!-- Ideal Hire Profile -->
+          <!-- LinkedIn Outreach Message -->
           <div class="card">
-            <h2 class="font-semibold text-slate-300 flex items-center gap-2 mb-3">
-              <i class="fa-solid fa-user-tie text-emerald-400 text-sm"></i>
-              Ideal Candidate Profile
-            </h2>
-            <div x-show="!hrHireProfile && !hrLoadingRec" class="text-slate-500 text-xs py-4 text-center">
-              <i class="fa-solid fa-spinner animate-spin mr-1"></i> Generating hire profile…
+            <div class="flex items-center justify-between mb-3">
+              <h2 class="font-semibold text-slate-300 flex items-center gap-2">
+                <i class="fa-brands fa-linkedin text-blue-400 text-sm"></i>
+                Candidate Outreach Message
+              </h2>
+              <button x-show="hrOutreachMsg"
+                @click="navigator.clipboard.writeText(hrOutreachMsg).then(() => { $event.target.textContent='Copied!'; setTimeout(() => $event.target.textContent='Copy', 1500) })"
+                class="text-xs px-3 py-1 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-300 hover:bg-blue-500/20 transition-all">
+                Copy
+              </button>
             </div>
-            <div x-show="hrHireProfile" class="text-xs text-slate-300 leading-relaxed" x-html="hrHireProfile"></div>
+            <p class="text-slate-500 text-xs mb-3">Ready-to-send LinkedIn message to invite the right candidate</p>
+            <div x-show="hrLoadingRec && !hrOutreachMsg" class="flex items-center gap-2 text-slate-500 text-xs py-3">
+              <i class="fa-solid fa-spinner animate-spin"></i> Generating outreach message…
+            </div>
+            <div x-show="hrOutreachMsg" class="bg-slate-900/60 border border-blue-500/10 rounded-xl p-4 text-sm text-slate-200 leading-relaxed italic" x-text="hrOutreachMsg"></div>
           </div>
 
-          <!-- Staff Training Plan -->
+          <!-- Internal Training Roadmap -->
           <div class="card">
-            <h2 class="font-semibold text-slate-300 flex items-center gap-2 mb-3">
+            <h2 class="font-semibold text-slate-300 flex items-center gap-2 mb-1">
               <i class="fa-solid fa-graduation-cap text-purple-400 text-sm"></i>
-              Staff Training Plan
+              Internal Training Academy Roadmap
             </h2>
-            <div x-show="!hrTrainingPlan && !hrLoadingRec" class="text-slate-500 text-xs py-4 text-center">
-              <i class="fa-solid fa-spinner animate-spin mr-1"></i> Generating training plan…
+            <p class="text-slate-500 text-xs mb-4">Upskill your existing team toward the skills the market demands</p>
+            <div x-show="hrLoadingRec && !hrTrainingRoadmap?.length" class="flex items-center gap-2 text-slate-500 text-xs py-3">
+              <i class="fa-solid fa-spinner animate-spin"></i> Building training roadmap…
             </div>
-            <div x-show="hrTrainingPlan" class="text-xs text-slate-300 leading-relaxed" x-html="hrTrainingPlan"></div>
+            <div class="flex flex-col gap-3" x-show="hrTrainingRoadmap?.length > 0">
+              <template x-for="(item, i) in hrTrainingRoadmap" :key="i">
+                <div class="rounded-xl border border-blue-500/10 bg-slate-900/40 p-4">
+                  <div class="flex items-center justify-between mb-2">
+                    <div class="flex items-center gap-2">
+                      <span class="w-6 h-6 rounded-full bg-purple-500/20 border border-purple-500/30 text-purple-300 text-xs font-bold flex items-center justify-center" x-text="i+1"></span>
+                      <span class="font-semibold text-slate-200 text-sm" x-text="item.skill"></span>
+                    </div>
+                    <span class="text-xs text-slate-500 flex items-center gap-1">
+                      <i class="fa-regular fa-clock text-xs"></i>
+                      <span x-text="item.timeline"></span>
+                    </span>
+                  </div>
+                  <p class="text-xs text-slate-400 mb-2 leading-relaxed" x-text="item.why"></p>
+                  <ul class="flex flex-col gap-1 mb-2">
+                    <template x-for="(step, si) in item.steps" :key="si">
+                      <li class="text-xs text-slate-300 flex items-start gap-1.5">
+                        <i class="fa-solid fa-circle-check text-emerald-400/70 text-xs mt-0.5 shrink-0"></i>
+                        <span x-text="step"></span>
+                      </li>
+                    </template>
+                  </ul>
+                  <div class="flex items-center gap-1.5 mt-2 pt-2 border-t border-blue-500/10">
+                    <i class="fa-solid fa-book-open text-blue-400 text-xs"></i>
+                    <span class="text-xs text-blue-300" x-text="item.resource"></span>
+                  </div>
+                </div>
+              </template>
+            </div>
           </div>
 
         </div>
@@ -1454,8 +1491,8 @@
         hrSearching: false,
         hrSkills: [],
         hrPostings: 0,
-        hrHireProfile: '',
-        hrTrainingPlan: '',
+        hrOutreachMsg: '',
+        hrTrainingRoadmap: [],
         hrLoadingRec: false,
 
         init() {
@@ -1806,8 +1843,8 @@
             if (data.status === 'ok') {
               this.hrSkills = data.top_skills || [];
               this.hrPostings = data.postings_analysed || 0;
-              this.hrHireProfile = '';
-              this.hrTrainingPlan = '';
+              this.hrOutreachMsg = '';
+              this.hrTrainingRoadmap = [];
               this.$nextTick(() => setTimeout(() => renderHRRadar(this.hrSkills), 120));
               this.fetchHRRecommendations();
             } else {
@@ -1824,11 +1861,6 @@
           if (!this.hrSkills.length) return;
           this.hrLoadingRec = true;
           const topSkills = this.hrSkills.slice(0, 8).map(s => s.skill).join(', ');
-          const prompt = `Company: ${this.hrCompany}. Role: ${this.hrRole || 'general'}. Top skills in demand from live job postings: ${topSkills}.
-
-Return JSON only:
-{"hire_profile": "<2-3 sentences: ideal candidate profile — seniority, must-have skills, experience type>",
- "training_plan": "<2-3 sentences: top 3 skills to upskill existing staff toward, with suggested approach>"}`;
           try {
             const res = await fetch(`${API}/api/hr/recommendations`, {
               method: 'POST', headers: _headers(),
@@ -1836,10 +1868,10 @@ Return JSON only:
             });
             if (res.ok) {
               const d = await res.json();
-              if (d.hire_profile) this.hrHireProfile = d.hire_profile.replace(/\n/g, '<br>');
-              if (d.training_plan) this.hrTrainingPlan = d.training_plan.replace(/\n/g, '<br>');
+              if (d.outreach_message) this.hrOutreachMsg = d.outreach_message;
+              if (d.training_roadmap?.length) this.hrTrainingRoadmap = d.training_roadmap;
             }
-          } catch { /* silent — cards stay empty */ }
+          } catch { /* silent */ }
           finally { this.hrLoadingRec = false; }
         },
 

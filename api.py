@@ -2181,19 +2181,34 @@ class HRRecommendationRequest(BaseModel):
 
 @app.post("/api/hr/recommendations", dependencies=[Depends(_require_demo_secret)])
 async def hr_recommendations(req: HRRecommendationRequest) -> dict:
-    """Generate hire profile + staff training plan from competitor skill signals."""
+    """
+    Generate:
+    1. LinkedIn outreach message HR can send to recruit the right candidate
+    2. Internal staff training roadmap (3 skills × steps + resources)
+    """
     prompt = (
-        f"Company: {req.company}. Role: {req.role or 'general'}.\n"
-        f"Live skill demand signals from their job postings: {req.top_skills}.\n\n"
-        "Return JSON only:\n"
-        '{"hire_profile": "<2-3 sentences: ideal candidate — seniority level, must-have skills, experience type to target in recruitment>", '
-        '"training_plan": "<2-3 sentences: top 3 skills to upskill your existing team toward, with a practical suggested approach for each>"}'
+        f"You are an HR strategist. Company being analysed: {req.company}. "
+        f"Role: {req.role or 'general'}. "
+        f"Live skills in demand from their job postings: {req.top_skills}.\n\n"
+        "Return JSON only with exactly this structure:\n"
+        "{\n"
+        '  "outreach_message": "<A professional LinkedIn message (4-5 sentences) that an HR recruiter sends to a target candidate. '
+        "Open with a personalised hook referencing the candidate's likely background. "
+        "Mention the role and company. Highlight 2 key skills from the demand list. "
+        'End with a soft call to action. Write in first person as the recruiter.>",\n'
+        '  "training_roadmap": [\n'
+        '    {"skill": "<skill name>", "why": "<1 sentence: why this skill matters for the team>", '
+        '"steps": ["<step 1>", "<step 2>", "<step 3>"], "resource": "<one specific course/tool/platform>", "timeline": "<e.g. 6 weeks>"},\n'
+        '    {"skill": "<skill name>", "why": "...", "steps": ["...", "...", "..."], "resource": "...", "timeline": "..."},\n'
+        '    {"skill": "<skill name>", "why": "...", "steps": ["...", "...", "..."], "resource": "...", "timeline": "..."}\n'
+        "  ]\n"
+        "}"
     )
     try:
-        async with asyncio.timeout(20):
+        async with asyncio.timeout(25):
             resp = await _client.messages.create(
                 model="claude-haiku-4-5-20251001",
-                max_tokens=400,
+                max_tokens=700,
                 system="You are an HR strategist. Return valid JSON only.",
                 messages=[{"role": "user", "content": prompt}],
             )
@@ -2201,7 +2216,11 @@ async def hr_recommendations(req: HRRecommendationRequest) -> dict:
         if text.startswith("```"):
             text = text.split("\n", 1)[1].rsplit("```", 1)[0].strip()
         data = json.loads(text)
-        return {"status": "ok", "hire_profile": data.get("hire_profile", ""), "training_plan": data.get("training_plan", "")}
+        return {
+            "status": "ok",
+            "outreach_message": data.get("outreach_message", ""),
+            "training_roadmap": data.get("training_roadmap", []),
+        }
     except Exception as exc:
         logger.warning("HR recommendations failed: %s", exc)
         return {"status": "error", "message": "Could not generate recommendations"}
