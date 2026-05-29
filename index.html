@@ -5,23 +5,26 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>GapHunter — Labor Market Intelligence</title>
 
-  <!-- Addendum P: token injected by Netlify snippet injection at deploy time.
-       Local dev: set window.__APP_TOKEN__ = btoa('your-secret') in browser console. -->
   <script>
     window.__APP_TOKEN__ = window.__APP_TOKEN__ || '';
     window.__API_URL__   = window.__API_URL__   || 'https://gaphunter-api.onrender.com';
   </script>
 
-  <!-- CDN order per Day 28 spec: ApexCharts → Alpine.js (defer) → SweetAlert2 -->
+  <!-- Core libraries -->
   <script src="https://cdn.jsdelivr.net/npm/apexcharts@3.45.2/dist/apexcharts.min.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.5/dist/cdn.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.10.6/dist/sweetalert2.all.min.js"></script>
 
-  <!-- Google Fonts: Inter -->
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <!-- New packages -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/aos/2.3.4/aos.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/aos/2.3.4/aos.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/particles.js@2.0.0/particles.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/typed.js/2.0.16/typed.umd.js"></script>
 
-  <!-- Tailwind CDN -->
+  <!-- Tailwind -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
@@ -29,9 +32,10 @@
       theme: {
         extend: {
           colors: {
-            canvas:  '#080c14',
-            surface: '#0f1623',
-            border:  '#1e2d45',
+            canvas:  '#060a12',
+            surface: '#0d1526',
+            card:    '#111c2e',
+            border:  'rgba(59,130,246,0.15)',
             accent:  '#3b82f6',
           },
           fontFamily: { sans: ['Inter', 'sans-serif'] },
@@ -41,680 +45,975 @@
   </script>
 
   <style>
-    body { background: #080c14; color: #e2e8f0; font-family: 'Inter', sans-serif; }
-    .bento { display: grid; gap: 1rem; }
-    .card  { background: #0f1623; border: 1px solid #1e2d45; border-radius: .75rem; padding: 1.25rem; }
-    .badge { display: inline-flex; align-items: center; gap: .25rem; border-radius: 9999px;
-             padding: .125rem .625rem; font-size: .75rem; font-weight: 500; }
-    .badge-blue   { background: #1e3a5f; color: #93c5fd; }
-    .badge-green  { background: #14402d; color: #6ee7b7; }
-    .badge-yellow { background: #3d2e00; color: #fcd34d; }
-    .badge-red    { background: #3d1414; color: #fca5a5; }
-    .badge-purple { background: #2d1b6e; color: #c4b5fd; }
-    .btn-primary  { background: #3b82f6; color: #fff; font-weight: 600; border-radius: .5rem;
-                    padding: .5rem 1.25rem; transition: background .15s; }
-    .btn-primary:hover  { background: #2563eb; }
-    .btn-primary:disabled { opacity: .5; cursor: not-allowed; }
-    .btn-ghost  { border: 1px solid #1e2d45; border-radius: .5rem; padding: .5rem 1rem;
-                  color: #94a3b8; transition: border-color .15s; }
-    .btn-ghost:hover { border-color: #3b82f6; color: #e2e8f0; }
-    .input-field { background: #0f1623; border: 1px solid #1e2d45; border-radius: .5rem;
-                   padding: .5rem .875rem; color: #e2e8f0; width: 100%; outline: none; }
-    .input-field:focus { border-color: #3b82f6; }
-    @keyframes shake { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-6px)} 40%{transform:translateX(6px)} 60%{transform:translateX(-4px)} 80%{transform:translateX(4px)} }
-    .animate-shake { animation: shake .35s ease; }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      background: #060a12;
+      color: #e2e8f0;
+      font-family: 'Inter', sans-serif;
+      overflow-x: hidden;
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 4px; height: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(59,130,246,0.3); border-radius: 4px; }
+
+    /* Cards */
+    .card {
+      background: #111c2e;
+      border: 1px solid rgba(59,130,246,0.12);
+      border-radius: 1rem;
+      padding: 1.25rem;
+      position: relative;
+      overflow: hidden;
+    }
+    .card::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, rgba(59,130,246,0.03) 0%, transparent 60%);
+      pointer-events: none;
+    }
+    .glass-card {
+      background: rgba(13, 21, 38, 0.85);
+      backdrop-filter: blur(24px);
+      border: 1px solid rgba(59,130,246,0.18);
+      border-radius: 1rem;
+      padding: 1.5rem;
+    }
+
+    /* Glow card */
+    .card-glow {
+      box-shadow: 0 0 30px rgba(59,130,246,0.08), 0 4px 24px rgba(0,0,0,0.4);
+    }
+
+    /* Badges */
+    .badge {
+      display: inline-flex; align-items: center; gap: .25rem;
+      border-radius: 9999px; padding: .15rem .65rem;
+      font-size: .7rem; font-weight: 500; letter-spacing: .02em;
+    }
+    .badge-blue   { background: rgba(59,130,246,0.15); color: #93c5fd; border: 1px solid rgba(59,130,246,0.25); }
+    .badge-green  { background: rgba(16,185,129,0.12); color: #6ee7b7; border: 1px solid rgba(16,185,129,0.2); }
+    .badge-yellow { background: rgba(245,158,11,0.12); color: #fcd34d; border: 1px solid rgba(245,158,11,0.2); }
+    .badge-red    { background: rgba(239,68,68,0.12);  color: #fca5a5; border: 1px solid rgba(239,68,68,0.2); }
+    .badge-purple { background: rgba(139,92,246,0.12); color: #c4b5fd; border: 1px solid rgba(139,92,246,0.2); }
+    .badge-cyan   { background: rgba(6,182,212,0.12);  color: #67e8f9; border: 1px solid rgba(6,182,212,0.2); }
+
+    /* Buttons */
+    .btn-primary {
+      background: linear-gradient(135deg, #3b82f6, #2563eb);
+      color: #fff; font-weight: 600; border-radius: .75rem;
+      padding: .65rem 1.5rem; transition: all .2s; cursor: pointer;
+      box-shadow: 0 4px 15px rgba(59,130,246,0.3);
+      border: none; display: inline-flex; align-items: center; justify-content: center;
+    }
+    .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(59,130,246,0.4); }
+    .btn-primary:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+    .btn-ghost {
+      border: 1px solid rgba(59,130,246,0.2); border-radius: .75rem; padding: .5rem 1rem;
+      color: #94a3b8; transition: all .2s; background: transparent; cursor: pointer;
+    }
+    .btn-ghost:hover { border-color: #3b82f6; color: #e2e8f0; background: rgba(59,130,246,0.05); }
+
+    /* Inputs */
+    .input-field {
+      background: rgba(6,10,18,0.8);
+      border: 1px solid rgba(59,130,246,0.15);
+      border-radius: .75rem;
+      padding: .65rem 1rem;
+      color: #e2e8f0; width: 100%; outline: none;
+      transition: all .2s;
+      font-size: .875rem;
+    }
+    .input-field:focus { border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,0.1); }
+    .input-field::placeholder { color: #334155; }
+
+    /* Tabs */
     .tab-active   { border-bottom: 2px solid #3b82f6; color: #e2e8f0; font-weight: 600; }
-    .tab-inactive { border-bottom: 2px solid transparent; color: #64748b; }
+    .tab-inactive { border-bottom: 2px solid transparent; color: #475569; }
     .tab-inactive:hover { color: #94a3b8; }
-    .job-card-active { border-color: #3b82f6 !important; }
-    .skill-pill { background: #1e2d45; color: #93c5fd; border-radius: 9999px;
-                  padding: .1rem .5rem; font-size: .7rem; }
-    .accordion-body { overflow: hidden; transition: max-height .3s ease; }
+
+    /* Job card */
+    .job-card {
+      background: rgba(13,21,38,0.6);
+      border: 1px solid rgba(59,130,246,0.1);
+      border-radius: .875rem; padding: 1rem; cursor: pointer;
+      transition: all .2s;
+    }
+    .job-card:hover { border-color: rgba(59,130,246,0.35); background: rgba(59,130,246,0.05); transform: translateX(2px); }
+    .job-card-active { border-color: #3b82f6 !important; background: rgba(59,130,246,0.08) !important; box-shadow: 0 0 20px rgba(59,130,246,0.12); }
+
+    /* Skill pill */
+    .skill-pill {
+      background: rgba(59,130,246,0.1); color: #93c5fd;
+      border: 1px solid rgba(59,130,246,0.15);
+      border-radius: 9999px; padding: .1rem .55rem; font-size: .68rem;
+    }
+
+    /* Divider */
+    .divider { height: 1px; background: rgba(59,130,246,0.1); }
+
+    /* Pipeline step */
+    .pipeline-step {
+      padding: .25rem .75rem; border-radius: .5rem; font-size: .7rem;
+      background: rgba(13,21,38,0.8); border: 1px solid rgba(59,130,246,0.12); color: #64748b;
+    }
+    .pipeline-step-active {
+      background: rgba(59,130,246,0.1); border-color: #3b82f6; color: #93c5fd;
+    }
+
+    /* Gradient border card */
+    .gradient-border {
+      background: linear-gradient(#111c2e, #111c2e) padding-box,
+                  linear-gradient(135deg, rgba(59,130,246,0.4), rgba(139,92,246,0.2)) border-box;
+      border: 1px solid transparent;
+    }
+
+    /* Scroll panels */
+    .scroll-panel { overflow-y: auto; }
+    .scroll-panel::-webkit-scrollbar { width: 3px; }
+
+    /* Animations */
+    @keyframes shake { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-5px)} 40%{transform:translateX(5px)} 60%{transform:translateX(-3px)} 80%{transform:translateX(3px)} }
+    .animate-shake { animation: shake .35s ease; }
+
+    @keyframes pulse-glow { 0%,100%{box-shadow:0 0 10px rgba(59,130,246,0.2)} 50%{box-shadow:0 0 25px rgba(59,130,246,0.4)} }
+    .pulse-glow { animation: pulse-glow 2s ease-in-out infinite; }
+
+    @keyframes slide-up { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
+    .slide-up { animation: slide-up .4s ease forwards; }
+
+    @keyframes fade-in { from{opacity:0} to{opacity:1} }
+    .fade-in { animation: fade-in .5s ease forwards; }
+
+    /* Particles container */
+    #particles-js {
+      position: fixed; inset: 0; z-index: 0; pointer-events: none;
+    }
+
+    /* Ensure content is above particles */
+    header, main { position: relative; z-index: 1; }
+
+    /* Header gradient */
+    .header-bg {
+      background: linear-gradient(180deg, rgba(6,10,18,0.98) 0%, rgba(6,10,18,0.95) 100%);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid rgba(59,130,246,0.1);
+    }
+
+    /* Mobile responsive */
+    .main-grid {
+      display: grid;
+      gap: 1.25rem;
+      align-items: start;
+    }
+    @media (min-width: 1280px) {
+      .main-grid { grid-template-columns: 300px 1fr 380px; }
+      .search-col { position: sticky; top: 90px; }
+      .analysis-col { position: sticky; top: 90px; max-height: calc(100vh - 110px); overflow-y: auto; }
+    }
+    @media (min-width: 768px) and (max-width: 1279px) {
+      .main-grid { grid-template-columns: 280px 1fr; }
+      .analysis-col { grid-column: 1 / -1; }
+    }
+
+    /* Section label */
+    .section-label {
+      font-size: .65rem; font-weight: 600; letter-spacing: .1em;
+      color: #475569; text-transform: uppercase;
+    }
+
+    /* Status dot */
+    .status-dot { width: 7px; height: 7px; border-radius: 50%; }
+    .status-live { background: #10b981; box-shadow: 0 0 6px #10b981; animation: pulse-glow 2s infinite; }
+
+    /* Hero typed */
+    .typed-cursor { color: #3b82f6; }
+
+    /* Progress bar */
+    .progress-step {
+      display: flex; align-items: center; gap: .5rem;
+      padding: .3rem 0; font-size: .75rem; transition: opacity .3s;
+    }
+    .progress-step-icon { width: 16px; height: 16px; flex-shrink: 0; }
+
+    /* Bright Data attribution */
+    .bd-badge {
+      display: inline-flex; align-items: center; gap: .3rem;
+      padding: .15rem .5rem; border-radius: .4rem; font-size: .65rem;
+      background: rgba(59,130,246,0.08); border: 1px solid rgba(59,130,246,0.15);
+      color: #93c5fd;
+    }
+
+    /* Accordion */
+    .accordion-item { border: 1px solid rgba(59,130,246,0.1); border-radius: .75rem; overflow: hidden; }
+    .accordion-header { padding: .875rem 1rem; cursor: pointer; transition: background .15s; }
+    .accordion-header:hover { background: rgba(59,130,246,0.05); }
+
     [x-cloak] { display: none !important; }
-    ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: #1e2d45; border-radius: 4px; }
   </style>
 </head>
 
 <body x-data="app()" x-init="init()" x-cloak>
 
-  <!-- ── Header ─────────────────────────────────────────────────── -->
-  <header class="border-b border-border sticky top-0 z-40" style="background:#080c14;">
-    <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
-      <div class="flex items-center gap-3">
-        <div class="flex flex-col leading-tight">
-          <span class="text-accent font-bold text-lg tracking-tight">GapHunter</span>
-          <span class="text-slate-500 text-xs tracking-wide">Labor Market Intelligence · Powered by Bright Data</span>
+  <!-- Particles background (only when idle) -->
+  <div id="particles-js" x-show="!jobs.length && !searching && activeTab === 'seeker'"></div>
+
+  <!-- ══════════════════════════════════════════
+       HEADER
+  ══════════════════════════════════════════ -->
+  <header class="header-bg sticky top-0 z-50">
+    <div class="max-w-screen-xl mx-auto px-4 sm:px-6">
+      <!-- Main header row -->
+      <div class="flex items-center justify-between py-3 gap-4">
+
+        <!-- Logo -->
+        <div class="flex items-center gap-3 flex-shrink-0">
+          <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center">
+            <i class="fa-solid fa-magnifying-glass-chart text-white text-xs"></i>
+          </div>
+          <div class="flex flex-col leading-tight">
+            <span class="font-bold text-base tracking-tight text-white">GapHunter</span>
+            <span class="text-xs text-slate-500 hidden sm:block">Labor Market Intelligence · Powered by Bright Data</span>
+          </div>
+          <span class="badge badge-blue hidden sm:inline-flex">v2.0</span>
         </div>
-        <span class="badge badge-blue">v2.0</span>
+
+        <!-- Nav -->
+        <nav class="flex gap-1 bg-black/30 rounded-xl p-1">
+          <button class="px-3 py-1.5 rounded-lg text-sm font-medium transition-all"
+            :class="activeTab === 'seeker' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'"
+            @click="activeTab = 'seeker'">
+            <i class="fa-solid fa-user mr-1.5 text-xs"></i>
+            <span class="hidden sm:inline">Individual</span>
+            <span class="sm:hidden">Me</span>
+          </button>
+          <button class="px-3 py-1.5 rounded-lg text-sm font-medium transition-all"
+            :class="activeTab === 'hr' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'"
+            @click="activeTab = 'hr'; maybeInitRadar()">
+            <i class="fa-solid fa-building mr-1.5 text-xs"></i>
+            <span class="hidden sm:inline">Enterprise</span>
+            <span class="sm:hidden">Biz</span>
+          </button>
+        </nav>
+
+        <!-- Status -->
+        <div class="flex items-center gap-2 flex-shrink-0">
+          <div x-show="!circuitOpen" class="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20">
+            <div class="status-dot status-live"></div>
+            <span class="text-xs font-medium text-emerald-400">Live</span>
+          </div>
+          <div x-show="circuitOpen" class="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/20">
+            <div class="status-dot bg-amber-400"></div>
+            <span class="text-xs font-medium text-amber-400">Demo</span>
+          </div>
+        </div>
       </div>
-      <nav class="flex gap-6">
-        <button class="pb-1 text-sm transition-all"
-          :class="activeTab === 'seeker' ? 'tab-active' : 'tab-inactive'"
-          @click="activeTab = 'seeker'">
-          <span class="hidden sm:inline">👤 </span>Individual Intelligence
-        </button>
-        <button class="pb-1 text-sm transition-all"
-          :class="activeTab === 'hr' ? 'tab-active' : 'tab-inactive'"
-          @click="activeTab = 'hr'; maybeInitRadar()">
-          <span class="hidden sm:inline">🏢 </span>Enterprise Intelligence
-        </button>
-      </nav>
-      <div class="flex items-center gap-2">
-        <span x-show="circuitOpen" class="badge badge-red">Demo Mode</span>
-        <span x-show="!circuitOpen" class="badge badge-green">Live</span>
-      </div>
-    </div>
-    <!-- Two-sided value proposition strip -->
-    <div class="border-t border-border/50 bg-slate-900/30">
-      <div class="max-w-7xl mx-auto px-4 py-1.5 flex items-center justify-center gap-8 text-xs text-slate-500">
-        <span>
-          <span class="text-slate-300 font-medium">For individuals:</span>
-          Know your skill gaps · Get interview-ready · Tailor your application
+
+      <!-- Value prop strip -->
+      <div class="border-t border-blue-500/10 py-1.5 text-xs text-slate-500 flex flex-wrap items-center justify-center gap-4 sm:gap-8">
+        <span class="flex items-center gap-1.5">
+          <i class="fa-solid fa-user-graduate text-blue-400/60 text-xs"></i>
+          <span><span class="text-slate-300 font-medium">Individuals:</span> Know skill gaps · Get interview-ready · Tailor applications</span>
         </span>
-        <span class="text-slate-700">|</span>
-        <span>
-          <span class="text-slate-300 font-medium">For enterprises:</span>
-          Monitor competitor hiring · Benchmark skills · Track market demand in real time
+        <span class="text-slate-700 hidden sm:inline">|</span>
+        <span class="flex items-center gap-1.5">
+          <i class="fa-solid fa-chart-line text-blue-400/60 text-xs"></i>
+          <span><span class="text-slate-300 font-medium">Enterprises:</span> Monitor competitor hiring · Benchmark skills · Track market demand</span>
         </span>
       </div>
     </div>
   </header>
 
-  <!-- ════════════════════════════════════════════════════════════
-       JOB SEEKER TAB
-  ════════════════════════════════════════════════════════════ -->
-  <main x-show="activeTab === 'seeker'" class="max-w-7xl mx-auto px-4 py-6">
+  <!-- ══════════════════════════════════════════
+       INDIVIDUAL INTELLIGENCE TAB
+  ══════════════════════════════════════════ -->
+  <main x-show="activeTab === 'seeker'" class="max-w-screen-xl mx-auto px-4 sm:px-6 py-6">
 
-    <!-- Search + Gaps row -->
-    <div class="bento" style="grid-template-columns: 340px 1fr;">
+    <div class="main-grid">
 
-      <!-- Search Panel -->
-      <div class="card flex flex-col gap-4">
-        <h2 class="font-semibold text-sm text-slate-400 uppercase tracking-wider">Search</h2>
+      <!-- ── LEFT: Search Sidebar ─────────────────── -->
+      <div class="search-col flex flex-col gap-4">
 
-        <div class="flex flex-col gap-3">
+        <!-- Search card -->
+        <div class="glass-card card-glow flex flex-col gap-4">
+          <div class="flex items-center gap-2 mb-1">
+            <i class="fa-solid fa-magnifying-glass text-accent text-sm"></i>
+            <span class="section-label">Search</span>
+          </div>
+
+          <!-- Role -->
           <div>
-            <label class="text-xs text-slate-500 mb-1 flex items-center gap-2">
+            <label class="text-xs text-slate-400 mb-1.5 flex items-center gap-2">
+              <i class="fa-solid fa-briefcase text-slate-500 text-xs"></i>
               Job Title
               <span x-show="inferredRole && role === inferredRole"
-                class="badge badge-green text-xs">Auto-detected from CV</span>
+                class="badge badge-green text-xs ml-auto">
+                <i class="fa-solid fa-wand-magic-sparkles text-xs mr-1"></i>
+                Auto-detected
+              </span>
             </label>
             <input class="input-field transition-all" type="text" x-model="role"
-              :class="roleError ? 'border-red-500 ring-1 ring-red-500 animate-shake' : (inferredRole && role === inferredRole ? 'border-green-700' : '')"
+              :class="roleError ? 'border-red-500/50 ring-2 ring-red-500/20 animate-shake' : (inferredRole && role === inferredRole ? 'border-emerald-500/30' : '')"
               @input="roleError = false"
               placeholder="e.g. Data Analyst" @keydown.enter="doSearch()" />
-            <p x-show="roleError" class="text-red-400 text-xs mt-1">Enter a job title or upload your CV first</p>
+            <p x-show="roleError" class="text-red-400 text-xs mt-1 flex items-center gap-1">
+              <i class="fa-solid fa-circle-exclamation text-xs"></i>
+              Enter a job title or upload your CV first
+            </p>
           </div>
+
+          <!-- Location -->
           <div>
-            <label class="text-xs text-slate-500 mb-1 block">Location</label>
+            <label class="text-xs text-slate-400 mb-1.5 flex items-center gap-2">
+              <i class="fa-solid fa-location-dot text-slate-500 text-xs"></i>
+              Location
+            </label>
             <input class="input-field" type="text" x-model="location"
-              placeholder="e.g. Kuala Lumpur, Malaysia or New York, NY" @keydown.enter="doSearch()" />
+              placeholder="e.g. Kuala Lumpur, Singapore" @keydown.enter="doSearch()" />
           </div>
+
+          <!-- Skills -->
           <div>
-            <label class="text-xs text-slate-500 mb-1 block">Your Skills <span class="text-slate-600">(comma-separated)</span></label>
+            <label class="text-xs text-slate-400 mb-1.5 flex items-center gap-2">
+              <i class="fa-solid fa-code text-slate-500 text-xs"></i>
+              Your Skills
+              <span class="text-slate-600 text-xs">(comma-separated)</span>
+            </label>
             <input class="input-field" type="text" x-model="skills"
               placeholder="e.g. Python, SQL, Tableau" @keydown.enter="doSearch()" />
           </div>
-        </div>
 
-        <!-- CV Upload -->
-        <div class="border border-dashed border-border rounded-lg p-3 text-center">
-          <label class="cursor-pointer flex flex-col items-center gap-1">
-            <svg class="w-5 h-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+          <!-- CV Upload -->
+          <div>
+            <label class="block text-xs text-slate-400 mb-1.5">
+              <i class="fa-solid fa-file-arrow-up text-slate-500 text-xs mr-1"></i>
+              CV Upload
+            </label>
+            <label class="flex flex-col items-center gap-2 p-3 border border-dashed border-blue-500/20 rounded-xl cursor-pointer hover:border-blue-500/40 hover:bg-blue-500/5 transition-all">
+              <i class="fa-solid fa-cloud-arrow-up text-2xl text-slate-600"></i>
+              <span class="text-xs text-slate-500">Drop PDF or DOCX here</span>
+              <input type="file" accept=".pdf,.doc,.docx" class="hidden" @change="uploadCV($event)" />
+            </label>
+            <p x-show="cvStatus" x-text="cvStatus" class="text-xs mt-1.5 flex items-center gap-1"
+              :class="cvStatus.startsWith('✓') ? 'text-emerald-400' : 'text-red-400'"></p>
+          </div>
+
+          <!-- Run Agent button -->
+          <button class="btn-primary w-full gap-2 py-3" @click="doSearch()" :disabled="searching">
+            <svg x-show="searching" class="animate-spin w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
             </svg>
-            <span class="text-xs text-slate-500">Upload CV (PDF/DOCX)</span>
-            <input type="file" accept=".pdf,.doc,.docx" class="hidden" @change="uploadCV($event)" />
-          </label>
-          <p x-show="cvStatus" x-text="cvStatus" class="text-xs mt-1"
-            :class="cvStatus.startsWith('✓') ? 'text-green-400' : 'text-red-400'"></p>
+            <i x-show="!searching" class="fa-solid fa-rocket text-sm"></i>
+            <span x-text="searching ? 'Agent Running…' : 'Run Agent'"></span>
+          </button>
+
+          <!-- Progress steps during search -->
+          <div x-show="searching" class="space-y-1.5">
+            <div class="divider mb-2"></div>
+            <template x-for="(step, i) in searchSteps" :key="i">
+              <div class="progress-step" :class="i >= searchStepIdx + 1 ? 'opacity-25' : 'opacity-100'">
+                <div class="progress-step-icon flex items-center justify-center">
+                  <i x-show="i < searchStepIdx" class="fa-solid fa-check text-emerald-400 text-xs"></i>
+                  <div x-show="i === searchStepIdx" class="w-2 h-2 rounded-full bg-blue-400 animate-pulse"></div>
+                  <div x-show="i > searchStepIdx" class="w-1.5 h-1.5 rounded-full bg-slate-700"></div>
+                </div>
+                <span x-text="step"
+                  :class="i === searchStepIdx ? 'text-slate-200' : i < searchStepIdx ? 'text-slate-400 line-through' : 'text-slate-600'"
+                  class="text-xs"></span>
+              </div>
+            </template>
+          </div>
+
+          <!-- Attribution after results -->
+          <div x-show="jobs.length > 0 && !searching" class="space-y-2">
+            <div class="divider"></div>
+            <p class="text-xs text-slate-500 text-center">
+              <span class="text-slate-300 font-medium" x-text="jobs.length"></span> jobs ·
+              <span class="text-slate-300" x-text="totalPostings"></span> postings analysed
+              <span x-show="locationSearched"> in <span class="text-accent font-medium" x-text="locationSearched"></span></span>
+            </p>
+            <div class="flex flex-wrap gap-1 justify-center">
+              <span class="bd-badge"><i class="fa-solid fa-database text-xs"></i> SERP API</span>
+              <span x-show="dataSource === 'live'" class="bd-badge"><i class="fa-brands fa-linkedin text-xs"></i> LinkedIn</span>
+              <span x-show="dataSource === 'web_extracted'" class="bd-badge"><i class="fa-solid fa-unlock text-xs"></i> Unlocker</span>
+              <span class="bd-badge"><i class="fa-solid fa-globe text-xs"></i> Browser</span>
+              <span class="bd-badge" style="border-color:rgba(139,92,246,0.2);color:#c4b5fd;background:rgba(139,92,246,0.08)">
+                <i class="fa-solid fa-robot text-xs"></i> Claude AI
+              </span>
+            </div>
+          </div>
         </div>
 
-        <button class="btn-primary w-full flex items-center justify-center gap-2"
-          @click="doSearch()" :disabled="searching">
-          <svg x-show="searching" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
-            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
-          </svg>
-          <span x-text="searching ? 'Agent Running…' : 'Run Agent'"></span>
-        </button>
+        <!-- Agent pipeline strip (visible after search) -->
+        <div class="card py-3 px-4" x-show="jobs.length > 0 || searching" data-aos="fade-up">
+          <p class="section-label mb-2.5">Agent Pipeline</p>
+          <div class="flex flex-wrap gap-1 items-center text-xs">
+            <span class="pipeline-step">① Validate</span>
+            <i class="fa-solid fa-arrow-right text-slate-700 text-xs"></i>
+            <span class="pipeline-step">② SERP</span>
+            <i class="fa-solid fa-arrow-right text-slate-700 text-xs"></i>
+            <span class="pipeline-step">③ Scrape</span>
+            <i class="fa-solid fa-arrow-right text-slate-700 text-xs"></i>
+            <span class="pipeline-step">④ Extract</span>
+            <i class="fa-solid fa-arrow-right text-slate-700 text-xs"></i>
+            <span class="pipeline-step" :class="gaps.length > 0 ? 'pipeline-step-active' : ''">⑤ Pre-fetch</span>
+          </div>
+        </div>
+      </div>
 
-        <!-- Live progress steps during search -->
-        <div x-show="searching" class="text-xs text-slate-500 space-y-1 mt-2">
-          <template x-for="(step, i) in searchSteps" :key="i">
-            <div class="flex items-center gap-2 transition-opacity" :class="i < searchStepIdx ? 'opacity-100' : 'opacity-30'">
-              <span x-text="i < searchStepIdx ? '✓' : (i === searchStepIdx ? '›' : '·')"
-                :class="i < searchStepIdx ? 'text-green-400' : (i === searchStepIdx ? 'text-accent animate-pulse' : 'text-slate-600')"></span>
-              <span x-text="step" :class="i === searchStepIdx ? 'text-slate-300' : ''"></span>
+      <!-- ── CENTER: Job Results / Hero ─────────────── -->
+      <div class="flex flex-col gap-3">
+
+        <!-- Hero (empty state) -->
+        <div x-show="!jobs.length && !searching" class="flex flex-col items-center justify-center py-24 text-center" data-aos="fade-up">
+          <div class="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500/20 to-purple-500/10 border border-blue-500/20 flex items-center justify-center mb-6">
+            <i class="fa-solid fa-chart-bar text-blue-400 text-2xl"></i>
+          </div>
+          <h1 class="text-2xl sm:text-3xl font-bold text-white mb-3 leading-tight">
+            Know Your <span class="text-accent">Market Value</span>
+          </h1>
+          <div class="text-slate-400 text-base mb-6 h-8">
+            <span id="typed-hero"></span>
+          </div>
+          <p class="text-slate-600 text-sm max-w-md">
+            GapHunter scrapes live job postings via Bright Data, extracts skill demand signals with Claude AI,
+            and tells you exactly what to learn next.
+          </p>
+          <div class="flex flex-wrap gap-3 mt-6 justify-center text-xs text-slate-500">
+            <span class="flex items-center gap-1.5"><i class="fa-brands fa-linkedin text-blue-400"></i> LinkedIn Dataset</span>
+            <span class="flex items-center gap-1.5"><i class="fa-solid fa-magnifying-glass text-blue-400"></i> SERP API</span>
+            <span class="flex items-center gap-1.5"><i class="fa-solid fa-unlock text-blue-400"></i> Web Unlocker</span>
+            <span class="flex items-center gap-1.5"><i class="fa-solid fa-robot text-purple-400"></i> Claude Sonnet</span>
+          </div>
+        </div>
+
+        <!-- Searching placeholder -->
+        <div x-show="searching && !jobs.length" class="flex flex-col items-center justify-center py-24 text-center">
+          <div class="w-16 h-16 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center mb-5 pulse-glow">
+            <i class="fa-solid fa-satellite-dish text-blue-400 text-xl animate-pulse"></i>
+          </div>
+          <p class="text-slate-300 font-medium text-lg">Agent is running</p>
+          <p class="text-slate-500 text-sm mt-1">Scraping live data via Bright Data…</p>
+        </div>
+
+        <!-- Job cards -->
+        <div x-show="jobs.length > 0" class="flex flex-col gap-2.5" id="jobs-list">
+          <div class="flex items-center justify-between mb-1">
+            <h2 class="font-semibold text-slate-300 flex items-center gap-2">
+              <i class="fa-solid fa-list-check text-accent text-sm"></i>
+              Jobs
+              <span class="text-slate-500 font-normal text-sm">(<span x-text="jobs.length"></span>)</span>
+            </h2>
+            <span class="badge badge-green text-xs" x-show="dataSource === 'live'">
+              <i class="fa-solid fa-circle text-xs" style="font-size:.45rem"></i> Live LinkedIn data
+            </span>
+            <span class="badge badge-cyan text-xs" x-show="dataSource === 'web_extracted'">
+              <i class="fa-solid fa-circle text-xs" style="font-size:.45rem"></i> Web extracted
+            </span>
+          </div>
+
+          <template x-for="job in jobs" :key="job.url + job.title">
+            <div class="job-card" :class="selectedJob?.url === job.url ? 'job-card-active' : ''" @click="selectJob(job)">
+              <div class="flex justify-between items-start gap-3 mb-2.5">
+                <div class="min-w-0">
+                  <p class="font-semibold text-sm text-white truncate" x-text="job.title"></p>
+                  <p class="text-slate-400 text-xs mt-0.5 flex items-center gap-1.5">
+                    <i class="fa-solid fa-building text-slate-600 text-xs"></i>
+                    <span x-text="job.company"></span>
+                    <span class="text-slate-600">·</span>
+                    <i class="fa-solid fa-location-dot text-slate-600 text-xs"></i>
+                    <span class="truncate" x-text="job.location"></span>
+                  </p>
+                </div>
+                <span class="badge shrink-0 text-xs"
+                  :class="job.relevance_pct >= 70 ? 'badge-green' : job.relevance_pct >= 40 ? 'badge-yellow' : 'badge-red'"
+                  x-text="job.relevance_pct + '%'"></span>
+              </div>
+
+              <div class="flex flex-wrap gap-1 mb-2.5">
+                <template x-for="sk in (job.skills_match || []).slice(0,4)" :key="sk">
+                  <span class="skill-pill" x-text="sk"></span>
+                </template>
+              </div>
+
+              <div class="flex items-center justify-between text-xs">
+                <div class="flex items-center gap-2">
+                  <span x-show="job.is_verified !== false" class="badge badge-green" style="padding:.1rem .5rem; font-size:.6rem;">
+                    <i class="fa-solid fa-shield-check text-xs"></i> Verified
+                  </span>
+                  <span x-show="job.is_remote" class="badge badge-blue" style="padding:.1rem .5rem; font-size:.6rem;">
+                    <i class="fa-solid fa-wifi text-xs"></i> Remote
+                  </span>
+                  <span x-show="job.salary !== 'Not disclosed'" class="text-slate-500 text-xs" x-text="job.salary"></span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <span class="text-slate-600 text-xs" x-text="fmtDate(job.date_posted)"></span>
+                  <a x-show="job.url" :href="job.url" target="_blank" rel="noopener"
+                    @click.stop
+                    class="flex items-center gap-1 text-accent hover:text-blue-300 transition-colors font-medium">
+                    Apply <i class="fa-solid fa-arrow-up-right-from-square text-xs"></i>
+                  </a>
+                </div>
+              </div>
             </div>
           </template>
         </div>
-        <div x-show="jobs.length > 0 && !searching" class="text-xs text-center space-y-1">
-          <div class="text-slate-500">
-            <span class="text-slate-300" x-text="jobs.length"></span> jobs from
-            <span x-text="totalPostings" class="text-slate-300"></span> postings analysed
-            <span x-show="locationSearched"> in <span class="text-accent" x-text="locationSearched"></span></span>
-          </div>
-          <div class="flex items-center justify-center gap-1.5 flex-wrap">
-            <span class="text-slate-600 text-xs">Powered by</span>
-            <span class="badge badge-blue text-xs">Bright Data SERP</span>
-            <span class="badge badge-blue text-xs" x-show="dataSource === 'live'">LinkedIn Dataset</span>
-            <span class="badge badge-blue text-xs" x-show="dataSource === 'web_extracted'">Web Unlocker</span>
-            <span class="badge badge-blue text-xs">Scraping Browser</span>
-            <span class="badge badge-yellow text-xs">Claude AI</span>
-          </div>
-        </div>
       </div>
 
-      <!-- Gaps Bar Chart -->
-      <div class="card flex flex-col gap-3">
-        <div class="flex items-center justify-between">
-          <h2 class="font-semibold text-sm text-slate-400 uppercase tracking-wider">Top 5 Skill Gaps</h2>
-          <span x-show="gaps.length > 0" class="badge badge-yellow">Market Demand Score</span>
-        </div>
-        <!-- Demand score formula explainer -->
-        <div x-show="gaps.length > 0" class="mt-2 mb-1 px-3 py-2 rounded-md bg-slate-900/60 border border-slate-800 text-xs text-slate-500 leading-relaxed">
-          <span class="text-slate-400 font-semibold">How demand is scored: </span>
-          <span class="font-mono text-slate-500">score = (0.35 × <span class="text-blue-400">frequency</span> + 0.25 × <span class="text-green-400">freshness</span> + 0.20 × <span class="text-yellow-400">opportunity</span> + 0.10 × <span class="text-purple-400">dual_signal</span> + 0.10 × <span class="text-pink-400">cross_source</span>) × 1.3 bonus</span>
-          <span class="block mt-1 text-slate-600">frequency = how many postings need it · freshness = how recently posted · opportunity = low competition · dual_signal = LinkedIn + SERP confirmed · cross_source = multi-platform verified</span>
-        </div>
-        <div x-show="gaps.length === 0" class="flex-1 flex items-center justify-center text-slate-600 text-sm">
-          Run a search to see your skill gaps
-        </div>
-        <div id="gaps-chart" x-show="gaps.length > 0" style="min-height: 220px;"></div>
-      </div>
-    </div>
-
-    <!-- Agent Pipeline strip -->
-    <div class="card mt-4 py-3 px-4" x-show="jobs.length > 0 || gaps.length > 0 || searching">
-      <div class="flex items-center justify-between flex-wrap gap-2">
-        <span class="text-xs text-slate-500 uppercase tracking-wider font-medium">Agent Pipeline</span>
-        <div class="flex items-center gap-1 text-xs text-slate-400 flex-wrap">
-          <span class="px-2 py-0.5 rounded bg-surface border border-border">① Validate</span>
-          <span class="text-slate-600">→</span>
-          <span class="px-2 py-0.5 rounded bg-surface border border-border">② Scrape</span>
-          <span class="text-slate-600">→</span>
-          <span class="px-2 py-0.5 rounded bg-surface border border-border">③ Extract</span>
-          <span class="text-slate-600">→</span>
-          <span class="px-2 py-0.5 rounded bg-surface border border-border">④ Synthesize</span>
-          <span class="text-slate-600">→</span>
-          <span class="px-2 py-0.5 rounded" :class="gaps.length > 0 ? 'bg-accent/10 border border-accent text-accent' : 'bg-surface border border-border'">⑤ Pre-fetch</span>
-        </div>
-        <span class="text-xs text-slate-600">Powered by Bright Data + Claude</span>
-      </div>
-    </div>
-
-    <!-- Jobs + Analysis row -->
-    <div class="bento mt-4" style="grid-template-columns: 1fr 1fr;" x-show="jobs.length > 0">
-
-      <!-- Job Cards -->
-      <div class="card flex flex-col gap-3 overflow-y-auto" style="max-height: 420px;">
-        <h2 class="font-semibold text-sm text-slate-400 uppercase tracking-wider sticky top-0"
-          style="background:#0f1623; padding-bottom:.5rem;">
-          Jobs
-          <span class="text-slate-600 font-normal ml-1">(<span x-text="jobs.length"></span>)</span>
-        </h2>
-        <template x-for="job in jobs" :key="job.url + job.title">
-          <div class="card cursor-pointer hover:border-accent transition-colors"
-            style="padding: .875rem;"
-            :class="selectedJob?.url === job.url ? 'job-card-active' : ''"
-            @click="selectJob(job)">
-
-            <div class="flex justify-between items-start gap-2 mb-2">
-              <div>
-                <p class="font-medium text-sm" x-text="job.title"></p>
-                <p class="text-slate-500 text-xs" x-text="job.company + ' · ' + job.location"></p>
-              </div>
-              <span class="badge shrink-0"
-                :class="job.relevance_pct >= 70 ? 'badge-green' : job.relevance_pct >= 40 ? 'badge-yellow' : 'badge-red'"
-                x-text="job.relevance_pct + '%'"></span>
-            </div>
-
-            <div class="flex flex-wrap gap-1 mb-2">
-              <template x-for="sk in (job.skills_match || []).slice(0,4)" :key="sk">
-                <span class="skill-pill" x-text="sk"></span>
-              </template>
-            </div>
-
-            <div class="flex items-center justify-between text-xs text-slate-500">
-              <span x-text="job.salary !== 'Not disclosed' ? job.salary : ''"></span>
-              <div class="flex items-center gap-2">
-                <span x-show="job.source && job.source !== 'linkedin' && job.source !== 'indeed'" class="badge badge-purple" style="font-size:.65rem; text-transform:capitalize;" x-text="job.source" title="Job board source"></span>
-                <span x-show="job.is_verified !== false" class="badge badge-green" style="font-size:.65rem;" title="Scam-checked by GapHunter AI">✓ Verified</span>
-                <span x-show="job.is_remote" class="badge badge-blue" style="font-size:.65rem;">Remote</span>
-                <a x-show="job.url" :href="job.url" target="_blank" rel="noopener"
-                  @click.stop class="text-accent hover:underline">Apply →</a>
-              </div>
-            </div>
-          </div>
-        </template>
-      </div>
-
-      <!-- Per-Job Analysis Panel -->
-      <div class="card flex flex-col gap-3" style="overflow-y:auto; max-height:480px;">
+      <!-- ── RIGHT: Analysis Panel ─────────────────── -->
+      <div class="analysis-col" x-show="jobs.length > 0">
 
         <!-- Empty state -->
-        <div x-show="!selectedJob" class="flex-1 flex flex-col items-center justify-center text-slate-600 text-sm gap-2 py-8">
-          <svg class="w-8 h-8 text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
-          </svg>
-          <p>Click a job card for full analysis</p>
-          <p class="text-xs text-slate-700">Skills · Company · Verification · Roadmap</p>
+        <div x-show="!selectedJob" class="glass-card flex flex-col items-center justify-center text-center py-14 gap-3">
+          <div class="w-12 h-12 rounded-xl bg-blue-500/10 border border-blue-500/15 flex items-center justify-center">
+            <i class="fa-solid fa-hand-pointer text-blue-400/60 text-lg"></i>
+          </div>
+          <p class="text-slate-400 text-sm font-medium">Select a job to analyse</p>
+          <p class="text-slate-600 text-xs">Gap analysis · Company · Interview prep · Tailorman</p>
         </div>
 
-        <!-- Job header when selected -->
-        <div x-show="selectedJob" class="flex items-start justify-between gap-2">
-          <div>
-            <p class="font-semibold text-sm" x-text="selectedJob?.title"></p>
-            <p class="text-xs text-slate-500" x-text="selectedJob?.company + ' · ' + selectedJob?.location"></p>
-          </div>
-          <div class="flex flex-col items-end gap-1">
-            <span class="badge badge-green text-xs" x-show="selectedJob?.is_verified !== false">✓ Verified</span>
-            <span class="badge badge-yellow text-xs" x-show="selectedJob?.is_verified === false">⚠ Unverified</span>
-          </div>
-        </div>
+        <!-- Analysis panel with selected job -->
+        <div x-show="selectedJob" class="flex flex-col gap-0 card p-0 overflow-hidden">
 
-        <!-- Tabs -->
-        <div x-show="selectedJob" class="flex gap-0 border-b border-border text-xs">
-          <button class="px-3 py-1.5 transition-all"
-            :class="analysisTab === 'gaps' ? 'tab-active' : 'tab-inactive'"
-            @click="analysisTab = 'gaps'">Gap Analysis</button>
-          <button class="px-3 py-1.5 transition-all"
-            :class="analysisTab === 'company' ? 'tab-active' : 'tab-inactive'"
-            @click="analysisTab = 'company'">Company</button>
-          <button class="px-3 py-1.5 transition-all"
-            :class="analysisTab === 'verify' ? 'tab-active' : 'tab-inactive'"
-            @click="analysisTab = 'verify'">Verification</button>
-          <button class="px-3 py-1.5 transition-all flex items-center gap-1"
-            :class="analysisTab === 'tailor' ? 'tab-active' : 'tab-inactive'"
-            @click="analysisTab = 'tailor'; if(!tailormanResult && skills) runTailorman()">
-            Tailorman
-            <span class="badge badge-purple" style="font-size:.55rem; padding:.05rem .35rem;">PRO</span>
-          </button>
-          <button class="px-3 py-1.5 transition-all"
-            :class="analysisTab === 'interview' ? 'tab-active' : 'tab-inactive'"
-            @click="analysisTab = 'interview'; if(!interviewQuestions) runInterviewPrep()">
-            Interview
-          </button>
-        </div>
-
-        <!-- Tab: Gap Analysis -->
-        <div x-show="selectedJob && analysisTab === 'gaps'" class="flex flex-col gap-3">
-          <div x-show="analysing" class="flex items-center gap-2 text-slate-500 text-sm py-4">
-            <svg class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
-              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
-            </svg>
-            Analysing with Claude Sonnet…
-          </div>
-          <div x-show="!analysing && !analysis && selectedJob" class="text-slate-600 text-xs">Waiting for analysis…</div>
-          <div x-show="analysis" class="flex flex-col gap-3">
-            <div>
-              <p class="text-xs text-slate-500 mb-1 uppercase tracking-wider">Highlight in Application</p>
-              <div class="flex flex-wrap gap-1">
-                <template x-for="sk in (analysis?.highlight_skills || [])" :key="sk">
-                  <span class="badge badge-green" x-text="sk"></span>
-                </template>
+          <!-- Job header -->
+          <div class="p-4 border-b border-blue-500/10">
+            <div class="flex items-start justify-between gap-2">
+              <div class="min-w-0">
+                <p class="font-semibold text-sm text-white" x-text="selectedJob?.title"></p>
+                <p class="text-xs text-slate-400 mt-0.5 flex items-center gap-1.5">
+                  <i class="fa-solid fa-building text-slate-600 text-xs"></i>
+                  <span x-text="selectedJob?.company"></span>
+                  <span class="text-slate-600">·</span>
+                  <span x-text="selectedJob?.location"></span>
+                </p>
               </div>
-            </div>
-            <div>
-              <p class="text-xs text-slate-500 mb-1 uppercase tracking-wider">Skills to Develop</p>
-              <div class="flex flex-wrap gap-1">
-                <template x-for="sk in (analysis?.gap_skills || [])" :key="sk">
-                  <span class="badge badge-red" x-text="sk"></span>
-                </template>
-              </div>
-            </div>
-            <div>
-              <p class="text-xs text-slate-500 mb-1 uppercase tracking-wider">Application Tip</p>
-              <p class="text-xs text-slate-300 leading-relaxed" x-text="analysis?.application_tip"></p>
-            </div>
-          </div>
-        </div>
-
-        <!-- Tab: Company -->
-        <div x-show="selectedJob && analysisTab === 'company'" class="flex flex-col gap-3">
-          <div x-show="loadingCompany" class="flex items-center gap-2 text-slate-500 text-xs py-4">
-            <svg class="animate-spin w-3 h-3" fill="none" viewBox="0 0 24 24">
-              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
-              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
-            </svg>
-            Fetching company data via Bright Data…
-          </div>
-
-          <!-- Company basic info from scraped data -->
-          <div class="flex flex-wrap gap-2 text-xs">
-            <span x-show="selectedJob?.company_industry" class="badge badge-blue" x-text="selectedJob?.company_industry"></span>
-            <span x-show="selectedJob?.company_size" class="px-2 py-0.5 rounded bg-surface border border-border text-slate-400" x-text="selectedJob?.company_size + ' employees'"></span>
-            <span x-show="selectedJob?.salary !== 'Not disclosed'" class="px-2 py-0.5 rounded bg-surface border border-border text-slate-400" x-text="selectedJob?.salary"></span>
-          </div>
-
-          <!-- Multi-source rating comparison -->
-          <div x-show="companyProfile?.overall_rating || companyProfile?.glassdoor_rating || companyProfile?.indeed_rating">
-            <p class="text-xs text-slate-500 mb-2 uppercase tracking-wider">Rating Comparison</p>
-            <div class="flex gap-3 flex-wrap">
-              <div x-show="companyProfile?.overall_rating" class="flex flex-col items-center gap-1 px-3 py-2 rounded-lg bg-surface border border-border">
-                <div class="flex gap-0.5">
-                  <template x-for="i in 5" :key="i">
-                    <svg class="w-3.5 h-3.5" :class="i <= Math.round(companyProfile?.overall_rating || 0) ? 'text-yellow-400' : 'text-slate-700'" fill="currentColor" viewBox="0 0 20 20">
-                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
-                    </svg>
-                  </template>
-                </div>
-                <span class="text-xs font-semibold text-slate-200" x-text="(companyProfile?.overall_rating || 0).toFixed(1) + '/5'"></span>
-                <span class="text-xs text-slate-600">Overall</span>
-              </div>
-              <div x-show="companyProfile?.glassdoor_rating" class="flex flex-col items-center gap-1 px-3 py-2 rounded-lg bg-surface border border-border">
-                <span class="text-sm font-semibold text-emerald-400" x-text="(companyProfile?.glassdoor_rating || 0).toFixed(1)"></span>
-                <span class="text-xs text-slate-600">Glassdoor</span>
-                <a x-show="companyProfile?.glassdoor_url" :href="companyProfile?.glassdoor_url" target="_blank" class="text-xs text-accent hover:underline">→</a>
-              </div>
-              <div x-show="companyProfile?.indeed_rating" class="flex flex-col items-center gap-1 px-3 py-2 rounded-lg bg-surface border border-border">
-                <span class="text-sm font-semibold text-blue-400" x-text="(companyProfile?.indeed_rating || 0).toFixed(1)"></span>
-                <span class="text-xs text-slate-600">Indeed</span>
-                <a x-show="companyProfile?.indeed_url" :href="companyProfile?.indeed_url" target="_blank" class="text-xs text-accent hover:underline">→</a>
-              </div>
-              <div x-show="companyProfile?.recommend_pct || companyProfile?.ceo_approval_pct" class="flex flex-col gap-1 px-3 py-2 rounded-lg bg-surface border border-border text-xs">
-                <div x-show="companyProfile?.recommend_pct" class="flex justify-between gap-3">
-                  <span class="text-slate-500">Recommend</span>
-                  <span class="text-slate-300 font-medium" x-text="companyProfile?.recommend_pct + '%'"></span>
-                </div>
-                <div x-show="companyProfile?.ceo_approval_pct" class="flex justify-between gap-3">
-                  <span class="text-slate-500">CEO Approval</span>
-                  <span class="text-slate-300 font-medium" x-text="companyProfile?.ceo_approval_pct + '%'"></span>
-                </div>
-                <span x-show="companyProfile?.review_count" class="text-slate-600 text-xs" x-text="'(' + companyProfile?.review_count + ' reviews)'"></span>
-              </div>
+              <span class="badge badge-green text-xs shrink-0" x-show="selectedJob?.is_verified !== false">
+                <i class="fa-solid fa-shield-check text-xs"></i> Verified
+              </span>
             </div>
           </div>
 
-          <!-- Culture summary -->
-          <div x-show="companyProfile?.culture_summary || companyProfile?.description">
-            <p class="text-xs text-slate-500 mb-1 uppercase tracking-wider">Culture</p>
-            <p class="text-xs text-slate-400 leading-relaxed" x-text="companyProfile?.culture_summary || companyProfile?.description"></p>
+          <!-- Tabs -->
+          <div class="flex border-b border-blue-500/10 text-xs overflow-x-auto">
+            <button class="px-3 py-2.5 transition-all whitespace-nowrap flex items-center gap-1.5"
+              :class="analysisTab === 'gaps' ? 'tab-active' : 'tab-inactive'"
+              @click="analysisTab = 'gaps'">
+              <i class="fa-solid fa-chart-pie text-xs"></i> Gaps
+            </button>
+            <button class="px-3 py-2.5 transition-all whitespace-nowrap flex items-center gap-1.5"
+              :class="analysisTab === 'company' ? 'tab-active' : 'tab-inactive'"
+              @click="analysisTab = 'company'">
+              <i class="fa-solid fa-building text-xs"></i> Company
+            </button>
+            <button class="px-3 py-2.5 transition-all whitespace-nowrap flex items-center gap-1.5"
+              :class="analysisTab === 'verify' ? 'tab-active' : 'tab-inactive'"
+              @click="analysisTab = 'verify'">
+              <i class="fa-solid fa-shield text-xs"></i> Verify
+            </button>
+            <button class="px-3 py-2.5 transition-all whitespace-nowrap flex items-center gap-1.5"
+              :class="analysisTab === 'interview' ? 'tab-active' : 'tab-inactive'"
+              @click="analysisTab = 'interview'; if(!interviewQuestions) runInterviewPrep()">
+              <i class="fa-solid fa-comments text-xs"></i> Interview
+            </button>
+            <button class="px-3 py-2.5 transition-all whitespace-nowrap flex items-center gap-1.5"
+              :class="analysisTab === 'tailor' ? 'tab-active' : 'tab-inactive'"
+              @click="analysisTab = 'tailor'; if(!tailormanResult && skills) runTailorman()">
+              <i class="fa-solid fa-pen-nib text-xs"></i>
+              Tailor
+              <span class="badge badge-purple" style="font-size:.55rem;padding:.05rem .3rem;margin-left:.1rem">PRO</span>
+            </button>
           </div>
 
-          <!-- Employee reviews (verbatim) -->
-          <div x-show="(companyProfile?.employee_reviews || []).length > 0">
-            <p class="text-xs text-slate-500 mb-2 uppercase tracking-wider">Employee Reviews</p>
-            <div class="flex flex-col gap-2">
-              <template x-for="(rev, i) in (companyProfile?.employee_reviews || []).slice(0,3)" :key="i">
-                <div class="border-l-2 border-border pl-2.5 py-1">
-                  <p class="text-xs text-slate-300 leading-relaxed italic" x-text="'\"' + rev.text + '\"'"></p>
-                  <div class="flex gap-2 mt-1">
-                    <span x-show="rev.rating" class="text-yellow-400 text-xs" x-text="'★ ' + rev.rating"></span>
-                    <span class="text-xs text-slate-600 capitalize" x-text="rev.source"></span>
+          <!-- Tab content -->
+          <div class="p-4 overflow-y-auto" style="max-height: calc(100vh - 300px);">
+
+            <!-- GAP ANALYSIS TAB -->
+            <div x-show="analysisTab === 'gaps'" class="flex flex-col gap-4">
+              <div x-show="analysing" class="flex items-center gap-2 text-slate-500 text-sm py-4 justify-center">
+                <svg class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+                </svg>
+                <span>Analysing with Claude Sonnet…</span>
+              </div>
+              <div x-show="!analysing && !analysis && selectedJob" class="text-slate-600 text-xs text-center py-4">Waiting for analysis…</div>
+              <div x-show="analysis" class="flex flex-col gap-4">
+                <div>
+                  <p class="section-label mb-2 flex items-center gap-1.5">
+                    <i class="fa-solid fa-star text-emerald-400 text-xs"></i>
+                    Highlight in Application
+                  </p>
+                  <div class="flex flex-wrap gap-1.5">
+                    <template x-for="sk in (analysis?.highlight_skills || [])" :key="sk">
+                      <span class="badge badge-green" x-text="sk"></span>
+                    </template>
                   </div>
                 </div>
-              </template>
+                <div class="divider"></div>
+                <div>
+                  <p class="section-label mb-2 flex items-center gap-1.5">
+                    <i class="fa-solid fa-arrow-up text-red-400 text-xs"></i>
+                    Skills to Develop
+                  </p>
+                  <div class="flex flex-wrap gap-1.5">
+                    <template x-for="sk in (analysis?.gap_skills || [])" :key="sk">
+                      <span class="badge badge-red" x-text="sk"></span>
+                    </template>
+                  </div>
+                </div>
+                <div class="divider"></div>
+                <div>
+                  <p class="section-label mb-2 flex items-center gap-1.5">
+                    <i class="fa-solid fa-lightbulb text-yellow-400 text-xs"></i>
+                    Application Tip
+                  </p>
+                  <p class="text-xs text-slate-300 leading-relaxed bg-yellow-500/5 border border-yellow-500/10 rounded-lg p-3" x-text="analysis?.application_tip"></p>
+                </div>
+              </div>
             </div>
-          </div>
 
-          <!-- Pros / Cons -->
-          <div class="flex gap-3">
-            <div x-show="(companyProfile?.pros || []).length > 0" class="flex-1">
-              <p class="text-xs text-slate-500 mb-1 uppercase tracking-wider">Pros</p>
-              <ul class="flex flex-col gap-1">
-                <template x-for="pro in (companyProfile?.pros || [])" :key="pro">
-                  <li class="text-xs text-green-400 flex gap-1"><span>+</span><span x-text="pro"></span></li>
-                </template>
-              </ul>
-            </div>
-            <div x-show="(companyProfile?.cons || []).length > 0" class="flex-1">
-              <p class="text-xs text-slate-500 mb-1 uppercase tracking-wider">Cons</p>
-              <ul class="flex flex-col gap-1">
-                <template x-for="con in (companyProfile?.cons || [])" :key="con">
-                  <li class="text-xs text-red-400 flex gap-1"><span>-</span><span x-text="con"></span></li>
-                </template>
-              </ul>
-            </div>
-          </div>
+            <!-- COMPANY TAB -->
+            <div x-show="analysisTab === 'company'" class="flex flex-col gap-4">
+              <div x-show="loadingCompany" class="flex items-center gap-2 text-slate-500 text-xs py-4 justify-center">
+                <svg class="animate-spin w-3 h-3" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+                </svg>
+                Fetching via Bright Data…
+              </div>
 
-          <!-- Source attribution -->
-          <div x-show="companyProfile?.sources_used?.length > 0" class="flex items-center gap-1 flex-wrap mt-1">
-            <span class="text-xs text-slate-600">Sources:</span>
-            <template x-for="src in (companyProfile?.sources_used || [])" :key="src">
-              <span class="badge badge-blue" style="font-size:.6rem;" x-text="src === 'claude_knowledge' ? 'Claude AI' : src === 'google' ? 'Google SERP' : src"></span>
-            </template>
-            <span class="text-slate-700 text-xs">via Bright Data</span>
-          </div>
+              <div class="flex flex-wrap gap-1.5">
+                <span x-show="selectedJob?.company_industry" class="badge badge-blue" x-text="selectedJob?.company_industry"></span>
+                <span x-show="selectedJob?.company_size" class="badge badge-blue" x-text="selectedJob?.company_size + ' employees'"></span>
+                <span x-show="selectedJob?.salary !== 'Not disclosed'" class="badge badge-yellow" x-text="selectedJob?.salary"></span>
+              </div>
 
-          <!-- No data fallback -->
-          <div x-show="!loadingCompany && !companyProfile" class="text-slate-600 text-xs">
-            No company data found for this company.
-          </div>
-        </div>
-
-        <!-- Tab: Verification -->
-        <div x-show="selectedJob && analysisTab === 'verify'" class="flex flex-col gap-3 text-xs">
-          <p class="text-slate-500 text-xs">GapHunter runs every job through 4 verification layers before showing it.</p>
-
-          <div class="flex flex-col gap-2">
-            <div class="flex items-center gap-2">
-              <span class="text-green-400">✓</span>
-              <span class="text-slate-400">Description length ≥ 200 characters</span>
-            </div>
-            <div class="flex items-center gap-2">
-              <span class="text-green-400">✓</span>
-              <span class="text-slate-400">Company name present and non-empty</span>
-            </div>
-            <div class="flex items-center gap-2">
-              <span :class="selectedJob?.is_verified !== false ? 'text-green-400' : 'text-red-400'"
-                x-text="selectedJob?.is_verified !== false ? '✓' : '✗'"></span>
-              <span class="text-slate-400">Scam keyword scan — no WhatsApp/Telegram solicitation, MLM, guaranteed income, commission-only patterns</span>
-            </div>
-            <div class="flex items-center gap-2">
-              <span :class="selectedJob?.is_verified !== false ? 'text-green-400' : 'text-red-400'"
-                x-text="selectedJob?.is_verified !== false ? '✓' : '✗'"></span>
-              <span class="text-slate-400">Salary anomaly check — salary range consistent with role seniority</span>
-            </div>
-            <div class="flex items-center gap-2">
-              <span class="text-green-400">✓</span>
-              <span class="text-slate-400">Cross-source deduplication — same job on multiple platforms unified</span>
-            </div>
-          </div>
-
-          <div x-show="selectedJob?.source" class="mt-1 pt-2 border-t border-border">
-            <span class="text-slate-600">Source: </span>
-            <span class="text-slate-400" x-text="selectedJob?.source"></span>
-            <span x-show="selectedJob?.date_posted" class="text-slate-600"> · Posted: </span>
-            <span x-show="selectedJob?.date_posted" class="text-slate-400" x-text="fmtDate(selectedJob?.date_posted)"></span>
-          </div>
-        </div>
-
-        <!-- Tab: Interview Prep -->
-        <div x-show="selectedJob && analysisTab === 'interview'" class="flex flex-col gap-3">
-          <!-- Loading -->
-          <div x-show="loadingInterview" class="flex items-center gap-2 text-slate-500 text-sm py-4">
-            <svg class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
-              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
-            </svg>
-            Predicting interview questions…
-          </div>
-
-          <!-- Questions loaded -->
-          <div x-show="!loadingInterview && interviewQuestions?.length">
-            <p class="text-xs text-slate-500 mb-3">
-              Predicted for <span class="text-slate-300" x-text="selectedJob?.title"></span>
-              <span x-show="selectedJob?.company"> at <span class="text-slate-300" x-text="selectedJob?.company"></span></span>
-            </p>
-            <div class="flex flex-col gap-3">
-              <template x-for="(q, i) in interviewQuestions" :key="i">
-                <div class="border border-border rounded-lg p-3">
-                  <div class="flex items-start gap-2">
-                    <span class="text-accent font-mono text-xs shrink-0 mt-0.5" x-text="'Q' + (i+1)"></span>
-                    <div class="flex-1">
-                      <p class="text-slate-200 text-xs font-medium" x-text="q.question"></p>
-                      <p class="text-slate-500 text-xs mt-1.5 leading-relaxed" x-text="'💡 ' + q.tip"></p>
-                      <span class="inline-block mt-1.5 text-xs px-1.5 py-0.5 rounded border"
-                        :class="{
-                          'border-blue-700 text-blue-400': q.type === 'technical',
-                          'border-yellow-700 text-yellow-400': q.type === 'behavioural',
-                          'border-purple-700 text-purple-400': q.type === 'situational'
-                        }"
-                        x-text="q.type"></span>
+              <div x-show="companyProfile?.overall_rating || companyProfile?.glassdoor_rating">
+                <p class="section-label mb-2.5 flex items-center gap-1.5">
+                  <i class="fa-solid fa-star text-yellow-400 text-xs"></i>
+                  Ratings
+                </p>
+                <div class="flex gap-2 flex-wrap">
+                  <div x-show="companyProfile?.overall_rating" class="flex flex-col items-center gap-1 px-3 py-2 rounded-xl bg-black/30 border border-blue-500/10 min-w-[60px]">
+                    <div class="flex gap-0.5">
+                      <template x-for="i in 5" :key="i">
+                        <i class="fa-solid fa-star text-xs" :class="i <= Math.round(companyProfile?.overall_rating || 0) ? 'text-yellow-400' : 'text-slate-700'"></i>
+                      </template>
                     </div>
+                    <span class="text-xs font-bold text-white" x-text="(companyProfile?.overall_rating||0).toFixed(1)"></span>
+                    <span class="text-xs text-slate-600">Overall</span>
+                  </div>
+                  <div x-show="companyProfile?.glassdoor_rating" class="flex flex-col items-center gap-1 px-3 py-2 rounded-xl bg-black/30 border border-emerald-500/15">
+                    <span class="text-sm font-bold text-emerald-400" x-text="(companyProfile?.glassdoor_rating||0).toFixed(1)"></span>
+                    <span class="text-xs text-slate-600">Glassdoor</span>
+                    <a x-show="companyProfile?.glassdoor_url" :href="companyProfile?.glassdoor_url" target="_blank" class="text-xs text-accent hover:underline">→</a>
+                  </div>
+                  <div x-show="companyProfile?.indeed_rating" class="flex flex-col items-center gap-1 px-3 py-2 rounded-xl bg-black/30 border border-blue-500/15">
+                    <span class="text-sm font-bold text-blue-400" x-text="(companyProfile?.indeed_rating||0).toFixed(1)"></span>
+                    <span class="text-xs text-slate-600">Indeed</span>
+                  </div>
+                  <div x-show="companyProfile?.recommend_pct || companyProfile?.ceo_approval_pct" class="flex flex-col gap-1 px-3 py-2 rounded-xl bg-black/30 border border-blue-500/10 text-xs">
+                    <div x-show="companyProfile?.recommend_pct" class="flex justify-between gap-3">
+                      <span class="text-slate-500">Recommend</span>
+                      <span class="text-slate-200 font-medium" x-text="companyProfile?.recommend_pct + '%'"></span>
+                    </div>
+                    <div x-show="companyProfile?.ceo_approval_pct" class="flex justify-between gap-3">
+                      <span class="text-slate-500">CEO Approval</span>
+                      <span class="text-slate-200 font-medium" x-text="companyProfile?.ceo_approval_pct + '%'"></span>
+                    </div>
+                    <span x-show="companyProfile?.review_count" class="text-slate-600" x-text="companyProfile?.review_count + ' reviews'"></span>
                   </div>
                 </div>
-              </template>
-            </div>
-            <button @click="runInterviewPrep()" class="btn-ghost text-xs mt-2 w-full">Regenerate</button>
-          </div>
-
-          <!-- Empty — no analysis yet -->
-          <div x-show="!loadingInterview && !interviewQuestions" class="text-center py-6">
-            <div class="text-3xl mb-2">🎯</div>
-            <p class="text-sm text-slate-300 font-medium">Interview questions will appear here</p>
-            <p class="text-xs text-slate-500 mt-1">Select a job and run gap analysis first</p>
-          </div>
-        </div>
-
-        <!-- Tab: Tailorman -->
-        <div x-show="selectedJob && analysisTab === 'tailor'" class="flex flex-col gap-3">
-
-          <!-- No skills — prompt to upload CV -->
-          <div x-show="!skills" class="flex flex-col items-center gap-3 py-6 text-center">
-            <div class="text-3xl">✍️</div>
-            <p class="text-sm text-slate-300 font-medium">Let's tailor this for you</p>
-            <p class="text-xs text-slate-500 leading-relaxed max-w-xs">
-              Drop your CV above and Tailorman will write a personalised summary,
-              cover letter opening, and interview talking points — matched to
-              <span class="text-slate-300" x-text="selectedJob?.title || 'this role'"></span>.
-            </p>
-            <label class="btn-primary text-xs cursor-pointer px-4 py-2 mt-2 flex items-center gap-2">
-              <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-              Upload CV to unlock
-              <input type="file" class="hidden" accept=".pdf,.docx" @change="uploadCV">
-            </label>
-            <p class="text-xs text-slate-600">PDF or DOCX · free · no account needed</p>
-          </div>
-
-          <!-- Has skills — show tailored materials -->
-          <div x-show="skills">
-
-            <!-- Loading -->
-            <div x-show="loadingTailor" class="flex items-center gap-2 text-slate-500 text-sm py-4">
-              <svg class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
-              </svg>
-              Tailoring your application with Claude…
-            </div>
-
-            <!-- Result -->
-            <div x-show="!loadingTailor && tailormanResult" class="flex flex-col gap-3 text-xs">
-
-              <!-- Tailored summary -->
-              <div x-show="tailormanResult?.tailored_summary">
-                <p class="text-slate-500 uppercase tracking-wider mb-1">CV Summary (tailored)</p>
-                <p class="text-slate-300 leading-relaxed italic border-l-2 border-purple-600 pl-2"
-                  x-text="tailormanResult?.tailored_summary"></p>
               </div>
 
-              <!-- Skills to emphasise -->
-              <div x-show="(tailormanResult?.skills_to_emphasise || []).length > 0">
-                <p class="text-slate-500 uppercase tracking-wider mb-1">Skills to Emphasise</p>
-                <div class="flex flex-wrap gap-1">
-                  <template x-for="sk in (tailormanResult?.skills_to_emphasise || [])" :key="sk">
-                    <span class="skill-pill" x-text="sk"></span>
-                  </template>
-                </div>
+              <div x-show="companyProfile?.culture_summary">
+                <p class="section-label mb-1.5 flex items-center gap-1.5"><i class="fa-solid fa-users text-blue-400/60 text-xs"></i> Culture</p>
+                <p class="text-xs text-slate-400 leading-relaxed bg-blue-500/5 rounded-lg p-3 border border-blue-500/10" x-text="companyProfile?.culture_summary || companyProfile?.description"></p>
               </div>
 
-              <!-- Cover letter opening -->
-              <div x-show="tailormanResult?.cover_letter_opening">
-                <p class="text-slate-500 uppercase tracking-wider mb-1">Cover Letter Opening</p>
-                <p class="text-slate-300 leading-relaxed italic border-l-2 border-blue-600 pl-2"
-                  x-text="tailormanResult?.cover_letter_opening"></p>
-              </div>
-
-              <!-- Gap framing -->
-              <div x-show="tailormanResult?.gap_framing">
-                <p class="text-slate-500 uppercase tracking-wider mb-1">How to Address Gaps</p>
-                <p class="text-slate-400 leading-relaxed" x-text="tailormanResult?.gap_framing"></p>
-              </div>
-
-              <!-- Interview talking points -->
-              <div x-show="(tailormanResult?.interview_talking_points || []).length > 0">
-                <p class="text-slate-500 uppercase tracking-wider mb-2">Interview Talking Points</p>
+              <div x-show="(companyProfile?.employee_reviews || []).length > 0">
+                <p class="section-label mb-2 flex items-center gap-1.5"><i class="fa-solid fa-comment-dots text-blue-400/60 text-xs"></i> Reviews</p>
                 <div class="flex flex-col gap-2">
-                  <template x-for="(pt, i) in (tailormanResult?.interview_talking_points || [])" :key="i">
-                    <div class="flex gap-2">
-                      <span class="text-accent font-mono shrink-0 mt-0.5" x-text="String(i+1).padStart(2,'0')"></span>
-                      <div>
-                        <p class="text-slate-200" x-text="pt.point"></p>
-                        <p class="text-slate-500 mt-0.5" x-text="pt.why"></p>
+                  <template x-for="(rev, i) in (companyProfile?.employee_reviews || []).slice(0,3)" :key="i">
+                    <div class="border-l-2 border-blue-500/20 pl-3 py-1">
+                      <p class="text-xs text-slate-300 leading-relaxed italic" x-text="'\"' + rev.text + '\"'"></p>
+                      <div class="flex gap-2 mt-1">
+                        <span x-show="rev.rating" class="text-yellow-400 text-xs" x-text="'★ ' + rev.rating"></span>
+                        <span class="text-xs text-slate-600 capitalize" x-text="rev.source"></span>
                       </div>
                     </div>
                   </template>
                 </div>
               </div>
 
-              <button @click="runTailorman()" class="btn-ghost text-xs mt-1 w-full">Regenerate</button>
-            </div>
-
-            <!-- Not yet loaded + has skills -->
-            <div x-show="!loadingTailor && !tailormanResult" class="text-center py-4">
-              <button @click="runTailorman()" class="btn-primary text-xs px-4">Generate Application Materials</button>
-            </div>
-          </div>
-        </div>
-
-      </div>
-    </div>
-
-    <!-- Roadmap Accordion -->
-    <div class="card mt-4" x-show="gaps.length > 0">
-      <h2 class="font-semibold text-sm text-slate-400 uppercase tracking-wider mb-3">Learning Roadmaps</h2>
-      <div class="flex flex-col gap-2">
-        <template x-for="gap in gaps" :key="gap.skill">
-          <div class="border border-border rounded-lg overflow-hidden">
-            <button class="w-full flex items-center justify-between px-4 py-3 text-sm hover:bg-white/5 transition-colors"
-              @click="toggleRoadmap(gap.skill)">
-              <div class="flex items-center gap-2">
-                <span x-text="gap.skill" class="font-medium"></span>
-                <span class="badge badge-blue text-xs" x-text="'Score: ' + (gap.demand_score || gap.score || 0).toFixed(2)"></span>
+              <div class="flex gap-3">
+                <div x-show="(companyProfile?.pros || []).length > 0" class="flex-1">
+                  <p class="section-label mb-1.5"><i class="fa-solid fa-plus text-emerald-400 text-xs mr-1"></i> Pros</p>
+                  <ul class="flex flex-col gap-1">
+                    <template x-for="pro in (companyProfile?.pros || [])" :key="pro">
+                      <li class="text-xs text-emerald-400/80 flex gap-1.5"><i class="fa-solid fa-check text-xs mt-0.5"></i><span x-text="pro"></span></li>
+                    </template>
+                  </ul>
+                </div>
+                <div x-show="(companyProfile?.cons || []).length > 0" class="flex-1">
+                  <p class="section-label mb-1.5"><i class="fa-solid fa-minus text-red-400 text-xs mr-1"></i> Cons</p>
+                  <ul class="flex flex-col gap-1">
+                    <template x-for="con in (companyProfile?.cons || [])" :key="con">
+                      <li class="text-xs text-red-400/80 flex gap-1.5"><i class="fa-solid fa-xmark text-xs mt-0.5"></i><span x-text="con"></span></li>
+                    </template>
+                  </ul>
+                </div>
               </div>
-              <div class="flex items-center gap-2">
-                <span x-show="roadmaps[gap.skill]?.status === 'pending'"
-                  class="badge badge-yellow text-xs">Generating…</span>
-                <span x-show="roadmaps[gap.skill]?.status === 'ready'"
-                  class="badge badge-green text-xs">Ready</span>
-                <svg class="w-4 h-4 text-slate-500 transition-transform"
-                  :class="openRoadmap === gap.skill ? 'rotate-180' : ''"
-                  fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+
+              <div x-show="companyProfile?.sources_used?.length > 0" class="flex items-center gap-1.5 flex-wrap">
+                <span class="text-xs text-slate-600">Sources:</span>
+                <template x-for="src in (companyProfile?.sources_used || [])" :key="src">
+                  <span class="bd-badge" x-text="src === 'claude_knowledge' ? 'Claude AI' : src === 'google' ? 'Google SERP' : src"></span>
+                </template>
+                <span class="text-slate-600 text-xs">via Bright Data</span>
+              </div>
+
+              <div x-show="!loadingCompany && !companyProfile" class="text-slate-600 text-xs text-center py-4">
+                <i class="fa-solid fa-circle-info mr-1"></i> No company data found.
+              </div>
+            </div>
+
+            <!-- VERIFICATION TAB -->
+            <div x-show="analysisTab === 'verify'" class="flex flex-col gap-3">
+              <p class="text-xs text-slate-500 leading-relaxed">GapHunter runs every job through 5 verification layers before showing it.</p>
+              <div class="flex flex-col gap-2">
+                <template x-for="(check, i) in [
+                  {label: 'Description length ≥ 200 characters', ok: true},
+                  {label: 'Company name present and non-empty', ok: true},
+                  {label: 'Scam keyword scan — no WhatsApp/Telegram, MLM, guaranteed income', ok: selectedJob?.is_verified !== false},
+                  {label: 'Salary anomaly check — consistent with role seniority', ok: selectedJob?.is_verified !== false},
+                  {label: 'Cross-source deduplication', ok: true}
+                ]" :key="i">
+                  <div class="flex items-start gap-2.5 p-2.5 rounded-lg" :class="check.ok ? 'bg-emerald-500/5 border border-emerald-500/15' : 'bg-red-500/5 border border-red-500/15'">
+                    <i class="text-sm mt-0.5 shrink-0" :class="check.ok ? 'fa-solid fa-check-circle text-emerald-400' : 'fa-solid fa-times-circle text-red-400'"></i>
+                    <span class="text-xs text-slate-400" x-text="check.label"></span>
+                  </div>
+                </template>
+              </div>
+              <div x-show="selectedJob?.source" class="pt-2 border-t border-blue-500/10 text-xs text-slate-500 flex items-center gap-2">
+                <i class="fa-solid fa-database text-slate-600"></i>
+                Source: <span class="text-slate-300" x-text="selectedJob?.source"></span>
+                <span x-show="selectedJob?.date_posted">· <span class="text-accent" x-text="fmtDate(selectedJob?.date_posted)"></span></span>
+              </div>
+            </div>
+
+            <!-- INTERVIEW TAB -->
+            <div x-show="analysisTab === 'interview'" class="flex flex-col gap-3">
+              <div x-show="loadingInterview" class="flex items-center gap-2 text-slate-500 text-sm py-4 justify-center">
+                <svg class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
                 </svg>
+                Predicting questions…
               </div>
-            </button>
-            <div x-show="openRoadmap === gap.skill" style="padding: 0 1rem 1rem;">
-              <div x-show="roadmaps[gap.skill]?.status === 'pending'"
-                class="text-slate-500 text-sm text-center py-4">
-                Roadmap generating — check back in a moment…
-              </div>
-              <div x-show="roadmaps[gap.skill]?.status === 'ready'" class="text-sm">
-                <p x-show="roadmaps[gap.skill]?.why_it_matters"
-                  class="text-slate-400 text-xs mb-3 italic border-l-2 border-accent pl-2"
-                  x-text="roadmaps[gap.skill]?.why_it_matters"></p>
-                <template x-for="(step, idx) in (roadmaps[gap.skill]?.steps || [])" :key="idx">
-                  <div class="flex gap-3 py-2 border-b border-border last:border-0">
-                    <span class="text-accent font-mono text-xs mt-0.5 shrink-0"
-                      x-text="String(idx + 1).padStart(2, '0')"></span>
-                    <div>
-                      <p class="font-medium text-slate-200" x-text="step.action"></p>
-                      <p class="text-slate-500 text-xs mt-0.5" x-text="step.duration"></p>
-                      <a x-show="step.resource_url" :href="step.resource_url" target="_blank" rel="noopener" class="text-accent text-xs mt-1 hover:underline block" x-text="'→ ' + step.resource_url"></a>
+              <div x-show="!loadingInterview && interviewQuestions?.length" class="flex flex-col gap-3">
+                <p class="text-xs text-slate-500">
+                  Predicted for <span class="text-slate-300" x-text="selectedJob?.title"></span>
+                  <span x-show="selectedJob?.company"> at <span class="text-slate-300" x-text="selectedJob?.company"></span></span>
+                </p>
+                <template x-for="(q, i) in interviewQuestions" :key="i">
+                  <div class="rounded-xl p-3 border border-blue-500/10 bg-black/20">
+                    <div class="flex items-start gap-2.5">
+                      <span class="text-accent font-bold text-xs shrink-0 mt-0.5 w-6" x-text="'Q' + (i+1)"></span>
+                      <div class="flex-1">
+                        <p class="text-slate-200 text-xs font-medium leading-relaxed" x-text="q.question"></p>
+                        <p class="text-slate-500 text-xs mt-1.5 leading-relaxed" x-text="'💡 ' + q.tip"></p>
+                        <span class="inline-block mt-1.5 text-xs px-1.5 py-0.5 rounded-md font-medium"
+                          :class="{
+                            'bg-blue-500/10 text-blue-400 border border-blue-500/15': q.type === 'technical',
+                            'bg-yellow-500/10 text-yellow-400 border border-yellow-500/15': q.type === 'behavioural',
+                            'bg-purple-500/10 text-purple-400 border border-purple-500/15': q.type === 'situational'
+                          }"
+                          x-text="q.type"></span>
+                      </div>
                     </div>
                   </div>
                 </template>
-                <p class="text-slate-600 text-xs mt-3">
-                  Estimated total: <span class="text-slate-400" x-text="roadmaps[gap.skill]?.estimated_total"></span>
-                  · Demand score: <span class="text-accent" x-text="(gap.demand_score || gap.score || 0).toFixed(3)"></span>
-                  <span class="text-slate-600"> · Formula: </span>
-                  <span class="text-slate-500 font-mono">0.35×freq + 0.25×freshness + 0.20×opportunity + 0.10×dual_signal + 0.10×cross_source × 1.3 bonus</span>
+                <button @click="runInterviewPrep()" class="btn-ghost text-xs w-full">
+                  <i class="fa-solid fa-arrows-rotate mr-1.5"></i> Regenerate
+                </button>
+              </div>
+              <div x-show="!loadingInterview && !interviewQuestions" class="flex flex-col items-center text-center py-8 gap-2">
+                <div class="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/15 flex items-center justify-center mb-1">
+                  <i class="fa-solid fa-comments text-blue-400/60 text-base"></i>
+                </div>
+                <p class="text-sm text-slate-300 font-medium">Interview prep loading</p>
+                <p class="text-xs text-slate-600">Questions will appear shortly</p>
+              </div>
+            </div>
+
+            <!-- TAILORMAN TAB -->
+            <div x-show="analysisTab === 'tailor'" class="flex flex-col gap-3">
+              <!-- No CV -->
+              <div x-show="!skills" class="flex flex-col items-center gap-3 py-6 text-center">
+                <div class="w-12 h-12 rounded-xl bg-purple-500/10 border border-purple-500/15 flex items-center justify-center">
+                  <i class="fa-solid fa-pen-nib text-purple-400 text-lg"></i>
+                </div>
+                <p class="text-sm text-slate-300 font-medium">Let's tailor this for you</p>
+                <p class="text-xs text-slate-500 max-w-xs leading-relaxed">
+                  Upload your CV and Tailorman writes a personalised summary, cover letter opening, and interview talking points — matched to
+                  <span class="text-slate-300" x-text="selectedJob?.title || 'this role'"></span>.
+                </p>
+                <label class="btn-primary text-xs cursor-pointer px-4 py-2.5 flex items-center gap-2">
+                  <i class="fa-solid fa-cloud-arrow-up text-sm"></i>
+                  Upload CV to unlock
+                  <input type="file" class="hidden" accept=".pdf,.docx" @change="uploadCV">
+                </label>
+                <p class="text-xs text-slate-600">PDF or DOCX · free · no account needed</p>
+              </div>
+
+              <!-- Has skills -->
+              <div x-show="skills">
+                <div x-show="loadingTailor" class="flex items-center gap-2 text-slate-500 text-sm py-4 justify-center">
+                  <svg class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+                  </svg>
+                  Tailoring with Claude…
+                </div>
+                <div x-show="!loadingTailor && tailormanResult" class="flex flex-col gap-4 text-xs">
+                  <div x-show="tailormanResult?.tailored_summary">
+                    <p class="section-label mb-1.5 flex items-center gap-1.5"><i class="fa-solid fa-id-card text-purple-400 text-xs"></i> CV Summary</p>
+                    <p class="text-slate-300 leading-relaxed italic border-l-2 border-purple-500/40 pl-3 bg-purple-500/5 py-2 rounded-r-lg" x-text="tailormanResult?.tailored_summary"></p>
+                  </div>
+                  <div x-show="(tailormanResult?.skills_to_emphasise || []).length > 0">
+                    <p class="section-label mb-1.5 flex items-center gap-1.5"><i class="fa-solid fa-trophy text-yellow-400 text-xs"></i> Skills to Emphasise</p>
+                    <div class="flex flex-wrap gap-1.5">
+                      <template x-for="sk in (tailormanResult?.skills_to_emphasise || [])" :key="sk">
+                        <span class="skill-pill" x-text="sk"></span>
+                      </template>
+                    </div>
+                  </div>
+                  <div x-show="tailormanResult?.cover_letter_opening">
+                    <p class="section-label mb-1.5 flex items-center gap-1.5"><i class="fa-solid fa-envelope-open-text text-blue-400 text-xs"></i> Cover Letter Opening</p>
+                    <p class="text-slate-300 leading-relaxed italic border-l-2 border-blue-500/40 pl-3 bg-blue-500/5 py-2 rounded-r-lg" x-text="tailormanResult?.cover_letter_opening"></p>
+                  </div>
+                  <div x-show="tailormanResult?.gap_framing">
+                    <p class="section-label mb-1.5 flex items-center gap-1.5"><i class="fa-solid fa-bridge-water text-slate-400 text-xs"></i> Address Gaps</p>
+                    <p class="text-slate-400 leading-relaxed" x-text="tailormanResult?.gap_framing"></p>
+                  </div>
+                  <div x-show="(tailormanResult?.interview_talking_points || []).length > 0">
+                    <p class="section-label mb-2 flex items-center gap-1.5"><i class="fa-solid fa-microphone text-accent text-xs"></i> Talking Points</p>
+                    <div class="flex flex-col gap-2">
+                      <template x-for="(pt, i) in (tailormanResult?.interview_talking_points || [])" :key="i">
+                        <div class="flex gap-2.5 p-2 rounded-lg bg-black/20 border border-blue-500/10">
+                          <span class="text-accent font-mono text-xs mt-0.5 shrink-0 w-5" x-text="String(i+1).padStart(2,'0')"></span>
+                          <div>
+                            <p class="text-slate-200" x-text="pt.point"></p>
+                            <p class="text-slate-500 mt-0.5 text-xs" x-text="pt.why"></p>
+                          </div>
+                        </div>
+                      </template>
+                    </div>
+                  </div>
+                  <button @click="runTailorman()" class="btn-ghost text-xs w-full">
+                    <i class="fa-solid fa-arrows-rotate mr-1.5"></i> Regenerate
+                  </button>
+                </div>
+                <div x-show="!loadingTailor && !tailormanResult" class="text-center py-4">
+                  <button @click="runTailorman()" class="btn-primary text-xs px-5 py-2.5">
+                    <i class="fa-solid fa-wand-magic-sparkles mr-1.5"></i>
+                    Generate Application Materials
+                  </button>
+                </div>
+              </div>
+            </div>
+
+          </div><!-- end tab content -->
+        </div><!-- end analysis panel -->
+      </div><!-- end analysis col -->
+    </div><!-- end main-grid -->
+
+    <!-- ── Demand Score + Gap Chart ────────────────────────── -->
+    <div class="card mt-5" x-show="gaps.length > 0" data-aos="fade-up">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="font-semibold text-slate-300 flex items-center gap-2">
+          <i class="fa-solid fa-chart-bar text-accent text-sm"></i>
+          Top 5 Skill Gaps
+        </h2>
+        <span class="badge badge-yellow"><i class="fa-solid fa-fire text-xs mr-1"></i> Market Demand Score</span>
+      </div>
+
+      <!-- Formula explainer -->
+      <div class="mb-3 px-4 py-3 rounded-xl bg-black/30 border border-blue-500/10 text-xs">
+        <p class="text-slate-400 font-semibold mb-1 flex items-center gap-1.5">
+          <i class="fa-solid fa-function text-blue-400 text-xs"></i>
+          How demand is scored
+        </p>
+        <p class="font-mono text-slate-500 text-xs leading-relaxed">
+          score = (0.35 × <span class="text-blue-400">frequency</span> + 0.25 × <span class="text-emerald-400">freshness</span> + 0.20 × <span class="text-yellow-400">opportunity</span> + 0.10 × <span class="text-purple-400">dual_signal</span> + 0.10 × <span class="text-pink-400">cross_source</span>) × 1.3 bonus
+        </p>
+        <p class="text-slate-700 mt-1">frequency = posting frequency · freshness = recency · opportunity = low competition · dual_signal = LinkedIn+SERP · cross_source = multi-platform verified</p>
+      </div>
+
+      <div id="gaps-chart" style="min-height: 220px;"></div>
+    </div>
+
+    <!-- ── Learning Roadmaps ─────────────────────────────── -->
+    <div class="card mt-5" x-show="gaps.length > 0" data-aos="fade-up" data-aos-delay="100">
+      <h2 class="font-semibold text-slate-300 flex items-center gap-2 mb-4">
+        <i class="fa-solid fa-road text-accent text-sm"></i>
+        Learning Roadmaps
+      </h2>
+      <div class="flex flex-col gap-2.5">
+        <template x-for="gap in gaps" :key="gap.skill">
+          <div class="accordion-item">
+            <div class="accordion-header flex items-center justify-between" @click="toggleRoadmap(gap.skill)">
+              <div class="flex items-center gap-2.5">
+                <span class="font-medium text-slate-200 text-sm" x-text="gap.skill"></span>
+                <span class="badge badge-blue text-xs" x-text="'Score: ' + (gap.demand_score || gap.score || 0).toFixed(2)"></span>
+              </div>
+              <div class="flex items-center gap-2">
+                <span x-show="roadmaps[gap.skill]?.status === 'pending'" class="badge badge-yellow text-xs">
+                  <i class="fa-solid fa-spinner fa-spin text-xs"></i> Generating
+                </span>
+                <span x-show="roadmaps[gap.skill]?.status === 'ready'" class="badge badge-green text-xs">
+                  <i class="fa-solid fa-check text-xs"></i> Ready
+                </span>
+                <i class="fa-solid fa-chevron-down text-slate-500 text-xs transition-transform"
+                  :class="openRoadmap === gap.skill ? 'rotate-180' : ''"></i>
+              </div>
+            </div>
+            <div x-show="openRoadmap === gap.skill" class="px-4 pb-4">
+              <div x-show="roadmaps[gap.skill]?.status === 'pending'" class="text-slate-500 text-sm text-center py-4">
+                <i class="fa-solid fa-cog fa-spin mr-2"></i>Generating roadmap…
+              </div>
+              <div x-show="roadmaps[gap.skill]?.status === 'ready'" class="text-sm">
+                <p x-show="roadmaps[gap.skill]?.why_it_matters"
+                  class="text-slate-400 text-xs mb-4 leading-relaxed border-l-2 border-accent/40 pl-3 bg-accent/5 py-2 rounded-r-lg"
+                  x-text="roadmaps[gap.skill]?.why_it_matters"></p>
+                <div class="flex flex-col gap-0">
+                  <template x-for="(step, idx) in (roadmaps[gap.skill]?.steps || [])" :key="idx">
+                    <div class="flex gap-3 py-3 border-b border-blue-500/8 last:border-0">
+                      <span class="text-accent font-bold text-xs mt-0.5 shrink-0 w-6" x-text="String(idx + 1).padStart(2, '0')"></span>
+                      <div class="flex-1">
+                        <p class="font-medium text-slate-200" x-text="step.action"></p>
+                        <p class="text-slate-500 text-xs mt-0.5 flex items-center gap-1.5">
+                          <i class="fa-solid fa-clock text-slate-600 text-xs"></i>
+                          <span x-text="step.duration"></span>
+                        </p>
+                        <a x-show="step.resource_url" :href="step.resource_url" target="_blank" rel="noopener"
+                          class="text-accent text-xs mt-1 hover:underline flex items-center gap-1">
+                          <i class="fa-solid fa-arrow-up-right-from-square text-xs"></i>
+                          <span x-text="step.resource_url"></span>
+                        </a>
+                      </div>
+                    </div>
+                  </template>
+                </div>
+                <p class="text-slate-700 text-xs mt-3 flex flex-wrap items-center gap-1.5">
+                  <span><i class="fa-solid fa-hourglass-half mr-1 text-slate-600"></i>Est: <span class="text-slate-400" x-text="roadmaps[gap.skill]?.estimated_total"></span></span>
+                  <span>· Score: <span class="text-accent font-mono" x-text="(gap.demand_score || gap.score || 0).toFixed(3)"></span></span>
+                  <span class="hidden sm:inline">· <span class="font-mono text-slate-700">0.35×freq + 0.25×fresh + 0.20×opp</span></span>
                 </p>
               </div>
             </div>
@@ -723,53 +1022,63 @@
       </div>
     </div>
 
-    <!-- Salary Intelligence Card -->
-    <div class="card mt-4" x-show="salaryIntel || loadingSalary">
+    <!-- ── Salary Intelligence ───────────────────────────── -->
+    <div class="card mt-5 gradient-border" x-show="salaryIntel || loadingSalary" data-aos="fade-up" data-aos-delay="150">
       <div class="flex items-center justify-between mb-4">
+        <h2 class="font-semibold text-slate-300 flex items-center gap-2">
+          <i class="fa-solid fa-sack-dollar text-yellow-400 text-sm"></i>
+          Market Salary Intelligence
+        </h2>
         <div>
-          <h2 class="font-semibold text-sm text-slate-400 uppercase tracking-wider">Market Salary Intelligence</h2>
-          <p class="text-xs text-slate-600 mt-0.5" x-text="salaryIntel ? (salaryIntel.currency + ' · ' + (locationSearched || 'Global')) : ''"></p>
+          <span x-show="loadingSalary && !salaryIntel" class="text-xs text-slate-500 animate-pulse flex items-center gap-1.5">
+            <i class="fa-solid fa-circle-notch fa-spin text-xs"></i> Analysing…
+          </span>
+          <span x-show="salaryIntel" class="badge badge-blue text-xs" x-text="(salaryIntel?.currency || '') + ' · ' + (locationSearched || 'Global')"></span>
         </div>
-        <span x-show="loadingSalary && !salaryIntel" class="text-xs text-slate-500 animate-pulse">Analysing market data…</span>
       </div>
 
-      <div x-show="loadingSalary && !salaryIntel" class="text-slate-600 text-sm text-center py-4">Loading salary intelligence…</div>
+      <div x-show="loadingSalary && !salaryIntel" class="text-slate-600 text-sm text-center py-6">
+        <i class="fa-solid fa-circle-notch fa-spin mr-2"></i>Loading salary data…
+      </div>
 
       <div x-show="salaryIntel" class="flex flex-col gap-5">
-        <!-- Salary range -->
+        <!-- Range display -->
         <div>
-          <div class="flex justify-between text-xs mb-2">
-            <div class="text-slate-400">
-              <div class="text-slate-600 text-xs mb-0.5">Min</div>
-              <span x-text="(salaryIntel?.currency_symbol || '$') + (salaryIntel?.market_min || 0).toLocaleString()"></span>
+          <div class="flex justify-between text-sm mb-3">
+            <div class="text-center">
+              <p class="text-xs text-slate-600 mb-1">Min</p>
+              <p class="text-slate-300 font-medium" x-text="(salaryIntel?.currency_symbol || '$') + (salaryIntel?.market_min || 0).toLocaleString()"></p>
             </div>
             <div class="text-center">
-              <div class="text-slate-600 text-xs mb-0.5">Median</div>
-              <span class="text-accent font-semibold text-sm" x-text="(salaryIntel?.currency_symbol || '$') + (salaryIntel?.market_median || 0).toLocaleString()"></span>
+              <p class="text-xs text-slate-600 mb-1">Median</p>
+              <p class="text-accent font-bold text-lg" x-text="(salaryIntel?.currency_symbol || '$') + (salaryIntel?.market_median || 0).toLocaleString()"></p>
             </div>
-            <div class="text-right text-slate-400">
-              <div class="text-slate-600 text-xs mb-0.5">Max</div>
-              <span x-text="(salaryIntel?.currency_symbol || '$') + (salaryIntel?.market_max || 0).toLocaleString()"></span>
+            <div class="text-center">
+              <p class="text-xs text-slate-600 mb-1">Max</p>
+              <p class="text-slate-300 font-medium" x-text="(salaryIntel?.currency_symbol || '$') + (salaryIntel?.market_max || 0).toLocaleString()"></p>
             </div>
           </div>
-          <div class="w-full h-1.5 rounded-full bg-surface border border-border overflow-hidden">
-            <div class="h-full bg-gradient-to-r from-blue-800 via-accent to-emerald-500 rounded-full" style="width:100%"></div>
+          <div class="w-full h-2 rounded-full bg-black/40 border border-blue-500/10 overflow-hidden">
+            <div class="h-full bg-gradient-to-r from-blue-700 via-accent to-emerald-400 rounded-full" style="width:100%"></div>
           </div>
-          <p class="text-xs text-slate-500 mt-2 italic leading-relaxed" x-text="salaryIntel?.market_context"></p>
+          <p class="text-xs text-slate-500 mt-2 leading-relaxed italic" x-text="salaryIntel?.market_context"></p>
         </div>
 
         <!-- How to earn more -->
         <div>
-          <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">How to Increase Your Salary</h3>
+          <h3 class="section-label mb-3 flex items-center gap-1.5">
+            <i class="fa-solid fa-arrow-trend-up text-emerald-400 text-xs"></i>
+            How to Increase Your Salary
+          </h3>
           <div class="flex flex-col gap-0">
             <template x-for="(tip, i) in (salaryIntel?.increase_tips || [])" :key="i">
-              <div class="flex gap-3 py-2.5 border-b border-border last:border-0 items-start">
-                <span class="text-accent font-mono text-xs mt-0.5 shrink-0 w-5" x-text="String(i + 1).padStart(2, '0')"></span>
+              <div class="flex gap-3 py-3 border-b border-blue-500/8 last:border-0 items-start">
+                <span class="text-accent font-bold text-xs mt-0.5 shrink-0 w-5" x-text="String(i+1).padStart(2,'0')"></span>
                 <div class="flex-1">
                   <p class="text-sm text-slate-200" x-text="tip.action"></p>
                   <div class="flex gap-2 mt-1 flex-wrap">
                     <span class="badge badge-green" style="font-size:.65rem;" x-text="tip.impact"></span>
-                    <span class="text-xs text-slate-500" x-text="tip.timeframe"></span>
+                    <span class="text-xs text-slate-500 flex items-center gap-1"><i class="fa-solid fa-clock text-xs"></i> <span x-text="tip.timeframe"></span></span>
                   </div>
                 </div>
               </div>
@@ -781,120 +1090,150 @@
 
   </main>
 
-  <!-- ════════════════════════════════════════════════════════════
-       ENTERPRISE INTELLIGENCE TAB (Track 1 GTM + Track 2 Finance)
-  ════════════════════════════════════════════════════════════ -->
-  <main x-show="activeTab === 'hr'" class="max-w-7xl mx-auto px-4 py-6">
+  <!-- ══════════════════════════════════════════
+       ENTERPRISE INTELLIGENCE TAB
+  ══════════════════════════════════════════ -->
+  <main x-show="activeTab === 'hr'" class="max-w-screen-xl mx-auto px-4 sm:px-6 py-6">
 
-    <!-- Enterprise value proposition -->
-    <div class="mb-4 px-4 py-3 rounded-lg border border-blue-800/40 bg-blue-900/10 text-xs text-slate-400 leading-relaxed">
-      <span class="text-slate-200 font-semibold">Enterprise Market Intelligence — </span>
-      Job postings are <span class="text-blue-300">alternative data</span>: real-time signals of competitor investment, skill scarcity, and hiring strategy.
-      GapHunter scrapes live postings via <span class="text-blue-300">Bright Data LinkedIn Dataset + SERP API</span>, extracts structured skill demand signals, and surfaces actionable competitive intelligence.
-      <span class="text-slate-500 ml-2">Track 1: GTM Intelligence · Track 2: Finance &amp; Market Intelligence</span>
-    </div>
-
-    <div class="bento" style="grid-template-columns: 340px 1fr;">
-
-      <!-- Enterprise Search Panel -->
-      <div class="card flex flex-col gap-4">
+    <!-- Track banner -->
+    <div class="mb-5 px-5 py-4 rounded-xl border border-blue-500/20 bg-blue-500/5" data-aos="fade-down">
+      <div class="flex items-start gap-3">
+        <i class="fa-solid fa-chart-network text-blue-400 text-lg mt-0.5"></i>
         <div>
-          <h2 class="font-semibold text-sm text-slate-400 uppercase tracking-wider">Competitor Hiring Scanner</h2>
-          <p class="text-xs text-slate-600 mt-1">What skills is a competitor actively hiring for right now?</p>
-        </div>
-        <div>
-          <label class="text-xs text-slate-500 mb-1 block">Company Name</label>
-          <input class="input-field" type="text" x-model="hrCompany" placeholder="e.g. Grab, Shopee, Maybank" />
-        </div>
-        <div>
-          <label class="text-xs text-slate-500 mb-1 block">Role / Function</label>
-          <input class="input-field" type="text" x-model="hrRole" placeholder="e.g. Data Engineer, Product Manager" />
-        </div>
-        <div>
-          <label class="text-xs text-slate-500 mb-1 block">Market</label>
-          <input class="input-field" type="text" x-model="hrLocation" placeholder="e.g. Kuala Lumpur, Singapore" />
-        </div>
-        <button class="btn-primary w-full flex items-center justify-center gap-2"
-          @click="doHRSearch()" :disabled="hrSearching">
-          <svg x-show="hrSearching" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
-            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
-          </svg>
-          <span x-text="hrSearching ? 'Scanning live postings…' : 'Run Market Intelligence'"></span>
-        </button>
-        <p x-show="hrPostings > 0" class="text-xs text-slate-500 text-center">
-          Scraped &amp; analysed <span x-text="hrPostings" class="text-slate-300"></span> live postings
-          from <span x-text="hrCompany" class="text-slate-300"></span>
-          via <span class="text-blue-400">Bright Data</span>
-        </p>
-      </div>
-
-      <!-- Skill Demand Radar -->
-      <div class="card flex flex-col gap-3">
-        <div class="flex items-center justify-between">
-          <div>
-            <h2 class="font-semibold text-sm text-slate-400 uppercase tracking-wider">Skill Demand Signal</h2>
-            <p class="text-xs text-slate-600 mt-0.5">Top skills extracted from live job postings — alternative data for talent market positioning</p>
+          <p class="text-slate-200 font-semibold text-sm">Enterprise Market Intelligence</p>
+          <p class="text-xs text-slate-400 mt-1 leading-relaxed">
+            Job postings are <span class="text-blue-300 font-medium">alternative data</span> — real-time signals of competitor investment, skill scarcity, and hiring strategy.
+            GapHunter ingests live postings via <span class="text-blue-300 font-medium">Bright Data LinkedIn Dataset + SERP API</span>, extracts structured skill demand signals, and surfaces actionable competitive intelligence.
+          </p>
+          <div class="flex gap-2 mt-2.5">
+            <span class="badge badge-blue text-xs"><i class="fa-solid fa-chart-line mr-1 text-xs"></i> Track 1: GTM Intelligence</span>
+            <span class="badge badge-purple text-xs"><i class="fa-solid fa-coins mr-1 text-xs"></i> Track 2: Finance & Market Intelligence</span>
           </div>
-          <span x-show="hrSkills.length > 0" class="badge badge-blue text-xs"
-            x-text="hrCompany || 'Competitor'"></span>
         </div>
-        <div x-show="hrSkills.length === 0"
-          class="flex-1 flex items-center justify-center text-slate-600 text-sm">
-          Run a competitor scan to see live skill demand signals
-        </div>
-        <div id="hr-radar-chart" x-show="hrSkills.length > 0" style="min-height: 260px;"></div>
       </div>
     </div>
 
-    <!-- HR Skills Table -->
-    <div class="card mt-4" x-show="hrSkills.length > 0">
-      <h2 class="font-semibold text-sm text-slate-400 uppercase tracking-wider mb-3">Top Skills Breakdown</h2>
-      <div class="overflow-x-auto">
-        <table class="w-full text-sm">
-          <thead>
-            <tr class="border-b border-border text-left text-xs text-slate-500 uppercase tracking-wider">
-              <th class="pb-2">Rank</th>
-              <th class="pb-2">Skill</th>
-              <th class="pb-2">Demand Score</th>
-              <th class="pb-2">Signal</th>
-            </tr>
-          </thead>
-          <tbody>
-            <template x-for="(sk, idx) in hrSkills.slice(0, 10)" :key="sk.skill">
-              <tr class="border-b border-border/50 hover:bg-white/5 transition-colors">
-                <td class="py-2 text-slate-500 font-mono" x-text="idx + 1"></td>
-                <td class="py-2 font-medium" x-text="sk.skill"></td>
-                <td class="py-2">
-                  <div class="flex items-center gap-2">
-                    <div class="bg-border rounded-full h-1.5 w-24">
-                      <div class="bg-accent h-1.5 rounded-full"
-                        :style="'width:' + Math.min(100, (sk.score / (hrSkills[0]?.score || 1)) * 100) + '%'">
+    <div class="main-grid" style="">
+      <div class="search-col flex flex-col gap-4">
+
+        <!-- Enterprise search -->
+        <div class="glass-card card-glow flex flex-col gap-4">
+          <div class="flex items-center gap-2 mb-1">
+            <i class="fa-solid fa-crosshairs text-accent text-sm"></i>
+            <span class="section-label">Competitor Hiring Scanner</span>
+          </div>
+          <p class="text-xs text-slate-500 -mt-2">What skills is a competitor actively hiring for right now?</p>
+
+          <div>
+            <label class="text-xs text-slate-400 mb-1.5 flex items-center gap-1.5">
+              <i class="fa-solid fa-building text-slate-500 text-xs"></i> Company
+            </label>
+            <input class="input-field" type="text" x-model="hrCompany" placeholder="e.g. Grab, Shopee, Maybank" />
+          </div>
+          <div>
+            <label class="text-xs text-slate-400 mb-1.5 flex items-center gap-1.5">
+              <i class="fa-solid fa-briefcase text-slate-500 text-xs"></i> Role / Function
+            </label>
+            <input class="input-field" type="text" x-model="hrRole" placeholder="e.g. Data Engineer, Product Manager" />
+          </div>
+          <div>
+            <label class="text-xs text-slate-400 mb-1.5 flex items-center gap-1.5">
+              <i class="fa-solid fa-globe text-slate-500 text-xs"></i> Market
+            </label>
+            <input class="input-field" type="text" x-model="hrLocation" placeholder="e.g. Kuala Lumpur, Singapore" />
+          </div>
+
+          <button class="btn-primary w-full gap-2 py-3" @click="doHRSearch()" :disabled="hrSearching">
+            <svg x-show="hrSearching" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+            </svg>
+            <i x-show="!hrSearching" class="fa-solid fa-satellite-dish text-sm"></i>
+            <span x-text="hrSearching ? 'Scanning live postings…' : 'Run Market Intelligence'"></span>
+          </button>
+
+          <p x-show="hrPostings > 0" class="text-xs text-slate-500 text-center leading-relaxed">
+            Scraped &amp; analysed <span x-text="hrPostings" class="text-slate-200 font-medium"></span> live postings
+            from <span x-text="hrCompany" class="text-slate-200 font-medium"></span>
+            via <span class="text-blue-400 font-medium">Bright Data</span>
+          </p>
+        </div>
+      </div>
+
+      <!-- Radar + table (right/center) -->
+      <div class="xl:col-span-2 flex flex-col gap-4">
+        <div class="card card-glow">
+          <div class="flex items-center justify-between mb-3">
+            <div>
+              <h2 class="font-semibold text-slate-300 flex items-center gap-2">
+                <i class="fa-solid fa-radar text-accent text-sm"></i>
+                Skill Demand Signal
+              </h2>
+              <p class="text-xs text-slate-600 mt-0.5">Alternative data for talent market positioning</p>
+            </div>
+            <span x-show="hrSkills.length > 0" class="badge badge-blue" x-text="hrCompany || 'Competitor'"></span>
+          </div>
+          <div x-show="hrSkills.length === 0" class="flex flex-col items-center justify-center py-16 text-center">
+            <i class="fa-solid fa-chart-radar text-slate-700 text-4xl mb-3"></i>
+            <p class="text-slate-600 text-sm">Run a competitor scan to see live skill demand signals</p>
+          </div>
+          <div id="hr-radar-chart" x-show="hrSkills.length > 0" style="min-height: 260px;"></div>
+        </div>
+
+        <!-- Skills breakdown table -->
+        <div class="card" x-show="hrSkills.length > 0" data-aos="fade-up">
+          <h2 class="font-semibold text-slate-300 flex items-center gap-2 mb-4">
+            <i class="fa-solid fa-table-list text-accent text-sm"></i>
+            Top Skills Breakdown
+          </h2>
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead>
+                <tr class="border-b border-blue-500/10 text-left">
+                  <th class="pb-2.5 section-label">Rank</th>
+                  <th class="pb-2.5 section-label">Skill</th>
+                  <th class="pb-2.5 section-label">Demand Score</th>
+                  <th class="pb-2.5 section-label">Signal</th>
+                </tr>
+              </thead>
+              <tbody>
+                <template x-for="(sk, idx) in hrSkills.slice(0, 10)" :key="sk.skill">
+                  <tr class="border-b border-blue-500/8 hover:bg-blue-500/5 transition-colors">
+                    <td class="py-2.5 text-slate-500 font-mono text-xs" x-text="idx + 1"></td>
+                    <td class="py-2.5 font-medium text-slate-200" x-text="sk.skill"></td>
+                    <td class="py-2.5">
+                      <div class="flex items-center gap-2">
+                        <div class="bg-black/40 border border-blue-500/10 rounded-full h-1.5 w-24">
+                          <div class="bg-accent h-1.5 rounded-full transition-all"
+                            :style="'width:' + Math.min(100, (sk.score / (hrSkills[0]?.score || 1)) * 100) + '%'">
+                          </div>
+                        </div>
+                        <span class="text-xs text-slate-400 font-mono" x-text="sk.score.toFixed(3)"></span>
                       </div>
-                    </div>
-                    <span class="text-xs text-slate-400" x-text="sk.score.toFixed(3)"></span>
-                  </div>
-                </td>
-                <td class="py-2">
-                  <span class="badge"
-                    :class="sk.score > 0.7 ? 'badge-red' : sk.score > 0.4 ? 'badge-yellow' : 'badge-blue'"
-                    x-text="sk.score > 0.7 ? 'High Demand' : sk.score > 0.4 ? 'Growing' : 'Emerging'">
-                  </span>
-                </td>
-              </tr>
-            </template>
-          </tbody>
-        </table>
+                    </td>
+                    <td class="py-2.5">
+                      <span class="badge text-xs"
+                        :class="sk.score > 0.7 ? 'badge-red' : sk.score > 0.4 ? 'badge-yellow' : 'badge-blue'"
+                        x-text="sk.score > 0.7 ? '🔥 High Demand' : sk.score > 0.4 ? '📈 Growing' : '🌱 Emerging'">
+                      </span>
+                    </td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
     </div>
 
   </main>
 
-  <!-- ── Alpine.js app ───────────────────────────────────────────── -->
+  <!-- ══════════════════════════════════════════
+       ALPINE.JS APP (unchanged logic)
+  ══════════════════════════════════════════ -->
   <script>
     const API = window.__API_URL__ || 'https://gaphunter-api.onrender.com';
 
-    // Addendum P: decode obfuscated token (set by Netlify snippet injection)
     function _tok() {
       try {
         const raw = window.__APP_TOKEN__ || '';
@@ -922,14 +1261,14 @@
         series: [{ name: 'Demand Score', data: scores }],
         chart: { type: 'bar', height: 220, background: 'transparent',
           toolbar: { show: false }, animations: { enabled: true } },
-        plotOptions: { bar: { horizontal: true, borderRadius: 4,
+        plotOptions: { bar: { horizontal: true, borderRadius: 6,
           dataLabels: { position: 'top' } } },
         dataLabels: { enabled: true, formatter: v => v.toFixed(3),
           style: { colors: ['#94a3b8'], fontSize: '11px' } },
         colors: ['#3b82f6'],
         xaxis: { categories: labels, labels: { style: { colors: '#64748b' } } },
         yaxis: { labels: { style: { colors: '#94a3b8', fontSize: '12px' } } },
-        grid: { borderColor: '#1e2d45' },
+        grid: { borderColor: 'rgba(59,130,246,0.08)' },
         theme: { mode: 'dark' },
         tooltip: { theme: 'dark' },
       };
@@ -952,9 +1291,9 @@
           toolbar: { show: false } },
         xaxis: { categories: top8.map(s => s.skill) },
         colors: ['#3b82f6'],
-        fill: { opacity: 0.2 },
+        fill: { opacity: 0.15 },
         stroke: { width: 2 },
-        markers: { size: 4 },
+        markers: { size: 4, colors: ['#3b82f6'] },
         yaxis: { show: false },
         grid: { show: false },
         theme: { mode: 'dark' },
@@ -971,10 +1310,7 @@
 
     function app() {
       return {
-        // ── tab ──────────────────────────────────────────────
         activeTab: 'seeker',
-
-        // ── seeker state ─────────────────────────────────────
         role: '',
         location: '',
         skills: '',
@@ -984,11 +1320,7 @@
         sessionId: null,
         totalPostings: 0,
         circuitOpen: false,
-
-        // ── CV upload ────────────────────────────────────────
         cvStatus: '',
-
-        // ── analysis ─────────────────────────────────────────
         selectedJob: null,
         analysis: null,
         analysing: false,
@@ -1001,20 +1333,23 @@
         loadingSalary: false,
         inferredRole: '',
         roleError: false,
-        searchSteps: ['Validating role with Claude AI…', 'Bright Data SERP → LinkedIn job URLs…', 'Bright Data LinkedIn Dataset → full job data…', 'Scam detection + 5-layer verification…', 'Claude extracts skills · scoring demand…', 'Ranking gaps by market demand score…'],
+        searchSteps: [
+          'Validating role with Claude AI…',
+          'Bright Data SERP → LinkedIn job URLs…',
+          'Bright Data LinkedIn Dataset → full job data…',
+          'Scam detection + 5-layer verification…',
+          'Claude extracts skills · scoring demand…',
+          'Ranking gaps by market demand score…'
+        ],
         searchStepIdx: 0,
         _stepTimer: null,
         tailormanResult: null,
         loadingTailor: false,
         interviewQuestions: null,
         loadingInterview: false,
-
-        // ── roadmap ──────────────────────────────────────────
         roadmaps: {},
         openRoadmap: null,
         _pollTimer: null,
-
-        // ── HR ───────────────────────────────────────────────
         hrCompany: '',
         hrRole: '',
         hrLocation: '',
@@ -1022,21 +1357,55 @@
         hrSkills: [],
         hrPostings: 0,
 
-        // ── lifecycle ────────────────────────────────────────
         init() {
-          // no-op: pre-seeded with defaults per Addendum B (no auth flow)
+          // Init AOS
+          AOS.init({ duration: 500, once: true, offset: 50 });
+
+          // Init particles
+          if (typeof particlesJS !== 'undefined') {
+            particlesJS('particles-js', {
+              particles: {
+                number: { value: 40, density: { enable: true, value_area: 900 } },
+                color: { value: '#3b82f6' },
+                opacity: { value: 0.15, random: true },
+                size: { value: 2, random: true },
+                line_linked: { enable: true, distance: 150, color: '#3b82f6', opacity: 0.06, width: 1 },
+                move: { enable: true, speed: 0.6, random: true, out_mode: 'out' },
+              },
+              interactivity: {
+                detect_on: 'canvas',
+                events: { onhover: { enable: true, mode: 'grab' }, resize: true },
+                modes: { grab: { distance: 140, line_linked: { opacity: 0.2 } } },
+              },
+            });
+          }
+
+          // Init typed.js
+          if (typeof Typed !== 'undefined') {
+            new Typed('#typed-hero', {
+              strings: [
+                'Know exactly which skills the market demands.',
+                'See what competitors are hiring for.',
+                'Get interview-ready in minutes.',
+                'Tailor your CV to every job automatically.',
+                'Turn live web data into career intelligence.',
+              ],
+              typeSpeed: 40,
+              backSpeed: 20,
+              backDelay: 2500,
+              loop: true,
+              cursorChar: '|',
+            });
+          }
         },
 
-        // ── search (Addendum L: rate_limited branch BEFORE no_results) ──
         async doSearch() {
           if (this.searching) return;
 
-          // Use inferred role from CV if user left role field empty
           if (!this.role.trim() && this.inferredRole) {
             this.role = this.inferredRole;
           }
 
-          // Guard: role is still empty — highlight field inline, no popup
           if (!this.role.trim()) {
             this.roleError = true;
             document.querySelector('[x-model="role"]')?.focus();
@@ -1052,7 +1421,6 @@
           this.totalPostings = 0;
           this.selectedJob = null;
           this.analysis = null;
-          // Advance step ticker every ~12s to match backend pipeline phases
           clearInterval(this._stepTimer);
           this._stepTimer = setInterval(() => {
             if (this.searchStepIdx < this.searchSteps.length - 1) this.searchStepIdx++;
@@ -1060,6 +1428,7 @@
           }, 12000);
           this.companyProfile = null;
           this.tailormanResult = null;
+          this.interviewQuestions = null;
           this.salaryIntel = null;
           this.roadmaps = {};
           this.openRoadmap = null;
@@ -1069,44 +1438,28 @@
             const res = await fetch(`${API}/api/search`, {
               method: 'POST',
               headers: _headers(),
-              body: JSON.stringify({
-                role: this.role,
-                location: this.location,
-                skills: this.skills,
-              }),
+              body: JSON.stringify({ role: this.role, location: this.location, skills: this.skills }),
             });
             const data = await res.json();
 
-            // Addendum L: rate_limited BEFORE no_results
             if (data.status === 'rate_limited') {
-              Swal.fire({ icon: 'warning', title: 'Rate Limited',
-                text: data.message || 'Too many searches. Please wait 1 hour.',
-                background: '#0f1623', color: '#e2e8f0',
-                confirmButtonColor: '#3b82f6' });
+              Swal.fire({ icon: 'warning', title: 'Rate Limited', text: data.message || 'Too many searches. Please wait 1 hour.',
+                background: '#0d1526', color: '#e2e8f0', confirmButtonColor: '#3b82f6' });
               return;
             }
-
             if (data.status === 'invalid_query') {
-              Swal.fire({ icon: 'info', title: 'Invalid Query',
-                text: data.message || 'Please enter a valid job title.',
-                background: '#0f1623', color: '#e2e8f0',
-                confirmButtonColor: '#3b82f6' });
+              Swal.fire({ icon: 'info', title: 'Invalid Query', text: data.message || 'Please enter a valid job title.',
+                background: '#0d1526', color: '#e2e8f0', confirmButtonColor: '#3b82f6' });
               return;
             }
-
             if (data.status !== 'ok') {
-              Swal.fire({ icon: 'error', title: 'Search Failed',
-                text: data.message || 'Something went wrong. Try again.',
-                background: '#0f1623', color: '#e2e8f0',
-                confirmButtonColor: '#3b82f6' });
+              Swal.fire({ icon: 'error', title: 'Search Failed', text: data.message || 'Something went wrong. Try again.',
+                background: '#0d1526', color: '#e2e8f0', confirmButtonColor: '#3b82f6' });
               return;
             }
-
             if (!data.jobs || data.jobs.length === 0) {
-              Swal.fire({ icon: 'info', title: 'No Results',
-                text: 'No job postings found. Try a different role or location.',
-                background: '#0f1623', color: '#e2e8f0',
-                confirmButtonColor: '#3b82f6' });
+              Swal.fire({ icon: 'info', title: 'No Results', text: 'No job postings found. Try a different role or location.',
+                background: '#0d1526', color: '#e2e8f0', confirmButtonColor: '#3b82f6' });
               return;
             }
 
@@ -1120,44 +1473,41 @@
 
             if (this.dataSource === 'web_extracted') {
               const locLabel = this.locationSearched ? `for "${this.locationSearched}" ` : '';
-              Swal.fire({ icon: 'success', title: `Real jobs found via web search`,
-                text: `LinkedIn/Indeed returned 0 results ${locLabel}— found real ${this.role} jobs from regional job boards (Jobstreet, Seek, Naukri, Reed, etc.) via Bright Data web search. All listings link to real postings you can apply to.`,
-                background: '#0f1623', color: '#e2e8f0', confirmButtonColor: '#3b82f6',
-                timer: 8000, timerProgressBar: true });
+              Swal.fire({ icon: 'success', title: 'Real jobs found via web search',
+                text: `LinkedIn/Indeed returned 0 results ${locLabel}— found real ${this.role} jobs from regional job boards via Bright Data web search.`,
+                background: '#0d1526', color: '#e2e8f0', confirmButtonColor: '#3b82f6',
+                timer: 6000, timerProgressBar: true });
             } else if (this.dataSource === 'fallback') {
               Swal.fire({ icon: 'warning', title: 'Live data unavailable',
-                text: 'All job sources are currently unavailable. Showing cached example jobs for skill analysis — do not apply to these listings.',
-                background: '#0f1623', color: '#e2e8f0', confirmButtonColor: '#3b82f6',
-                timer: 6000, timerProgressBar: true });
+                text: 'Showing cached example jobs. Do not apply to these listings.',
+                background: '#0d1526', color: '#e2e8f0', confirmButtonColor: '#3b82f6',
+                timer: 5000, timerProgressBar: true });
             }
 
-            // fire salary intel in background (non-blocking)
-            this.fetchSalary();
-
-            // init roadmap entries as pending
-            this.gaps.forEach(g => {
-              this.roadmaps[g.skill] = { status: 'pending', steps: [] };
+            // GSAP animate job cards in
+            this.$nextTick(() => {
+              renderGapsChart(this.gaps);
+              if (typeof gsap !== 'undefined') {
+                gsap.from('#jobs-list .job-card', {
+                  opacity: 0, y: 12, stagger: 0.05, duration: 0.35, ease: 'power2.out',
+                });
+              }
             });
 
-            // render chart after DOM tick
-            this.$nextTick(() => renderGapsChart(this.gaps));
-
-            // start roadmap polling
+            this.fetchSalary();
+            this.gaps.forEach(g => { this.roadmaps[g.skill] = { status: 'pending', steps: [] }; });
             this._startRoadmapPoll();
 
           } catch (err) {
-            Swal.fire({ icon: 'error', title: 'Network Error',
-              text: 'Could not reach the server. Check your connection.',
-              background: '#0f1623', color: '#e2e8f0',
-              confirmButtonColor: '#3b82f6' });
+            Swal.fire({ icon: 'error', title: 'Network Error', text: 'Could not reach the server. Check your connection.',
+              background: '#0d1526', color: '#e2e8f0', confirmButtonColor: '#3b82f6' });
           } finally {
             this.searching = false;
             clearInterval(this._stepTimer);
-            this.searchStepIdx = this.searchSteps.length; // mark all done
+            this.searchStepIdx = this.searchSteps.length;
           }
         },
 
-        // ── per-job analysis ──────────────────────────────────
         async selectJob(job) {
           this.selectedJob = job;
           this.analysis = null;
@@ -1166,36 +1516,26 @@
           this.interviewQuestions = null;
           this.analysisTab = 'gaps';
 
-          // Fire both in parallel — don't block on company profile
           const analysePromise = (async () => {
             if (!job.url) return;
             this.analysing = true;
             try {
               const res = await fetch(`${API}/api/analyse`, {
-                method: 'POST',
-                headers: _headers(),
+                method: 'POST', headers: _headers(),
                 body: JSON.stringify({
-                  job_url: job.url,
-                  session_id: this.sessionId,
-                  job_title: job.title || null,
-                  company: job.company || null,
-                  location: job.location || null,
-                  seniority: job.seniority || null,
-                  salary: job.salary || null,
-                  skills_match: job.skills_match || null,
+                  job_url: job.url, session_id: this.sessionId,
+                  job_title: job.title || null, company: job.company || null,
+                  location: job.location || null, seniority: job.seniority || null,
+                  salary: job.salary || null, skills_match: job.skills_match || null,
                 }),
               });
               const data = await res.json();
               if (data.status === 'ok') this.analysis = data.analysis;
-            } catch (err) {
-              console.warn('Analysis failed', err);
-            } finally {
-              this.analysing = false;
-            }
+            } catch (err) { console.warn('Analysis failed', err); }
+            finally { this.analysing = false; }
           })();
 
           const companyPromise = this.fetchCompany(job.company, job);
-
           await Promise.allSettled([analysePromise, companyPromise]);
         },
 
@@ -1204,8 +1544,7 @@
           this.loadingCompany = true;
           try {
             const res = await fetch(`${API}/api/company`, {
-              method: 'POST',
-              headers: _headers(),
+              method: 'POST', headers: _headers(),
               body: JSON.stringify({ company_name: companyName, session_id: this.sessionId || 'demo-static' }),
             });
             const data = await res.json();
@@ -1215,47 +1554,36 @@
                 glassdoor_url: data.glassdoor_url,
                 indeed_url: data.indeed_url,
                 sources_used: data.sources_used || [],
-                // fallbacks from job card scraped data
                 description: (data.profile?.culture_summary) || job?.company_description || '',
                 size: (data.profile?.size_range) || job?.company_size || '',
                 industry: job?.company_industry || '',
               };
             }
-          } catch (err) {
-            console.warn('Company profile failed', err);
-          } finally {
-            this.loadingCompany = false;
-          }
+          } catch (err) { console.warn('Company profile failed', err); }
+          finally { this.loadingCompany = false; }
         },
 
-        // ── salary intelligence ───────────────────────────────
         async fetchSalary() {
           if (!this.role) return;
           this.loadingSalary = true;
           try {
             const res = await fetch(`${API}/api/salary`, {
-              method: 'POST',
-              headers: _headers(),
+              method: 'POST', headers: _headers(),
               body: JSON.stringify({ role: this.role, location: this.location }),
             });
             const data = await res.json();
             if (data.status === 'ok') this.salaryIntel = data.intel;
-          } catch (err) {
-            console.warn('Salary intel failed', err);
-          } finally {
-            this.loadingSalary = false;
-          }
+          } catch (err) { console.warn('Salary intel failed', err); }
+          finally { this.loadingSalary = false; }
         },
 
-        // ── interview prep ────────────────────────────────────
         async runInterviewPrep() {
           if (!this.selectedJob) return;
           this.interviewQuestions = null;
           this.loadingInterview = true;
           try {
             const res = await fetch(`${API}/api/interview`, {
-              method: 'POST',
-              headers: _headers(),
+              method: 'POST', headers: _headers(),
               body: JSON.stringify({
                 job_title: this.selectedJob.title || '',
                 company: this.selectedJob.company || '',
@@ -1268,41 +1596,34 @@
             });
             const data = await res.json();
             if (data.status === 'ok') this.interviewQuestions = data.questions;
-          } catch (err) {
-            console.warn('Interview prep failed', err);
-          } finally {
-            this.loadingInterview = false;
-          }
+          } catch (err) { console.warn('Interview prep failed', err); }
+          finally { this.loadingInterview = false; }
         },
 
-        // ── date formatting ───────────────────────────────────
         fmtDate(iso) {
           if (!iso) return '';
           try {
             const d = new Date(iso);
             if (isNaN(d)) return iso;
             const now = new Date();
-            const diffMs = now - d;
-            const diffDays = Math.floor(diffMs / 86400000);
+            const diffDays = Math.floor((now - d) / 86400000);
             if (diffDays === 0) return 'Today';
             if (diffDays === 1) return 'Yesterday';
-            if (diffDays < 7) return `${diffDays} days ago`;
+            if (diffDays < 7) return `${diffDays}d ago`;
             if (diffDays < 14) return '1 week ago';
-            if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`;
-            if (diffDays < 60) return '1 month ago';
+            if (diffDays < 30) return `${Math.floor(diffDays / 7)}w ago`;
+            if (diffDays < 60) return '1mo ago';
             return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
           } catch { return iso; }
         },
 
-        // ── tailorman ─────────────────────────────────────────
         async runTailorman() {
           if (!this.skills || !this.selectedJob) return;
           this.tailormanResult = null;
           this.loadingTailor = true;
           try {
             const res = await fetch(`${API}/api/tailorman`, {
-              method: 'POST',
-              headers: _headers(),
+              method: 'POST', headers: _headers(),
               body: JSON.stringify({
                 user_skills: this.skills,
                 job_title: this.selectedJob.title || '',
@@ -1315,14 +1636,10 @@
             });
             const data = await res.json();
             if (data.status === 'ok') this.tailormanResult = data.tailored;
-          } catch (err) {
-            console.warn('Tailorman failed', err);
-          } finally {
-            this.loadingTailor = false;
-          }
+          } catch (err) { console.warn('Tailorman failed', err); }
+          finally { this.loadingTailor = false; }
         },
 
-        // ── CV upload ─────────────────────────────────────────
         async uploadCV(event) {
           const file = event.target.files?.[0];
           if (!file) return;
@@ -1338,21 +1655,15 @@
             if (data.status === 'ok') {
               this.skills = (data.skills || []).join(', ');
               this.inferredRole = data.inferred_role || '';
-              // Auto-fill role only if user hasn't typed one
-              if (this.inferredRole && !this.role.trim()) {
-                this.role = this.inferredRole;
-              }
-              const roleHint = this.inferredRole ? ` · Role detected: ${this.inferredRole}` : '';
+              if (this.inferredRole && !this.role.trim()) this.role = this.inferredRole;
+              const roleHint = this.inferredRole ? ` · Role: ${this.inferredRole}` : '';
               this.cvStatus = `✓ ${data.skills?.length || 0} skills extracted${roleHint}`;
             } else {
               this.cvStatus = data.message || 'Parse failed — try manual entry';
             }
-          } catch {
-            this.cvStatus = 'Upload error — try manual entry';
-          }
+          } catch { this.cvStatus = 'Upload error — try manual entry'; }
         },
 
-        // ── roadmap polling ────────────────────────────────────
         _startRoadmapPoll() {
           if (this._pollTimer) clearInterval(this._pollTimer);
           this._pollTimer = setInterval(() => this._pollRoadmaps(), 2000);
@@ -1360,22 +1671,14 @@
 
         async _pollRoadmaps() {
           if (!this.sessionId) return;
-          const pending = this.gaps.filter(
-            g => this.roadmaps[g.skill]?.status === 'pending'
-          );
-          if (pending.length === 0) {
-            clearInterval(this._pollTimer);
-            return;
-          }
+          const pending = this.gaps.filter(g => this.roadmaps[g.skill]?.status === 'pending');
+          if (pending.length === 0) { clearInterval(this._pollTimer); return; }
           await Promise.all(pending.map(async g => {
             try {
-              const res = await fetch(
-                `${API}/api/roadmap/${encodeURIComponent(g.skill)}?session_id=${this.sessionId}`,
-                { headers: _headers() }
-              );
+              const res = await fetch(`${API}/api/roadmap/${encodeURIComponent(g.skill)}?session_id=${this.sessionId}`, { headers: _headers() });
               const data = await res.json();
               if (data.status === 'ready') {
-                this.roadmaps[g.skill] = { status: 'ready', steps: data.roadmap?.steps || data.steps || [] };
+                this.roadmaps[g.skill] = { status: 'ready', steps: data.roadmap?.steps || data.steps || [], why_it_matters: data.roadmap?.why_it_matters || '', estimated_total: data.roadmap?.estimated_total || '' };
               }
             } catch { /* silent */ }
           }));
@@ -1385,13 +1688,11 @@
           this.openRoadmap = this.openRoadmap === skill ? null : skill;
         },
 
-        // ── HR competitor search ──────────────────────────────
         async doHRSearch() {
           if (this.hrSearching) return;
           if (!this.hrCompany.trim() || !this.hrRole.trim()) {
-            Swal.fire({ icon: 'info', title: 'Required',
-              text: 'Please enter a company name and role.',
-              background: '#0f1623', color: '#e2e8f0', confirmButtonColor: '#3b82f6' });
+            Swal.fire({ icon: 'info', title: 'Required', text: 'Please enter a company name and role.',
+              background: '#0d1526', color: '#e2e8f0', confirmButtonColor: '#3b82f6' });
             return;
           }
           this.hrSearching = true;
@@ -1399,13 +1700,8 @@
           this.hrPostings = 0;
           try {
             const res = await fetch(`${API}/api/hr/competitors`, {
-              method: 'POST',
-              headers: _headers(),
-              body: JSON.stringify({
-                company_name: this.hrCompany,
-                role: this.hrRole,
-                location: this.hrLocation,
-              }),
+              method: 'POST', headers: _headers(),
+              body: JSON.stringify({ company_name: this.hrCompany, role: this.hrRole, location: this.hrLocation }),
             });
             const data = await res.json();
             if (data.status === 'ok') {
@@ -1413,23 +1709,17 @@
               this.hrPostings = data.postings_analysed || 0;
               this.$nextTick(() => renderHRRadar(this.hrSkills));
             } else {
-              Swal.fire({ icon: 'error', title: 'Search Failed',
-                text: data.message || 'No competitor postings found.',
-                background: '#0f1623', color: '#e2e8f0', confirmButtonColor: '#3b82f6' });
+              Swal.fire({ icon: 'error', title: 'Search Failed', text: data.message || 'No competitor postings found.',
+                background: '#0d1526', color: '#e2e8f0', confirmButtonColor: '#3b82f6' });
             }
           } catch {
-            Swal.fire({ icon: 'error', title: 'Network Error',
-              text: 'Could not reach the server.',
-              background: '#0f1623', color: '#e2e8f0', confirmButtonColor: '#3b82f6' });
-          } finally {
-            this.hrSearching = false;
-          }
+            Swal.fire({ icon: 'error', title: 'Network Error', text: 'Could not reach the server.',
+              background: '#0d1526', color: '#e2e8f0', confirmButtonColor: '#3b82f6' });
+          } finally { this.hrSearching = false; }
         },
 
         maybeInitRadar() {
-          if (this.hrSkills.length > 0) {
-            this.$nextTick(() => renderHRRadar(this.hrSkills));
-          }
+          if (this.hrSkills.length > 0) this.$nextTick(() => renderHRRadar(this.hrSkills));
         },
       };
     }
