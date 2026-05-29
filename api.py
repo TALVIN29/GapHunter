@@ -1563,6 +1563,33 @@ async def _fetch_with_browser(url: str) -> str:
     if not customer or not password or not _BROWSER_ZONE:
         return await _fetch_with_unlocker(url)
 
+    # Method 1: HTTP proxy — Bright Data browser renders JS and returns HTML via proxy
+    # Simpler than CDP, doesn't need playwright installed
+    proxy_url = (
+        f"http://brd-customer-{customer}-zone-{_BROWSER_ZONE}"
+        f":{password}@brd.superproxy.io:9222"
+    )
+    try:
+        import requests as _req
+        import urllib3
+        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+        text = await asyncio.to_thread(
+            lambda: _req.get(
+                url,
+                proxies={"http": proxy_url, "https": proxy_url},
+                verify=False,
+                timeout=_BROWSER_TIMEOUT_S,
+                headers={**_PLAIN_HEADERS, "Accept-Encoding": "identity"},
+            ).text
+        )
+        if text and len(text) >= 1000:
+            logger.info("Scraping Browser proxy: %d chars from %s", len(text), url)
+            return text
+        logger.warning("Scraping Browser proxy: too short (%d chars)", len(text or ""))
+    except Exception as exc:
+        logger.warning("Scraping Browser proxy failed for %s: %s", url, exc)
+
+    # Method 2: Playwright CDP fallback
     cdp_url = (
         f"wss://brd-customer-{customer}-zone-{_BROWSER_ZONE}"
         f":{password}@brd.superproxy.io:9222"
@@ -1574,32 +1601,26 @@ async def _fetch_with_browser(url: str) -> str:
                 browser = await pw.chromium.connect_over_cdp(cdp_url)
                 page = await browser.new_page()
                 await page.goto(url, wait_until="networkidle", timeout=55000)
-                # Scroll to mid-page to trigger viewport-based lazy rendering
                 await page.evaluate("window.scrollTo(0, document.body.scrollHeight * 0.4)")
-                # Wait for any job card selector to appear
                 for selector in (
-                    '[data-automation="jobCard"]',
-                    '[data-automation="normalJob"]',
-                    '[data-automation="search-job-card"]',
-                    '[data-search-sol-meta]',
-                    '.job-card',
-                    'article[data-job]',
+                    '[data-automation="jobCard"]', '[data-automation="normalJob"]',
+                    '[data-search-sol-meta]', '.job-card',
                 ):
                     try:
-                        await page.wait_for_selector(selector, timeout=10000)
-                        logger.info("Scraping Browser: job cards found (%s) at %s", selector, url)
+                        await page.wait_for_selector(selector, timeout=8000)
                         break
                     except Exception:
                         continue
                 html = await page.content()
                 await browser.close()
-        if html and len(html) >= 500:
+        if html and len(html) >= 1000:
             logger.info("Scraping Browser CDP: %d chars from %s", len(html), url)
             return html
     except ImportError:
-        logger.warning("playwright not installed — falling back to Web Unlocker")
+        logger.warning("playwright not installed")
     except Exception as exc:
         logger.warning("Scraping Browser CDP failed for %s: %s — falling back", url, exc)
+
     return await _fetch_with_unlocker(url)
 
 
