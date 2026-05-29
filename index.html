@@ -334,240 +334,211 @@
   <!-- ══════════════════════════════════════════
        INDIVIDUAL INTELLIGENCE TAB
   ══════════════════════════════════════════ -->
-  <main x-show="activeTab === 'seeker'" class="max-w-screen-xl mx-auto px-4 sm:px-6 py-6">
+  <main x-show="activeTab === 'seeker'">
 
-    <div class="main-grid">
+    <!-- ═══ HERO STATE — no jobs yet (LinkedIn/Indeed style) ═══ -->
+    <div x-show="!jobs.length" class="min-h-[88vh] flex flex-col items-center justify-center px-4 py-12 relative">
 
-      <!-- ── LEFT: Search Sidebar ─────────────────── -->
-      <div class="search-col flex flex-col gap-4">
+      <!-- Headline -->
+      <div class="text-center mb-10" data-aos="fade-up">
+        <p class="text-sm font-medium text-blue-400 mb-3 tracking-widest uppercase">
+          <i class="fa-solid fa-database mr-1.5"></i> Powered by Bright Data · Claude AI
+        </p>
+        <h1 class="text-4xl sm:text-5xl font-bold text-white leading-tight mb-4">
+          Find jobs. Know your gaps.<br>
+          <span class="text-accent">Get hired faster.</span>
+        </h1>
+        <p class="text-slate-400 text-lg max-w-xl mx-auto leading-relaxed">
+          <span id="typed-hero" class="text-slate-300"></span>
+        </p>
+      </div>
 
-        <!-- Search card -->
-        <div class="glass-card card-glow flex flex-col gap-4">
-          <div class="flex items-center gap-2 mb-1">
-            <i class="fa-solid fa-magnifying-glass text-accent text-sm"></i>
-            <span class="section-label">Search</span>
+      <!-- Search card — centered, LinkedIn-style -->
+      <div class="w-full max-w-2xl" data-aos="fade-up" data-aos-delay="100">
+        <div class="glass-card card-glow p-6">
+
+          <!-- Row 1: Job + Location side by side -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+            <div>
+              <label class="text-xs text-slate-400 mb-1.5 block font-medium">
+                <i class="fa-solid fa-briefcase text-slate-500 mr-1.5"></i>Job Title
+                <span x-show="inferredRole && role === inferredRole" class="badge badge-green text-xs ml-2">
+                  <i class="fa-solid fa-wand-magic-sparkles text-xs"></i> Auto-detected
+                </span>
+              </label>
+              <input class="input-field text-base py-3 transition-all" type="text" x-model="role"
+                :class="roleError ? 'border-red-500/60 ring-2 ring-red-500/20 animate-shake' : (inferredRole && role === inferredRole ? 'border-emerald-500/40' : '')"
+                @input="roleError = false" placeholder="e.g. Data Analyst" @keydown.enter="doSearch()" />
+              <p x-show="roleError" class="text-red-400 text-xs mt-1 flex items-center gap-1">
+                <i class="fa-solid fa-circle-exclamation text-xs"></i>Enter a job title or upload your CV first
+              </p>
+            </div>
+            <div>
+              <label class="text-xs text-slate-400 mb-1.5 block font-medium">
+                <i class="fa-solid fa-location-dot text-slate-500 mr-1.5"></i>Location
+              </label>
+              <input class="input-field text-base py-3" type="text" x-model="location"
+                placeholder="e.g. Kuala Lumpur, KL" @keydown.enter="doSearch()" />
+            </div>
           </div>
 
-          <!-- Role -->
-          <div>
-            <label class="text-xs text-slate-400 mb-1.5 flex items-center gap-2">
-              <i class="fa-solid fa-briefcase text-slate-500 text-xs"></i>
-              Job Title
-              <span x-show="inferredRole && role === inferredRole"
-                class="badge badge-green text-xs ml-auto">
-                <i class="fa-solid fa-wand-magic-sparkles text-xs mr-1"></i>
-                Auto-detected
-              </span>
-            </label>
-            <input class="input-field transition-all" type="text" x-model="role"
-              :class="roleError ? 'border-red-500/50 ring-2 ring-red-500/20 animate-shake' : (inferredRole && role === inferredRole ? 'border-emerald-500/30' : '')"
-              @input="roleError = false"
-              placeholder="e.g. Data Analyst" @keydown.enter="doSearch()" />
-            <p x-show="roleError" class="text-red-400 text-xs mt-1 flex items-center gap-1">
-              <i class="fa-solid fa-circle-exclamation text-xs"></i>
-              Enter a job title or upload your CV first
-            </p>
-          </div>
-
-          <!-- Location -->
-          <div>
-            <label class="text-xs text-slate-400 mb-1.5 flex items-center gap-2">
-              <i class="fa-solid fa-location-dot text-slate-500 text-xs"></i>
-              Location
-            </label>
-            <input class="input-field" type="text" x-model="location"
-              placeholder="e.g. Kuala Lumpur, Singapore" @keydown.enter="doSearch()" />
-          </div>
-
-          <!-- Skills -->
-          <div>
-            <label class="text-xs text-slate-400 mb-1.5 flex items-center gap-2">
-              <i class="fa-solid fa-code text-slate-500 text-xs"></i>
-              Your Skills
-              <span class="text-slate-600 text-xs">(comma-separated)</span>
+          <!-- Row 2: Skills -->
+          <div class="mb-3">
+            <label class="text-xs text-slate-400 mb-1.5 block font-medium">
+              <i class="fa-solid fa-code text-slate-500 mr-1.5"></i>Your Skills
+              <span class="text-slate-600 ml-1">— required for gap analysis</span>
             </label>
             <input class="input-field" type="text" x-model="skills"
-              placeholder="e.g. Python, SQL, Tableau" @keydown.enter="doSearch()" />
+              placeholder="e.g. Python, SQL, Tableau, Excel — or upload CV below" @keydown.enter="doSearch()" />
           </div>
 
-          <!-- CV Upload -->
-          <div>
-            <label class="block text-xs text-slate-400 mb-1.5">
-              <i class="fa-solid fa-file-arrow-up text-slate-500 text-xs mr-1"></i>
-              CV Upload
-            </label>
-            <label class="flex flex-col items-center gap-2 p-3 border border-dashed border-blue-500/20 rounded-xl cursor-pointer hover:border-blue-500/40 hover:bg-blue-500/5 transition-all">
-              <i class="fa-solid fa-cloud-arrow-up text-2xl text-slate-600"></i>
-              <span class="text-xs text-slate-500">Drop PDF or DOCX here</span>
+          <!-- Row 3: CV Upload + Run Agent -->
+          <div class="flex gap-3 items-stretch">
+            <label class="flex items-center gap-2 px-4 py-2.5 border border-dashed border-blue-500/25 rounded-xl cursor-pointer hover:border-blue-500/50 hover:bg-blue-500/5 transition-all text-sm text-slate-400 whitespace-nowrap">
+              <i class="fa-solid fa-cloud-arrow-up text-slate-500"></i>
+              <span x-text="cvStatus && cvStatus.startsWith('✓') ? 'CV Uploaded ✓' : 'Upload CV'"></span>
               <input type="file" accept=".pdf,.doc,.docx" class="hidden" @change="uploadCV($event)" />
             </label>
-            <p x-show="cvStatus" x-text="cvStatus" class="text-xs mt-1.5 flex items-center gap-1"
-              :class="cvStatus.startsWith('✓') ? 'text-emerald-400' : 'text-red-400'"></p>
+            <button class="btn-primary flex-1 gap-2 py-3 text-base" @click="doSearch()" :disabled="searching">
+              <svg x-show="searching" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+              </svg>
+              <i x-show="!searching" class="fa-solid fa-rocket"></i>
+              <span x-text="searching ? 'Searching…' : 'Find My Gaps'"></span>
+            </button>
           </div>
 
-          <!-- Run Agent button -->
-          <button class="btn-primary w-full gap-2 py-3" @click="doSearch()" :disabled="searching">
-            <svg x-show="searching" class="animate-spin w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24">
-              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
-              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
-            </svg>
-            <i x-show="!searching" class="fa-solid fa-rocket text-sm"></i>
-            <span x-text="searching ? 'Agent Running…' : 'Run Agent'"></span>
-          </button>
+          <!-- CV status -->
+          <p x-show="cvStatus && !cvStatus.startsWith('✓')" x-text="cvStatus" class="text-red-400 text-xs mt-2"></p>
+          <p x-show="cvStatus && cvStatus.startsWith('✓')" x-text="cvStatus" class="text-emerald-400 text-xs mt-2"></p>
 
           <!-- Progress steps during search -->
-          <div x-show="searching" class="space-y-1.5">
-            <div class="divider mb-2"></div>
+          <div x-show="searching" class="mt-4 space-y-1.5 border-t border-blue-500/10 pt-4">
             <template x-for="(step, i) in searchSteps" :key="i">
-              <div class="progress-step" :class="i >= searchStepIdx + 1 ? 'opacity-25' : 'opacity-100'">
-                <div class="progress-step-icon flex items-center justify-center">
+              <div class="flex items-center gap-2.5" :class="i >= searchStepIdx + 1 ? 'opacity-20' : 'opacity-100'">
+                <div class="w-4 h-4 flex items-center justify-center shrink-0">
                   <i x-show="i < searchStepIdx" class="fa-solid fa-check text-emerald-400 text-xs"></i>
                   <div x-show="i === searchStepIdx" class="w-2 h-2 rounded-full bg-blue-400 animate-pulse"></div>
                   <div x-show="i > searchStepIdx" class="w-1.5 h-1.5 rounded-full bg-slate-700"></div>
                 </div>
-                <span x-text="step"
-                  :class="i === searchStepIdx ? 'text-slate-200' : i < searchStepIdx ? 'text-slate-400 line-through' : 'text-slate-600'"
-                  class="text-xs"></span>
+                <span x-text="step" class="text-xs"
+                  :class="i === searchStepIdx ? 'text-slate-200' : i < searchStepIdx ? 'text-slate-500 line-through' : 'text-slate-700'"></span>
               </div>
             </template>
           </div>
-
-          <!-- Attribution after results -->
-          <div x-show="jobs.length > 0 && !searching" class="space-y-2">
-            <div class="divider"></div>
-            <p class="text-xs text-slate-500 text-center">
-              <span class="text-slate-300 font-medium" x-text="jobs.length"></span> jobs ·
-              <span class="text-slate-300" x-text="totalPostings"></span> postings analysed
-              <span x-show="locationSearched"> in <span class="text-accent font-medium" x-text="locationSearched"></span></span>
-            </p>
-            <div class="flex flex-wrap gap-1 justify-center">
-              <span class="bd-badge"><i class="fa-solid fa-database text-xs"></i> SERP API</span>
-              <span x-show="dataSource === 'live'" class="bd-badge"><i class="fa-brands fa-linkedin text-xs"></i> LinkedIn</span>
-              <span x-show="dataSource === 'web_extracted'" class="bd-badge"><i class="fa-solid fa-unlock text-xs"></i> Unlocker</span>
-              <span class="bd-badge"><i class="fa-solid fa-globe text-xs"></i> Browser</span>
-              <span class="bd-badge" style="border-color:rgba(139,92,246,0.2);color:#c4b5fd;background:rgba(139,92,246,0.08)">
-                <i class="fa-solid fa-robot text-xs"></i> Claude AI
-              </span>
-            </div>
-          </div>
         </div>
 
-        <!-- Agent pipeline strip (visible after search) -->
-        <div class="card py-3 px-4" x-show="jobs.length > 0 || searching" data-aos="fade-up">
-          <p class="section-label mb-2.5">Agent Pipeline</p>
-          <div class="flex flex-wrap gap-1 items-center text-xs">
-            <span class="pipeline-step">① Validate</span>
-            <i class="fa-solid fa-arrow-right text-slate-700 text-xs"></i>
-            <span class="pipeline-step">② SERP</span>
-            <i class="fa-solid fa-arrow-right text-slate-700 text-xs"></i>
-            <span class="pipeline-step">③ Scrape</span>
-            <i class="fa-solid fa-arrow-right text-slate-700 text-xs"></i>
-            <span class="pipeline-step">④ Extract</span>
-            <i class="fa-solid fa-arrow-right text-slate-700 text-xs"></i>
-            <span class="pipeline-step" :class="gaps.length > 0 ? 'pipeline-step-active' : ''">⑤ Pre-fetch</span>
-          </div>
+        <!-- Powered by strip -->
+        <div class="flex items-center justify-center gap-4 mt-5 text-xs text-slate-600 flex-wrap">
+          <span class="flex items-center gap-1.5"><i class="fa-brands fa-linkedin text-slate-500"></i> LinkedIn Dataset</span>
+          <span class="text-slate-800">·</span>
+          <span class="flex items-center gap-1.5"><i class="fa-solid fa-magnifying-glass text-slate-500"></i> SERP API</span>
+          <span class="text-slate-800">·</span>
+          <span class="flex items-center gap-1.5"><i class="fa-solid fa-unlock text-slate-500"></i> Web Unlocker</span>
+          <span class="text-slate-800">·</span>
+          <span class="flex items-center gap-1.5"><i class="fa-solid fa-robot text-slate-500"></i> Claude AI</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ RESULTS STATE — jobs loaded ═══ -->
+    <div x-show="jobs.length > 0" class="max-w-screen-xl mx-auto px-4 sm:px-6 py-4">
+
+      <!-- Compact search bar (like Google results page) -->
+      <div class="flex gap-2 mb-5 items-center flex-wrap">
+        <input class="input-field flex-1 min-w-[140px] py-2 text-sm" type="text" x-model="role"
+          placeholder="Job title" @keydown.enter="doSearch()" />
+        <input class="input-field flex-1 min-w-[140px] py-2 text-sm" type="text" x-model="location"
+          placeholder="Location" @keydown.enter="doSearch()" />
+        <input class="input-field flex-1 min-w-[140px] py-2 text-sm hidden sm:block" type="text" x-model="skills"
+          placeholder="Your skills" @keydown.enter="doSearch()" />
+        <button class="btn-primary py-2 px-4 text-sm whitespace-nowrap" @click="doSearch()" :disabled="searching">
+          <svg x-show="searching" class="animate-spin w-3.5 h-3.5 mr-1 inline" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+          </svg>
+          <i x-show="!searching" class="fa-solid fa-magnifying-glass mr-1"></i>
+          <span x-text="searching ? 'Searching…' : 'Search again'"></span>
+        </button>
+      </div>
+
+      <!-- Results meta + attribution -->
+      <div class="flex items-center gap-3 mb-4 flex-wrap">
+        <p class="text-sm text-slate-400">
+          <span class="text-white font-semibold" x-text="jobs.length"></span> jobs from
+          <span class="text-white font-semibold" x-text="totalPostings"></span> postings
+          <span x-show="locationSearched"> in <span class="text-accent font-semibold" x-text="locationSearched"></span></span>
+        </p>
+        <div class="flex gap-1.5 flex-wrap">
+          <span class="bd-badge"><i class="fa-solid fa-database text-xs"></i> SERP API</span>
+          <span x-show="dataSource === 'live'" class="bd-badge"><i class="fa-brands fa-linkedin text-xs"></i> LinkedIn Dataset</span>
+          <span x-show="dataSource === 'web_extracted'" class="bd-badge"><i class="fa-solid fa-unlock text-xs"></i> Web Unlocker</span>
+          <span class="bd-badge"><i class="fa-solid fa-robot text-xs"></i> Claude AI</span>
+        </div>
+        <!-- Pipeline strip -->
+        <div class="ml-auto flex items-center gap-1 text-xs flex-wrap hidden lg:flex">
+          <span class="pipeline-step">① Validate</span>
+          <i class="fa-solid fa-arrow-right text-slate-700 text-xs"></i>
+          <span class="pipeline-step">② SERP</span>
+          <i class="fa-solid fa-arrow-right text-slate-700 text-xs"></i>
+          <span class="pipeline-step">③ Scrape</span>
+          <i class="fa-solid fa-arrow-right text-slate-700 text-xs"></i>
+          <span class="pipeline-step">④ Extract</span>
+          <i class="fa-solid fa-arrow-right text-slate-700 text-xs"></i>
+          <span class="pipeline-step" :class="gaps.length > 0 ? 'pipeline-step-active' : ''">⑤ Pre-fetch</span>
         </div>
       </div>
 
-      <!-- ── CENTER: Job Results / Hero ─────────────── -->
-      <div class="flex flex-col gap-3">
-
-        <!-- Hero (empty state) -->
-        <div x-show="!jobs.length && !searching" class="flex flex-col items-center justify-center py-24 text-center" data-aos="fade-up">
-          <div class="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500/20 to-purple-500/10 border border-blue-500/20 flex items-center justify-center mb-6">
-            <i class="fa-solid fa-chart-bar text-blue-400 text-2xl"></i>
-          </div>
-          <h1 class="text-2xl sm:text-3xl font-bold text-white mb-3 leading-tight">
-            Know Your <span class="text-accent">Market Value</span>
-          </h1>
-          <div class="text-slate-400 text-base mb-6 h-8">
-            <span id="typed-hero"></span>
-          </div>
-          <p class="text-slate-600 text-sm max-w-md">
-            GapHunter scrapes live job postings via Bright Data, extracts skill demand signals with Claude AI,
-            and tells you exactly what to learn next.
-          </p>
-          <div class="flex flex-wrap gap-3 mt-6 justify-center text-xs text-slate-500">
-            <span class="flex items-center gap-1.5"><i class="fa-brands fa-linkedin text-blue-400"></i> LinkedIn Dataset</span>
-            <span class="flex items-center gap-1.5"><i class="fa-solid fa-magnifying-glass text-blue-400"></i> SERP API</span>
-            <span class="flex items-center gap-1.5"><i class="fa-solid fa-unlock text-blue-400"></i> Web Unlocker</span>
-            <span class="flex items-center gap-1.5"><i class="fa-solid fa-robot text-purple-400"></i> Claude Sonnet</span>
-          </div>
-        </div>
-
-        <!-- Searching placeholder -->
-        <div x-show="searching && !jobs.length" class="flex flex-col items-center justify-center py-24 text-center">
-          <div class="w-16 h-16 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center mb-5 pulse-glow">
-            <i class="fa-solid fa-satellite-dish text-blue-400 text-xl animate-pulse"></i>
-          </div>
-          <p class="text-slate-300 font-medium text-lg">Agent is running</p>
-          <p class="text-slate-500 text-sm mt-1">Scraping live data via Bright Data…</p>
-        </div>
+      <!-- 2-column results: Jobs | Analysis -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
 
         <!-- Job cards -->
-        <div x-show="jobs.length > 0" class="flex flex-col gap-2.5" id="jobs-list">
+        <div class="flex flex-col gap-2.5" id="jobs-list">
           <div class="flex items-center justify-between mb-1">
-            <div>
-              <h2 class="font-semibold text-slate-300 flex items-center gap-2">
-                <i class="fa-solid fa-list-check text-accent text-sm"></i>
-                Jobs
-                <span class="text-slate-500 font-normal text-sm">(<span x-text="jobs.length"></span>)</span>
-              </h2>
-              <p class="text-xs text-slate-600 mt-0.5">
-                <i class="fa-solid fa-circle-info text-xs mr-1"></i>
-                % = skill match score — higher when you add your skills above
-              </p>
-            </div>
+            <p class="text-xs text-slate-500">
+              <i class="fa-solid fa-circle-info mr-1"></i>
+              % = your skill match — <span x-show="!skills" class="text-yellow-400">add skills for accurate scoring</span><span x-show="skills" class="text-emerald-400">based on your skills</span>
+            </p>
             <span class="badge badge-green text-xs" x-show="dataSource === 'live'">
-              <i class="fa-solid fa-circle text-xs" style="font-size:.45rem"></i> Live LinkedIn data
-            </span>
-            <span class="badge badge-cyan text-xs" x-show="dataSource === 'web_extracted'">
-              <i class="fa-solid fa-circle text-xs" style="font-size:.45rem"></i> Web extracted
+              <i class="fa-brands fa-linkedin text-xs mr-1"></i>Live
             </span>
           </div>
-
           <template x-for="job in jobs" :key="job.url + job.title">
             <div class="job-card" :class="selectedJob?.url === job.url ? 'job-card-active' : ''" @click="selectJob(job)">
-              <!-- Title row -->
               <div class="flex justify-between items-start gap-3 mb-2">
                 <div class="min-w-0 flex-1">
-                  <p class="font-bold text-base text-white leading-snug" x-text="job.title"></p>
-                  <p class="text-slate-300 text-sm mt-0.5 font-medium" x-text="job.company"></p>
+                  <p class="font-bold text-sm text-white leading-snug" x-text="job.title"></p>
+                  <p class="text-slate-300 text-sm mt-0.5" x-text="job.company"></p>
                   <p class="text-slate-500 text-xs mt-0.5 flex items-center gap-1">
                     <i class="fa-solid fa-location-dot text-slate-600 text-xs"></i>
                     <span x-text="job.location"></span>
                   </p>
                 </div>
-                <div class="flex flex-col items-end gap-1 shrink-0">
-                  <div class="text-center">
-                    <span class="badge text-xs font-bold"
-                      :class="job.relevance_pct >= 70 ? 'badge-green' : job.relevance_pct >= 40 ? 'badge-yellow' : 'badge-red'"
-                      x-text="job.relevance_pct + '%'"></span>
-                    <p class="text-slate-600 text-xs mt-0.5">match</p>
-                  </div>
+                <div class="text-center shrink-0">
+                  <span class="badge text-xs font-bold"
+                    :class="job.relevance_pct >= 70 ? 'badge-green' : job.relevance_pct >= 40 ? 'badge-yellow' : 'badge-red'"
+                    x-text="job.relevance_pct + '%'"></span>
+                  <p class="text-slate-600 text-xs mt-0.5">match</p>
                 </div>
               </div>
-
-              <!-- Skills -->
-              <div class="flex flex-wrap gap-1.5 mb-2.5" x-show="(job.skills_match || []).length > 0">
-                <template x-for="sk in (job.skills_match || []).slice(0,5)" :key="sk">
-                  <span class="skill-pill text-xs" x-text="sk"></span>
+              <div class="flex flex-wrap gap-1 mb-2" x-show="(job.skills_match || []).length > 0">
+                <template x-for="sk in (job.skills_match || []).slice(0,4)" :key="sk">
+                  <span class="skill-pill" x-text="sk"></span>
                 </template>
               </div>
-
-              <!-- Footer -->
-              <div class="flex items-center justify-between pt-2 border-t border-white/5">
-                <div class="flex items-center gap-2 flex-wrap">
-                  <span x-show="job.is_verified !== false" class="badge badge-green" style="font-size:.65rem;">
+              <div class="flex items-center justify-between pt-2 border-t border-white/5 text-xs">
+                <div class="flex items-center gap-2">
+                  <span x-show="job.is_verified !== false" class="badge badge-green" style="font-size:.6rem;">
                     <i class="fa-solid fa-shield-check"></i> Verified
                   </span>
-                  <span x-show="job.is_remote" class="badge badge-blue" style="font-size:.65rem;">Remote</span>
-                  <span x-show="job.salary && job.salary !== 'Not disclosed'" class="text-slate-400 text-xs font-medium" x-text="job.salary"></span>
+                  <span x-show="job.is_remote" class="badge badge-blue" style="font-size:.6rem;">Remote</span>
+                  <span x-show="job.salary && job.salary !== 'Not disclosed'" class="text-slate-400" x-text="job.salary"></span>
                 </div>
-                <div class="flex items-center gap-3">
-                  <span class="text-slate-500 text-xs" x-text="fmtDate(job.date_posted)"></span>
+                <div class="flex items-center gap-2">
+                  <span class="text-slate-500" x-text="fmtDate(job.date_posted)"></span>
                   <a x-show="job.url" :href="job.url" target="_blank" rel="noopener" @click.stop
-                    class="flex items-center gap-1 text-accent hover:text-blue-300 font-semibold text-sm transition-colors">
+                    class="text-accent hover:text-blue-300 font-semibold flex items-center gap-1">
                     Apply <i class="fa-solid fa-arrow-up-right-from-square text-xs"></i>
                   </a>
                 </div>
@@ -575,10 +546,9 @@
             </div>
           </template>
         </div>
-      </div>
 
-      <!-- ── RIGHT: Analysis Panel ─────────────────── -->
-      <div class="analysis-col" x-show="jobs.length > 0">
+        <!-- ── Analysis Panel (2nd column) ─────────────────── -->
+        <div>
 
         <!-- Empty state -->
         <div x-show="!selectedJob" class="glass-card flex flex-col items-center justify-center text-center py-14 gap-3">
@@ -963,11 +933,11 @@
             </div>
 
           </div><!-- end tab content -->
-        </div><!-- end analysis panel -->
-      </div><!-- end analysis col -->
-    </div><!-- end main-grid -->
+        </div><!-- end analysis panel card -->
+        </div><!-- end analysis column -->
+      </div><!-- end 2-col results grid -->
 
-    <!-- ── Demand Score + Gap Chart ────────────────────────── -->
+      <!-- ── Demand Score + Gap Chart ────────────────────────── -->
     <div class="card mt-5" x-show="gaps.length > 0" data-aos="fade-up">
       <div class="flex items-center justify-between mb-3">
         <h2 class="font-semibold text-slate-300 flex items-center gap-2">
@@ -1120,7 +1090,7 @@
           </div>
         </div>
       </div>
-    </div>
+    </div><!-- end results state -->
 
   </main>
 
