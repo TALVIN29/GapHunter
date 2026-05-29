@@ -2544,10 +2544,11 @@ async def debug_html(url: str = "https://www.jobstreet.com.my/en/job-search/data
     """
     Fetch URL via Web Unlocker and report what structured data is present.
     Use to diagnose __NEXT_DATA__ field names and JSON-LD presence.
+    Uses Scraping Browser if configured (executes JS), else Web Unlocker.
     """
-    html = await _fetch_with_unlocker(url)
+    html = await _fetch_with_browser(url)
     if not html:
-        return {"status": "error", "message": "Web Unlocker returned empty"}
+        return {"status": "error", "message": "Browser/Unlocker returned empty"}
 
     # JSON-LD blocks
     jsonld_blocks = re.findall(
