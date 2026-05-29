@@ -653,8 +653,29 @@
                 </svg>
                 <span>Analysing with Claude Sonnet…</span>
               </div>
-              <div x-show="!analysing && !analysis && selectedJob" class="text-slate-600 text-xs text-center py-4">Waiting for analysis…</div>
-              <div x-show="analysis" class="flex flex-col gap-4">
+              <!-- No skills state — gap analysis requires user skills -->
+              <div x-show="!analysing && analysis?._no_skills" class="flex flex-col items-center text-center gap-3 py-8">
+                <div class="w-12 h-12 rounded-xl bg-yellow-500/10 border border-yellow-500/20 flex items-center justify-center">
+                  <i class="fa-solid fa-triangle-exclamation text-yellow-400 text-lg"></i>
+                </div>
+                <p class="text-sm text-slate-200 font-semibold">Your skills are needed for gap analysis</p>
+                <p class="text-xs text-slate-400 max-w-xs leading-relaxed">
+                  Gap analysis compares <span class="text-white font-medium">your skills</span> against what this job requires.
+                  Without knowing your skills, we can't tell you what you're actually missing.
+                </p>
+                <div class="flex gap-2 flex-wrap justify-center">
+                  <label class="btn-primary text-xs cursor-pointer px-4 py-2 flex items-center gap-2">
+                    <i class="fa-solid fa-cloud-arrow-up text-sm"></i> Upload CV
+                    <input type="file" class="hidden" accept=".pdf,.docx" @change="uploadCV">
+                  </label>
+                  <button @click="analysisTab = 'gaps'; $el.closest('.card').querySelector('[x-model=\'skills\']')?.focus()"
+                    class="btn-ghost text-xs px-4 py-2">
+                    <i class="fa-solid fa-keyboard mr-1"></i> Enter skills manually
+                  </button>
+                </div>
+              </div>
+              <div x-show="!analysing && !analysis && selectedJob && !analysis?._no_skills" class="text-slate-600 text-xs text-center py-4">Waiting for analysis…</div>
+              <div x-show="analysis && !analysis?._no_skills" class="flex flex-col gap-4">
                 <div>
                   <p class="section-label mb-2 flex items-center gap-1.5">
                     <i class="fa-solid fa-star text-emerald-400 text-xs"></i>
@@ -1540,10 +1561,12 @@
                   job_title: job.title || null, company: job.company || null,
                   location: job.location || null, seniority: job.seniority || null,
                   salary: job.salary || null, skills_match: job.skills_match || null,
+                  user_skills: this.skills || null,
                 }),
               });
               const data = await res.json();
               if (data.status === 'ok') this.analysis = data.analysis;
+              else if (data.status === 'no_skills') this.analysis = { _no_skills: true };
             } catch (err) { console.warn('Analysis failed', err); }
             finally { this.analysing = false; }
           })();

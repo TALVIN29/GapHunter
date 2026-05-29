@@ -1199,6 +1199,7 @@ class AnalyseRequest(BaseModel):
     seniority: str | None = None
     salary: str | None = None
     skills_match: list[str] | None = None
+    user_skills: str | None = None   # comma-separated — required for real gap analysis
 
 
 class HRRequest(BaseModel):
@@ -1911,46 +1912,54 @@ async def analyse_job(req: AnalyseRequest) -> dict:
     if not validate_job_url(req.job_url):
         return {"status": "error", "message": "Invalid job URL"}
 
+    # Require user skills — gap analysis without knowing what the user has is meaningless
+    user_skills_raw = (req.user_skills or "").strip()
+    if not user_skills_raw:
+        return {"status": "no_skills", "message": "Upload your CV or enter your skills to see YOUR personal skill gaps."}
+
     # Addendum Q: fetch real job page via Web Unlocker
     raw_html = await _fetch_with_unlocker(req.job_url)
     page_text = _html_to_text(raw_html) if raw_html else ""
 
-    # Build metadata context from already-scraped fields
-    job_context_lines = []
-    if req.job_title:
-        job_context_lines.append(f"Role: {req.job_title}")
-    if req.company:
-        job_context_lines.append(f"Company: {req.company}")
-    if req.location:
-        job_context_lines.append(f"Location: {req.location}")
-    if req.seniority:
-        job_context_lines.append(f"Seniority: {req.seniority}")
-    if req.salary:
-        job_context_lines.append(f"Salary range: {req.salary}")
-    if req.skills_match:
-        job_context_lines.append(f"Required skills already matched: {', '.join(req.skills_match)}")
+    # Compute real gap = job skills user does NOT have
+    # Compute real highlights = job skills user DOES have
+    user_set = {s.strip().lower() for s in user_skills_raw.split(",") if s.strip()}
+    job_skills = [s.strip() for s in (req.skills_match or []) if s.strip()]
+    real_highlights = [s for s in job_skills if s.lower() in user_set]
+    real_gaps = [s for s in job_skills if s.lower() not in user_set]
 
-    metadata_context = "\n".join(job_context_lines) or f"Job URL: {req.job_url}"
+    # Build metadata context
+    job_context_lines = [f"Role: {req.job_title or 'Unknown'}"]
+    if req.company:      job_context_lines.append(f"Company: {req.company}")
+    if req.location:     job_context_lines.append(f"Location: {req.location}")
+    if req.seniority:    job_context_lines.append(f"Seniority: {req.seniority}")
+    if req.salary:       job_context_lines.append(f"Salary range: {req.salary}")
+    job_context_lines.append(f"Candidate's skills: {user_skills_raw}")
+    job_context_lines.append(f"Job skills the candidate ALREADY HAS: {', '.join(real_highlights) or 'none matched'}")
+    job_context_lines.append(f"Job skills the candidate is MISSING: {', '.join(real_gaps) or 'none identified from metadata'}")
+
+    metadata_context = "\n".join(job_context_lines)
 
     if page_text:
         prompt = (
-            f"A candidate wants to apply to this job posting.\n\n"
-            f"**Job Metadata:**\n{metadata_context}\n\n"
+            f"A candidate wants to apply to this job. Here is their situation:\n\n"
+            f"{metadata_context}\n\n"
             f"**Live Job Description (fetched via Bright Data Web Unlocker):**\n{page_text}\n\n"
-            "Based on the full job description and metadata above, provide:\n"
-            "1. Top 5 specific skills to highlight in the application\n"
-            "2. Top 3 skill gaps likely expected for this role and seniority\n"
-            "3. One specific, actionable tip tailored to this company and role to stand out\n\n"
+            "Using the candidate's ACTUAL skills above, identify:\n"
+            "1. highlight_skills: skills from the candidate's profile that match this job well (be specific, use skills they listed)\n"
+            "2. gap_skills: skills this job requires that the candidate does NOT have yet (based on the job description)\n"
+            "3. application_tip: one specific, actionable tip for THIS candidate at THIS company to stand out\n\n"
             "Return JSON only:\n"
             '{{"highlight_skills": [...], "gap_skills": [...], "application_tip": "..."}}'
         )
     else:
         prompt = (
-            f"A candidate wants to apply to this job posting:\n\n{metadata_context}\n\n"
-            "Based on the role, company, seniority level, and matched skills above, provide:\n"
-            "1. Top 5 specific skills to highlight in the application (use the matched skills as anchors)\n"
-            "2. Top 3 skill gaps likely expected for this role and seniority that the candidate should address\n"
-            "3. One specific, actionable tip tailored to this company and role to stand out\n\n"
+            f"A candidate wants to apply to this job. Here is their situation:\n\n"
+            f"{metadata_context}\n\n"
+            "Using the candidate's ACTUAL skills above, identify:\n"
+            "1. highlight_skills: skills from the candidate's profile that match this job well\n"
+            "2. gap_skills: skills this job likely requires that the candidate does NOT have\n"
+            "3. application_tip: one specific, actionable tip for THIS candidate at THIS company\n\n"
             "Return JSON only:\n"
             '{{"highlight_skills": [...], "gap_skills": [...], "application_tip": "..."}}'
         )
