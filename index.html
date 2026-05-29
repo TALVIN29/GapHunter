@@ -980,14 +980,23 @@
           How demand is scored
         </p>
         <p class="font-mono text-slate-300 text-xs leading-relaxed break-words whitespace-normal">
-          score = (0.35 × <span class="text-blue-400 font-semibold">frequency</span> + 0.25 × <span class="text-emerald-400 font-semibold">freshness</span> + 0.20 × <span class="text-yellow-400 font-semibold">opportunity</span> + 0.10 × <span class="text-purple-400 font-semibold">dual_signal</span> + 0.10 × <span class="text-pink-400 font-semibold">cross_source</span>) × 1.3 bonus
+          score = (0.35 × <span class="text-blue-400 font-semibold">frequency</span> + 0.25 × <span class="text-emerald-400 font-semibold">freshness</span> + 0.20 × <span class="text-yellow-400 font-semibold">opportunity</span> + 0.10 × <span class="text-purple-400 font-semibold">dual_signal</span> + 0.10 × <span class="text-pink-400 font-semibold">cross_source</span>) ×
+          <span class="inline-flex items-center gap-1 cursor-help group relative">
+            <span class="text-orange-400 font-bold underline decoration-dotted">1.3 bonus</span>
+            <i class="fa-solid fa-circle-info text-orange-400/70 text-xs"></i>
+            <span class="absolute bottom-full left-0 mb-2 w-64 p-3 rounded-xl bg-slate-900 border border-orange-400/30 text-slate-200 font-sans font-normal not-italic text-xs leading-relaxed shadow-xl z-50 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
+              <span class="text-orange-400 font-semibold block mb-1">Cross-platform verification bonus</span>
+              Applied when a skill is confirmed by <strong>both</strong> the LinkedIn dataset <strong>and</strong> Bright Data SERP organic results. A 30% uplift rewards skills with multi-source consensus — if two independent data pipelines agree, the signal is real.
+            </span>
+          </span>
         </p>
         <p class="text-slate-400 mt-2 break-words leading-relaxed">
           <span class="text-blue-400">frequency</span> = posting frequency ·
           <span class="text-emerald-400">freshness</span> = recency ·
           <span class="text-yellow-400">opportunity</span> = low competition ·
           <span class="text-purple-400">dual_signal</span> = LinkedIn+SERP ·
-          <span class="text-pink-400">cross_source</span> = multi-platform verified
+          <span class="text-pink-400">cross_source</span> = multi-platform verified ·
+          <span class="text-orange-400">1.3×</span> = cross-platform verified bonus
         </p>
       </div>
 
