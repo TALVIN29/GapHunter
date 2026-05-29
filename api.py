@@ -2390,6 +2390,69 @@ async def debug_scrape(role: str = "Data Analyst", location: str = "Malaysia") -
     return out
 
 
+@app.get("/api/debug/html", dependencies=[Depends(_require_demo_secret)])
+async def debug_html(url: str = "https://www.jobstreet.com.my/en/job-search/data-analyst-jobs/in-malaysia/") -> dict:
+    """
+    Fetch URL via Web Unlocker and report what structured data is present.
+    Use to diagnose __NEXT_DATA__ field names and JSON-LD presence.
+    """
+    html = await _fetch_with_unlocker(url)
+    if not html:
+        return {"status": "error", "message": "Web Unlocker returned empty"}
+
+    # JSON-LD blocks
+    jsonld_blocks = re.findall(
+        r'<script[^>]+type=["\']application/ld\+json["\'][^>]*>(.*?)</script>',
+        html, re.DOTALL | re.IGNORECASE
+    )
+    jsonld_types: list[str] = []
+    for b in jsonld_blocks:
+        try:
+            d = json.loads(b.strip())
+            items = d if isinstance(d, list) else [d]
+            for item in items:
+                if isinstance(item, dict):
+                    jsonld_types.append(item.get("@type", "unknown"))
+        except Exception:
+            pass
+
+    # __NEXT_DATA__ — show top-level keys and first job-like object if found
+    nextdata_info: dict = {}
+    m = re.search(r'<script[^>]+id=["\']__NEXT_DATA__["\'][^>]*>(.*?)</script>', html, re.DOTALL | re.IGNORECASE)
+    if m:
+        raw = m.group(1).strip()
+        nextdata_info["size_bytes"] = len(raw)
+        try:
+            nd = json.loads(raw)
+            nextdata_info["top_keys"] = list(nd.keys())[:10]
+            pp = (nd.get("props") or {}).get("pageProps") or {}
+            nextdata_info["pageProps_keys"] = list(pp.keys())[:20] if isinstance(pp, dict) else []
+            # Find job arrays
+            job_items = _find_job_objects_in_json(nd)
+            nextdata_info["job_items_found"] = len(job_items)
+            if job_items:
+                nextdata_info["first_job_keys"] = list(job_items[0].keys())[:20]
+                nextdata_info["first_job_sample"] = {
+                    k: job_items[0][k]
+                    for k in list(job_items[0].keys())[:8]
+                }
+        except Exception as exc:
+            nextdata_info["parse_error"] = str(exc)
+
+    # Text snippet — characters 5000-6000 (past the header/nav)
+    text_mid = _html_to_text(html[5000:10000], max_chars=2000)
+
+    return {
+        "status": "ok",
+        "url": url,
+        "html_bytes": len(html),
+        "jsonld_blocks": len(jsonld_blocks),
+        "jsonld_types": jsonld_types,
+        "nextdata": nextdata_info,
+        "text_sample_5k_10k": text_mid[:500],
+    }
+
+
 @app.get("/api/admin/status")
 async def admin_status(request: Request, admin_key: str = "") -> dict:
     """PRD §23.4. Returns firewall state. 404 if ADMIN_KEY not configured."""
