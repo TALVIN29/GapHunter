@@ -1551,43 +1551,51 @@ def _unlocker_fetch_sync(url: str) -> str:
     return resp.text
 
 
-def _browser_fetch_sync(url: str) -> str:
-    """Bright Data Scraping Browser — executes JavaScript, returns fully-rendered HTML.
-    Uses same REST endpoint as Web Unlocker but with a browser zone.
-    Required for SPA/React job boards (Jobstreet, Indeed) that load jobs via JS.
-    """
-    import requests as _req
-    token = os.environ.get("BRIGHTDATA_API_TOKEN", "")
-    if not token or not _BROWSER_ZONE:
-        return ""
-    try:
-        resp = _req.post(
-            _UNLOCKER_ENDPOINT,
-            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
-            json={"url": url, "zone": _BROWSER_ZONE, "format": "raw"},
-            timeout=_BROWSER_TIMEOUT_S,
-        )
-        resp.raise_for_status()
-        return resp.text
-    except Exception as exc:
-        logger.warning("Scraping Browser failed for %s: %s", url, exc)
-    return ""
-
-
 async def _fetch_with_browser(url: str) -> str:
-    """Bright Data Scraping Browser — JS-rendered HTML for SPA job boards.
-    Falls back to Web Unlocker if browser zone not configured or fails.
+    """Bright Data Scraping Browser via Playwright CDP.
+
+    Connects to Bright Data's remote browser over WebSocket — no local binary needed.
+    Executes JavaScript, waits for job cards to render, returns fully rendered HTML.
+    Falls back to Web Unlocker if credentials not configured or Playwright fails.
     """
-    if _BROWSER_ZONE:
-        try:
-            async with asyncio.timeout(_BROWSER_TIMEOUT_S + 5):
-                text = await asyncio.to_thread(_browser_fetch_sync, url)
-            if len(text) >= 500:
-                logger.info("Scraping Browser: %d chars from %s", len(text), url)
-                return text
-            logger.warning("Scraping Browser: too short (%d chars) — falling back to Unlocker", len(text))
-        except Exception as exc:
-            logger.warning("Scraping Browser timeout/error: %s — falling back", exc)
+    customer = os.environ.get("BRIGHTDATA_CUSTOMER_ID", "")
+    password = os.environ.get("BRIGHTDATA_BROWSER_PASSWORD", "")
+    if not customer or not password or not _BROWSER_ZONE:
+        return await _fetch_with_unlocker(url)
+
+    cdp_url = (
+        f"wss://brd-customer-{customer}-zone-{_BROWSER_ZONE}"
+        f":{password}@brd.superproxy.io:9222"
+    )
+    try:
+        from playwright.async_api import async_playwright  # type: ignore
+        async with asyncio.timeout(_BROWSER_TIMEOUT_S + 10):
+            async with async_playwright() as pw:
+                browser = await pw.chromium.connect_over_cdp(cdp_url)
+                page = await browser.new_page()
+                await page.goto(url, wait_until="domcontentloaded", timeout=45000)
+                # Wait for job cards — Jobstreet uses data-automation="jobCard"
+                for selector in (
+                    '[data-automation="jobCard"]',
+                    '[data-automation="normalJob"]',
+                    '.job-card',
+                    'article[data-job]',
+                ):
+                    try:
+                        await page.wait_for_selector(selector, timeout=8000)
+                        logger.info("Scraping Browser: job cards found (%s) at %s", selector, url)
+                        break
+                    except Exception:
+                        continue
+                html = await page.content()
+                await browser.close()
+        if html and len(html) >= 500:
+            logger.info("Scraping Browser CDP: %d chars from %s", len(html), url)
+            return html
+    except ImportError:
+        logger.warning("playwright not installed — falling back to Web Unlocker")
+    except Exception as exc:
+        logger.warning("Scraping Browser CDP failed for %s: %s — falling back", url, exc)
     return await _fetch_with_unlocker(url)
 
 
