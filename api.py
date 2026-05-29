@@ -147,7 +147,7 @@ _RATE_LIMITED_RESPONSE = {
     "message": "Too many searches from your IP. Please wait 1 hour.",
 }
 
-_SCRAPE_TIMEOUT_S = int(os.environ.get("SCRAPE_TIMEOUT_S", "45"))
+_SCRAPE_TIMEOUT_S = int(os.environ.get("SCRAPE_TIMEOUT_S", "120"))
 _FALLBACK_DIR = Path(__file__).parent / "fallback"
 # Static fallback / demo mode — opt-in only. Set DEMO_MODE=1 in Render to enable.
 # Without this flag, no hardcoded US data is ever served — callers get an empty result.

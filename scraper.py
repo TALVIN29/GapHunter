@@ -30,8 +30,9 @@ load_dotenv()
 logger = logging.getLogger(__name__)
 
 POSTINGS_CAP = 10
-SERP_TIMEOUT = 55
-LINKEDIN_TIMEOUT = 45
+SERP_TIMEOUT = 20       # initial POST — fail fast; async handled by polling
+SERP_POLL_MAX_S = 70    # total poll budget after initial response
+LINKEDIN_TIMEOUT = 55
 INDEED_TIMEOUT = 45
 
 _TOKEN = os.environ.get("BRIGHTDATA_API_TOKEN", "")
@@ -156,14 +157,40 @@ def scrape_jobs(job_role: str, location: str) -> list[dict]:
 # Step 1 — Location-aware SERP
 # ---------------------------------------------------------------------------
 
+def _poll_snapshot(snapshot_id: str, max_wait_s: int = SERP_POLL_MAX_S) -> dict:
+    """Poll Bright Data snapshot API until ready or timeout. Returns data dict."""
+    deadline = time.time() + max_wait_s
+    interval = 5
+    while time.time() < deadline:
+        time.sleep(interval)
+        try:
+            poll = requests.get(
+                f"https://api.brightdata.com/datasets/v3/snapshot/{snapshot_id}?format=json",
+                headers=_headers(),
+                timeout=15,
+            )
+            if poll.status_code == 200:
+                data = poll.json()
+                if isinstance(data, list) and data:
+                    item = data[0] if isinstance(data[0], dict) else {}
+                    if item.get("organic") or item.get("url"):
+                        return item
+                if isinstance(data, dict) and ("organic" in data or "url" in data):
+                    return data
+        except Exception as exc:
+            logger.debug("Snapshot poll error: %s", exc)
+    logger.warning("Snapshot %s not ready after %ds", snapshot_id, max_wait_s)
+    return {}
+
+
 def _step1_serp(job_role: str, location: str) -> list[str]:
     """Bright Data SERP → LinkedIn job view URLs.
 
-    Uses quoted location for stricter Google matching — prevents US jobs
-    surfacing for non-US location queries.
+    Handles both sync responses (organic results) and async (snapshot_id).
+    Quotes role for precision; location unquoted for recall.
     """
     if location:
-        keyword = f'"{job_role}" "{location}" site:linkedin.com/jobs/view'
+        keyword = f'"{job_role}" {location} site:linkedin.com/jobs/view'
     else:
         keyword = f'"{job_role}" jobs site:linkedin.com/jobs/view'
 
@@ -173,7 +200,7 @@ def _step1_serp(job_role: str, location: str) -> list[str]:
                 "url": "https://www.google.com/",
                 "keyword": keyword,
                 "language": "en",
-                "tbs": "qdr:m",   # last month
+                "tbs": "qdr:m",
                 "tbm": "",
                 "uule": "",
                 "nfpr": "",
@@ -190,6 +217,15 @@ def _step1_serp(job_role: str, location: str) -> list[str]:
         )
         resp.raise_for_status()
         data = resp.json()
+
+        # Handle async response — Bright Data returns snapshot_id when not yet ready
+        if isinstance(data, dict) and "snapshot_id" in data:
+            logger.info("SERP async — polling snapshot %s", data["snapshot_id"])
+            data = _poll_snapshot(data["snapshot_id"])
+
+        if isinstance(data, list):
+            data = data[0] if data and isinstance(data[0], dict) else {}
+
         organic = data.get("organic", []) if isinstance(data, dict) else []
         urls = [
             r["link"]
