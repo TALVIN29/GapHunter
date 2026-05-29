@@ -1437,6 +1437,48 @@ async def search(req: SearchRequest, request: Request, background_tasks: Backgro
             ranked_jobs = _filtered
             logger.info("Title filter: %d/%d jobs kept for '%s'", len(_filtered), len(ranked_jobs), primary_title)
 
+    # Location mismatch filter: drop jobs whose location is clearly a different country.
+    # Catches LinkedIn returning a company's HQ address instead of the actual job location
+    # (e.g. Agoda Bangkok job showing "San Jose, CA" for a KL search).
+    _loc_input = req.location.lower()
+    _COUNTRY_MARKERS: dict[str, list[str]] = {
+        "my": ["malaysia", "kuala lumpur", "petaling", "selangor", "penang", "johor", "subang"],
+        "sg": ["singapore"],
+        "au": ["australia", "sydney", "melbourne", "brisbane", "perth"],
+        "in": ["india", "bangalore", "mumbai", "delhi", "chennai", "hyderabad"],
+        "ph": ["philippines", "manila"],
+        "gb": ["united kingdom", "london", "manchester", "england"],
+        "de": ["germany", "berlin", "munich"],
+        "ca": ["canada", "toronto", "vancouver"],
+    }
+    _FOREIGN_MARKERS: list[str] = [
+        "united states", ", ca", ", ny", ", tx", ", wa", ", fl", ", il",
+        "san jose", "new york", "los angeles", "chicago", "seattle", "austin",
+        "united kingdom", "london", "germany", "berlin", "france", "paris",
+        "india", "bangalore", "mumbai", "delhi", "jakarta", "bangkok",
+        "manila", "ho chi minh", "beijing", "shanghai", "tokyo", "seoul",
+    ]
+    # Determine if we searched a specific non-US country
+    _searched_gl = _gl_for_location(_loc_input)
+    if _searched_gl and _searched_gl != "us":
+        _expected_markers = _COUNTRY_MARKERS.get(_searched_gl, [])
+        if _expected_markers:
+            def _loc_ok(job: dict) -> bool:
+                jloc = job.get("location", "").lower()
+                if not jloc:
+                    return True  # no location — keep (scraper may not have parsed it)
+                if any(m in jloc for m in _expected_markers):
+                    return True  # matches expected country
+                if any(m in jloc for m in _FOREIGN_MARKERS):
+                    return False  # clearly another country
+                return True  # unknown location — keep
+            _geo_filtered = [j for j in ranked_jobs if _loc_ok(j)]
+            if _geo_filtered:
+                removed = len(ranked_jobs) - len(_geo_filtered)
+                if removed:
+                    logger.info("Location filter: dropped %d jobs with mismatched country for '%s'", removed, req.location)
+                ranked_jobs = _geo_filtered
+
     # Build job cards
     # Patch 4: Cache poison guard — "demo-static" is a reserved partition owned by the golden path.
     # A client sending session_id="demo-static" on the live path would, if ever used as a cache key,
