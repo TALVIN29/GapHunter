@@ -48,7 +48,7 @@
     * { box-sizing: border-box; }
     html, body { height: 100%; }
     body {
-      background: #060a12;
+      background: #080d18;
       color: #e2e8f0;
       font-family: 'Inter', sans-serif;
       overflow-x: hidden;
@@ -61,8 +61,8 @@
 
     /* Cards */
     .card {
-      background: #111c2e;
-      border: 1px solid rgba(59,130,246,0.12);
+      background: #131f33;
+      border: 1px solid #243349;
       border-radius: 1rem;
       padding: 1.25rem;
       position: relative;
@@ -72,15 +72,15 @@
       content: '';
       position: absolute;
       inset: 0;
-      background: linear-gradient(135deg, rgba(59,130,246,0.03) 0%, transparent 60%);
+      background: linear-gradient(135deg, rgba(59,130,246,0.04) 0%, transparent 60%);
       pointer-events: none;
     }
     .glass-card {
-      background: rgba(13, 21, 38, 0.85);
-      backdrop-filter: blur(24px);
-      border: 1px solid rgba(59,130,246,0.18);
+      background: #131f33;
+      border: 1px solid #2a3f60;
       border-radius: 1rem;
       padding: 1.5rem;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.4);
     }
 
     /* Glow card */
@@ -119,16 +119,16 @@
 
     /* Inputs */
     .input-field {
-      background: rgba(6,10,18,0.8);
-      border: 1px solid rgba(59,130,246,0.15);
+      background: #0d1829;
+      border: 1px solid #2a3f60;
       border-radius: .75rem;
       padding: .65rem 1rem;
       color: #e2e8f0; width: 100%; outline: none;
       transition: all .2s;
       font-size: .875rem;
     }
-    .input-field:focus { border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,0.1); }
-    .input-field::placeholder { color: #334155; }
+    .input-field:focus { border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,0.15); }
+    .input-field::placeholder { color: #475569; }
 
     /* Tabs */
     .tab-active   { border-bottom: 2px solid #3b82f6; color: #e2e8f0; font-weight: 600; }
@@ -137,13 +137,13 @@
 
     /* Job card */
     .job-card {
-      background: rgba(13,21,38,0.6);
-      border: 1px solid rgba(59,130,246,0.1);
+      background: #1a2640;
+      border: 1px solid #2a3f60;
       border-radius: .875rem; padding: 1rem; cursor: pointer;
       transition: all .2s;
     }
-    .job-card:hover { border-color: rgba(59,130,246,0.35); background: rgba(59,130,246,0.05); transform: translateX(2px); }
-    .job-card-active { border-color: #3b82f6 !important; background: rgba(59,130,246,0.08) !important; box-shadow: 0 0 20px rgba(59,130,246,0.12); }
+    .job-card:hover { border-color: #3b82f6; background: #1e2e4a; transform: translateX(2px); box-shadow: 0 4px 20px rgba(0,0,0,0.3); }
+    .job-card-active { border-color: #3b82f6 !important; background: #1e3055 !important; box-shadow: 0 0 20px rgba(59,130,246,0.15); }
 
     /* Skill pill */
     .skill-pill {
