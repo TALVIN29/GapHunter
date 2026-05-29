@@ -398,8 +398,9 @@ def _detect_job_source(url: str) -> str:
 
 
 _GL_MAP: dict[str, str] = {
-    "malaysia": "my", "kuala lumpur": "my", "penang": "my", "johor": "my",
-    "singapore": "sg",
+    "malaysia": "my", "kuala lumpur": "my", "kl": "my", "penang": "my",
+    "johor": "my", "selangor": "my", "petaling": "my", "subang": "my",
+    "singapore": "sg", " sg": "sg",
     "australia": "au", "sydney": "au", "melbourne": "au", "brisbane": "au",
     "new zealand": "nz", "auckland": "nz",
     "india": "in", "bangalore": "in", "mumbai": "in", "delhi": "in", "chennai": "in",
@@ -1226,6 +1227,16 @@ class TailormanRequest(BaseModel):
     seniority: str = ""
 
 
+class InterviewPrepRequest(BaseModel):
+    job_title: str
+    company: str = ""
+    location: str = ""
+    seniority: str = ""
+    gap_skills: list[str] = []
+    highlight_skills: list[str] = []
+    user_skills: str = ""
+
+
 # ---------------------------------------------------------------------------
 # Auth routes
 # ---------------------------------------------------------------------------
@@ -1630,7 +1641,7 @@ def _direct_board_urls(role: str, location: str) -> list[str]:
     loc_q = quote_plus(location)
     loc = location.lower()
 
-    if any(k in loc for k in ["malaysia", "kuala lumpur", " kl", "penang", "johor", "selangor", "petaling"]):
+    if any(k in loc for k in ["malaysia", "kuala lumpur", "kl", "penang", "johor", "selangor", "petaling", "subang"]):
         return [
             f"https://www.jobstreet.com.my/en/job-search/{role_slug}-jobs/in-malaysia/",
             f"https://malaysia.indeed.com/jobs?q={role_q}&l={loc_q}",
@@ -2234,6 +2245,59 @@ async def tailorman(req: TailormanRequest) -> dict:
     except Exception as exc:
         logger.warning("Tailorman failed for '%s': %s", req.job_title, exc)
         return {"status": "error", "message": "Tailoring unavailable — try again"}
+
+
+# ---------------------------------------------------------------------------
+# Interview Prep — Addendum AA
+# Predicts likely interview questions + tips based on job + skill gaps
+# ---------------------------------------------------------------------------
+
+@app.post("/api/interview", dependencies=[Depends(_require_demo_secret)])
+async def interview_prep(req: InterviewPrepRequest) -> dict:
+    """
+    Addendum AA: Predict interview questions and answer tips.
+    Uses job title, company, seniority, gap skills, and user skills.
+    Returns 5 questions with context-specific answer guidance.
+    """
+    if not req.job_title.strip():
+        return {"status": "error", "message": "Job title required"}
+
+    target = f"{req.job_title}" + (f" at {req.company}" if req.company else "")
+    gap_str = ", ".join(req.gap_skills) if req.gap_skills else "none identified"
+    highlight_str = ", ".join(req.highlight_skills) if req.highlight_skills else "not provided"
+    seniority_str = f" ({req.seniority} level)" if req.seniority else ""
+
+    prompt = (
+        f"A candidate{seniority_str} is preparing for an interview for: {target}\n"
+        f"Location: {req.location or 'not specified'}\n"
+        f"Their strong skills: {highlight_str}\n"
+        f"Their skill gaps for this role: {gap_str}\n"
+        f"Their full skill set: {req.user_skills or 'not provided'}\n\n"
+        "Generate 5 likely interview questions for this specific role and company, "
+        "with a concise tip for answering each one. Focus on questions that probe "
+        "the skill gaps and test the candidate's genuine expertise.\n\n"
+        "Return JSON only:\n"
+        '{"questions": ['
+        '{"question": "<interview question>", "tip": "<specific 1-sentence answer tip>", "type": "technical|behavioural|situational"},'
+        '... 5 items'
+        ']}'
+    )
+    try:
+        async with asyncio.timeout(20):
+            resp = await _client.messages.create(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=600,
+                system="You are an expert interview coach. Return valid JSON only.",
+                messages=[{"role": "user", "content": prompt}],
+            )
+        text = resp.content[0].text.strip()
+        if text.startswith("```"):
+            text = text.split("\n", 1)[1].rsplit("```", 1)[0].strip()
+        result = json.loads(text)
+        return {"status": "ok", "questions": result.get("questions", []), "job": target}
+    except Exception as exc:
+        logger.warning("Interview prep failed for '%s': %s", req.job_title, exc)
+        return {"status": "error", "message": "Interview prep unavailable — try again"}
 
 
 # ---------------------------------------------------------------------------

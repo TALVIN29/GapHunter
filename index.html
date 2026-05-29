@@ -61,6 +61,8 @@
     .input-field { background: #0f1623; border: 1px solid #1e2d45; border-radius: .5rem;
                    padding: .5rem .875rem; color: #e2e8f0; width: 100%; outline: none; }
     .input-field:focus { border-color: #3b82f6; }
+    @keyframes shake { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-6px)} 40%{transform:translateX(6px)} 60%{transform:translateX(-4px)} 80%{transform:translateX(4px)} }
+    .animate-shake { animation: shake .35s ease; }
     .tab-active   { border-bottom: 2px solid #3b82f6; color: #e2e8f0; font-weight: 600; }
     .tab-inactive { border-bottom: 2px solid transparent; color: #64748b; }
     .tab-inactive:hover { color: #94a3b8; }
@@ -115,9 +117,16 @@
 
         <div class="flex flex-col gap-3">
           <div>
-            <label class="text-xs text-slate-500 mb-1 block">Job Title</label>
-            <input class="input-field" type="text" x-model="role"
+            <label class="text-xs text-slate-500 mb-1 flex items-center gap-2">
+              Job Title
+              <span x-show="inferredRole && role === inferredRole"
+                class="badge badge-green text-xs">Auto-detected from CV</span>
+            </label>
+            <input class="input-field transition-all" type="text" x-model="role"
+              :class="roleError ? 'border-red-500 ring-1 ring-red-500 animate-shake' : (inferredRole && role === inferredRole ? 'border-green-700' : '')"
+              @input="roleError = false"
               placeholder="e.g. Data Analyst" @keydown.enter="doSearch()" />
+            <p x-show="roleError" class="text-red-400 text-xs mt-1">Enter a job title or upload your CV first</p>
           </div>
           <div>
             <label class="text-xs text-slate-500 mb-1 block">Location</label>
@@ -154,7 +163,17 @@
           <span x-text="searching ? 'Agent Running…' : 'Run Agent'"></span>
         </button>
 
-        <div x-show="totalPostings > 0" class="text-xs text-slate-500 text-center">
+        <!-- Live progress steps during search -->
+        <div x-show="searching" class="text-xs text-slate-500 space-y-1 mt-2">
+          <template x-for="(step, i) in searchSteps" :key="i">
+            <div class="flex items-center gap-2 transition-opacity" :class="i < searchStepIdx ? 'opacity-100' : 'opacity-30'">
+              <span x-text="i < searchStepIdx ? '✓' : (i === searchStepIdx ? '›' : '·')"
+                :class="i < searchStepIdx ? 'text-green-400' : (i === searchStepIdx ? 'text-accent animate-pulse' : 'text-slate-600')"></span>
+              <span x-text="step" :class="i === searchStepIdx ? 'text-slate-300' : ''"></span>
+            </div>
+          </template>
+        </div>
+        <div x-show="totalPostings > 0 && !searching" class="text-xs text-slate-500 text-center">
           Analysed <span x-text="totalPostings" class="text-slate-300"></span> postings
         </div>
       </div>
@@ -164,6 +183,12 @@
         <div class="flex items-center justify-between">
           <h2 class="font-semibold text-sm text-slate-400 uppercase tracking-wider">Top 5 Skill Gaps</h2>
           <span x-show="gaps.length > 0" class="badge badge-yellow">Market Demand Score</span>
+        </div>
+        <!-- Demand score formula explainer -->
+        <div x-show="gaps.length > 0" class="mt-2 mb-1 px-3 py-2 rounded-md bg-slate-900/60 border border-slate-800 text-xs text-slate-500 leading-relaxed">
+          <span class="text-slate-400 font-semibold">How demand is scored: </span>
+          <span class="font-mono text-slate-500">score = (0.35 × <span class="text-blue-400">frequency</span> + 0.25 × <span class="text-green-400">freshness</span> + 0.20 × <span class="text-yellow-400">opportunity</span> + 0.10 × <span class="text-purple-400">dual_signal</span> + 0.10 × <span class="text-pink-400">cross_source</span>) × 1.3 bonus</span>
+          <span class="block mt-1 text-slate-600">frequency = how many postings need it · freshness = how recently posted · opportunity = low competition · dual_signal = LinkedIn + SERP confirmed · cross_source = multi-platform verified</span>
         </div>
         <div x-show="gaps.length === 0" class="flex-1 flex items-center justify-center text-slate-600 text-sm">
           Run a search to see your skill gaps
@@ -605,7 +630,8 @@
                 <p class="text-slate-600 text-xs mt-3">
                   Estimated total: <span class="text-slate-400" x-text="roadmaps[gap.skill]?.estimated_total"></span>
                   · Demand score: <span class="text-accent" x-text="(gap.demand_score || gap.score || 0).toFixed(3)"></span>
-                  (0.35×frequency + 0.25×freshness + 0.20×opportunity)
+                  <span class="text-slate-600"> · Formula: </span>
+                  <span class="text-slate-500 font-mono">0.35×freq + 0.25×freshness + 0.20×opportunity + 0.10×dual_signal + 0.10×cross_source × 1.3 bonus</span>
                 </p>
               </div>
             </div>
@@ -876,6 +902,10 @@
         salaryIntel: null,
         loadingSalary: false,
         inferredRole: '',
+        roleError: false,
+        searchSteps: ['Validating role…', 'Scraping LinkedIn & job boards via Bright Data…', 'Running scam detection & verification…', 'Extracting skill signals from postings…', 'Scoring market demand…', 'Ranking gaps & jobs…'],
+        searchStepIdx: 0,
+        _stepTimer: null,
         tailormanResult: null,
         loadingTailor: false,
 
@@ -906,25 +936,28 @@
             this.role = this.inferredRole;
           }
 
-          // Guard: role is still empty — prompt user instead of hitting backend
+          // Guard: role is still empty — highlight field inline, no popup
           if (!this.role.trim()) {
-            Swal.fire({
-              icon: 'info',
-              title: 'What role are you looking for?',
-              text: 'Enter a job title (e.g. Data Analyst, Software Engineer) or upload your CV to auto-detect your role.',
-              background: '#0f1623', color: '#e2e8f0',
-              confirmButtonColor: '#3b82f6',
-            });
+            this.roleError = true;
+            document.querySelector('[x-model="role"]')?.focus();
             return;
           }
+          this.roleError = false;
 
           this.searching = true;
+          this.searchStepIdx = 0;
           this.jobs = [];
           this.gaps = [];
           this.sessionId = null;
           this.totalPostings = 0;
           this.selectedJob = null;
           this.analysis = null;
+          // Advance step ticker every ~12s to match backend pipeline phases
+          clearInterval(this._stepTimer);
+          this._stepTimer = setInterval(() => {
+            if (this.searchStepIdx < this.searchSteps.length - 1) this.searchStepIdx++;
+            else clearInterval(this._stepTimer);
+          }, 12000);
           this.companyProfile = null;
           this.tailormanResult = null;
           this.salaryIntel = null;
@@ -1019,6 +1052,8 @@
               confirmButtonColor: '#3b82f6' });
           } finally {
             this.searching = false;
+            clearInterval(this._stepTimer);
+            this.searchStepIdx = this.searchSteps.length; // mark all done
           }
         },
 
