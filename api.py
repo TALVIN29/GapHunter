@@ -1340,7 +1340,11 @@ async def search(req: SearchRequest, request: Request, background_tasks: Backgro
             return _RATE_LIMITED_RESPONSE
 
     # Pre-Gate: if role is empty but skills were sent (CV uploaded), infer role
+    # Strip " - subtitle" suffixes that CV parsers append (e.g. "Business Analyst - Automation & Analytics")
+    # to prevent over-specific SERP queries that return 0 LinkedIn results.
     role_input = req.role.strip()
+    if " - " in role_input:
+        role_input = role_input.split(" - ")[0].strip()
     if not precheck_role_input(role_input) and req.skills.strip():
         inferred = await _infer_role_from_skills(req.skills)
         if inferred:
