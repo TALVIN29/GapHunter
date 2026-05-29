@@ -1304,6 +1304,7 @@ async def upload_resume(request: Request, file: UploadFile = File(...)) -> dict:
         "skills": parsed["skills"],
         "experience_years": parsed["experience_years"],
         "seniority": parsed["seniority"],
+        "inferred_role": parsed.get("inferred_role", ""),
     }
 
 
