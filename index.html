@@ -469,18 +469,19 @@
 
           <!-- No skills — prompt to upload CV -->
           <div x-show="!skills" class="flex flex-col items-center gap-3 py-6 text-center">
-            <div class="text-3xl">📄</div>
-            <p class="text-sm text-slate-300 font-medium">No resume uploaded</p>
-            <p class="text-xs text-slate-500 leading-relaxed">Upload your CV to get a tailored summary, cover letter, and interview prep for this role.</p>
-            <div class="mt-2 px-4 py-3 rounded-lg border border-purple-800/50 bg-purple-900/10 text-xs text-center">
-              <p class="text-purple-300 font-semibold mb-1">Tailorman Pro</p>
-              <p class="text-slate-400">Professional resume tailoring service — coming soon</p>
-              <p class="text-purple-400 font-medium mt-1">From RM 99 / resume</p>
-            </div>
-            <label class="btn-primary text-xs cursor-pointer px-3 py-1.5 mt-1">
-              Upload Resume
+            <div class="text-3xl">✍️</div>
+            <p class="text-sm text-slate-300 font-medium">Let's tailor this for you</p>
+            <p class="text-xs text-slate-500 leading-relaxed max-w-xs">
+              Drop your CV above and Tailorman will write a personalised summary,
+              cover letter opening, and interview talking points — matched to
+              <span class="text-slate-300" x-text="selectedJob?.title || 'this role'"></span>.
+            </p>
+            <label class="btn-primary text-xs cursor-pointer px-4 py-2 mt-2 flex items-center gap-2">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              Upload CV to unlock
               <input type="file" class="hidden" accept=".pdf,.docx" @change="uploadCV">
             </label>
+            <p class="text-xs text-slate-600">PDF or DOCX · free · no account needed</p>
           </div>
 
           <!-- Has skills — show tailored materials -->
