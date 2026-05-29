@@ -2061,7 +2061,21 @@ async def hr_competitors(req: HRRequest) -> dict:
         skill: skill_demand_score(skill, postings)
         for skill in all_skills_flat
     }
-    top_skills = sorted(skill_scores.items(), key=lambda x: x[1], reverse=True)[:15]
+    # Drop garbled/truncated skill tokens: must be ≥4 chars, at least 2 alpha chars,
+    # not starting with a non-alpha character (e.g. "ead modeling" from "lead modeling")
+    def _valid_skill(s: str) -> bool:
+        if len(s) < 4:
+            return False
+        if sum(c.isalpha() for c in s) < 2:
+            return False
+        if not s[0].isalpha():
+            return False
+        return True
+
+    top_skills = sorted(
+        [(s, sc) for s, sc in skill_scores.items() if _valid_skill(s)],
+        key=lambda x: x[1], reverse=True
+    )[:15]
 
     return {
         "status": "ok",
