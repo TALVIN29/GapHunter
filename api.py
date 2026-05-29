@@ -2041,16 +2041,26 @@ async def hr_competitors(req: HRRequest) -> dict:
     if not req.company_name.strip() or not req.role.strip():
         return {"status": "error", "message": "Company name and role are required"}
 
-    # Normalize role via Gate 1 — corrects typos and expands to canonical title
+    # Normalize role — corrects typos via Claude Haiku, then strips subtitle suffix.
+    # Uses canonical_titles regardless of is_valid_role so partial words like
+    # "Data Enginee" still resolve to "Data Engineer".
     role_input = req.role.strip()
     if " - " in role_input:
         role_input = role_input.split(" - ")[0].strip()
-    validation = await validate_and_normalize(_client, role_input)
-    if validation and validation["is_valid_role"] and validation["canonical_titles"]:
-        normalized_role = validation["canonical_titles"][0]
+    try:
+        async with asyncio.timeout(10):
+            _norm_resp = await _client.messages.create(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=60,
+                system="You are a job title corrector. Return the most likely intended job title as plain text only. No explanation.",
+                messages=[{"role": "user", "content": f"Correct this job title (fix typos/truncation): '{role_input}'"}],
+            )
+        normalized_role = _norm_resp.content[0].text.strip().strip('"').strip("'")
+        if not normalized_role or len(normalized_role) > 80:
+            normalized_role = role_input
         logger.info("HR role normalized: '%s' → '%s'", role_input, normalized_role)
-    else:
-        normalized_role = role_input  # fallback to raw input
+    except Exception:
+        normalized_role = role_input
 
     postings, _ = await _scrape_with_fallback(
         f"{normalized_role} {req.company_name}", req.location
