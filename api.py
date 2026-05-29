@@ -1408,6 +1408,18 @@ async def search(req: SearchRequest, request: Request, background_tasks: Backgro
     }
     ranked_jobs = rank_jobs(list(postings), user_prefs)
 
+    # Title relevance filter: drop jobs where the title shares no keyword with the searched role.
+    # Prevents insurance/sales/HR roles surfacing when "Data Analyst" was searched.
+    _role_keywords = {w.lower() for w in primary_title.split() if len(w) > 3}
+    if _role_keywords:
+        _filtered = [
+            j for j in ranked_jobs
+            if any(kw in j.get("title", "").lower() for kw in _role_keywords)
+        ]
+        if _filtered:
+            ranked_jobs = _filtered
+            logger.info("Title filter: %d/%d jobs kept for '%s'", len(_filtered), len(ranked_jobs), primary_title)
+
     # Build job cards
     # Patch 4: Cache poison guard — "demo-static" is a reserved partition owned by the golden path.
     # A client sending session_id="demo-static" on the live path would, if ever used as a cache key,
