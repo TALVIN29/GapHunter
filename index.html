@@ -392,26 +392,23 @@
               placeholder="e.g. Python, SQL, Tableau, Excel — or upload CV below" @keydown.enter="doSearch()" />
           </div>
 
-          <!-- Row 3: CV Upload + Run Agent -->
-          <div class="flex gap-3 items-stretch">
-            <label class="flex items-center gap-2 px-4 py-2.5 border border-dashed border-blue-500/25 rounded-xl cursor-pointer hover:border-blue-500/50 hover:bg-blue-500/5 transition-all text-sm text-slate-400 whitespace-nowrap">
-              <i class="fa-solid fa-cloud-arrow-up text-slate-500"></i>
-              <span x-text="cvStatus && cvStatus.startsWith('✓') ? 'CV Uploaded ✓' : 'Upload CV'"></span>
-              <input type="file" accept=".pdf,.doc,.docx" class="hidden" @change="uploadCV($event)" />
-            </label>
-            <button class="btn-primary flex-1 gap-2 py-3 text-base" @click="doSearch()" :disabled="searching">
-              <svg x-show="searching" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
-              </svg>
-              <i x-show="!searching" class="fa-solid fa-rocket"></i>
-              <span x-text="searching ? 'Searching…' : 'Find My Gaps'"></span>
-            </button>
-          </div>
+          <!-- CV Upload -->
+          <label class="flex items-center justify-center gap-2 w-full px-4 py-3 border border-dashed border-blue-500/25 rounded-xl cursor-pointer hover:border-blue-500/50 hover:bg-blue-500/5 transition-all text-sm text-slate-400">
+            <i class="fa-solid fa-cloud-arrow-up text-slate-400 text-base"></i>
+            <span x-text="cvStatus && cvStatus.startsWith('✓') ? cvStatus : 'Upload CV (PDF / DOCX) — auto-detects your role & skills'"></span>
+            <input type="file" accept=".pdf,.doc,.docx" class="hidden" @change="uploadCV($event)" />
+          </label>
+          <p x-show="cvStatus && !cvStatus.startsWith('✓')" x-text="cvStatus" class="text-red-400 text-xs -mt-1"></p>
 
-          <!-- CV status -->
-          <p x-show="cvStatus && !cvStatus.startsWith('✓')" x-text="cvStatus" class="text-red-400 text-xs mt-2"></p>
-          <p x-show="cvStatus && cvStatus.startsWith('✓')" x-text="cvStatus" class="text-emerald-400 text-xs mt-2"></p>
+          <!-- Find My Gaps button -->
+          <button class="btn-primary w-full gap-2 py-3.5 text-base" @click="doSearch()" :disabled="searching">
+            <svg x-show="searching" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+            </svg>
+            <i x-show="!searching" class="fa-solid fa-rocket"></i>
+            <span x-text="searching ? 'Agent Running…' : 'Find My Gaps'"></span>
+          </button>
 
           <!-- Progress steps during search -->
           <div x-show="searching" class="mt-4 space-y-1.5 border-t border-blue-500/10 pt-4">
