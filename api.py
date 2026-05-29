@@ -1573,16 +1573,20 @@ async def _fetch_with_browser(url: str) -> str:
             async with async_playwright() as pw:
                 browser = await pw.chromium.connect_over_cdp(cdp_url)
                 page = await browser.new_page()
-                await page.goto(url, wait_until="domcontentloaded", timeout=45000)
-                # Wait for job cards — Jobstreet uses data-automation="jobCard"
+                await page.goto(url, wait_until="networkidle", timeout=55000)
+                # Scroll to mid-page to trigger viewport-based lazy rendering
+                await page.evaluate("window.scrollTo(0, document.body.scrollHeight * 0.4)")
+                # Wait for any job card selector to appear
                 for selector in (
                     '[data-automation="jobCard"]',
                     '[data-automation="normalJob"]',
+                    '[data-automation="search-job-card"]',
+                    '[data-search-sol-meta]',
                     '.job-card',
                     'article[data-job]',
                 ):
                     try:
-                        await page.wait_for_selector(selector, timeout=8000)
+                        await page.wait_for_selector(selector, timeout=10000)
                         logger.info("Scraping Browser: job cards found (%s) at %s", selector, url)
                         break
                     except Exception:
@@ -2615,6 +2619,8 @@ async def debug_html(url: str = "https://www.jobstreet.com.my/en/job-search/data
         "text_at_80k":  _slice(80_000),
         "text_at_150k": _slice(150_000),
         "text_at_250k": _slice(250_000),
+        "text_at_350k": _slice(350_000),
+        "text_at_450k": _slice(450_000),
     }
 
 
