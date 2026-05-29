@@ -1230,7 +1230,7 @@
             <p class="text-slate-500 text-xs">Bright Data SERP → LinkedIn Dataset → Claude AI extraction</p>
           </div>
 
-          <div x-show="hrSkills.length > 0" id="hr-radar-chart" style="min-height: 220px; width:100%;"></div>
+          <div id="hr-radar-chart" style="min-height: 220px; width:100%;"></div>
         </div>
 
         <!-- Skills breakdown table -->
@@ -1808,7 +1808,7 @@
               this.hrPostings = data.postings_analysed || 0;
               this.hrHireProfile = '';
               this.hrTrainingPlan = '';
-              this.$nextTick(() => renderHRRadar(this.hrSkills));
+              this.$nextTick(() => setTimeout(() => renderHRRadar(this.hrSkills), 120));
               this.fetchHRRecommendations();
             } else {
               Swal.fire({ icon: 'error', title: 'Search Failed', text: data.message || 'No competitor postings found.',
@@ -1844,7 +1844,7 @@ Return JSON only:
         },
 
         maybeInitRadar() {
-          if (this.hrSkills.length > 0) this.$nextTick(() => renderHRRadar(this.hrSkills));
+          if (this.hrSkills.length > 0) this.$nextTick(() => setTimeout(() => renderHRRadar(this.hrSkills), 120));
         },
       };
     }
