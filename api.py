@@ -786,15 +786,131 @@ def _extract_jsonld_jobs(html: str, source_url: str) -> list[dict]:
     return jobs[:8]
 
 
+def _find_job_objects_in_json(obj, _depth: int = 0) -> list[dict]:
+    """Recursively find arrays of job-like objects in a parsed JSON tree."""
+    if _depth > 9 or not isinstance(obj, (dict, list)):
+        return []
+    _JOB_TITLE = {"title", "jobTitle", "positionTitle", "jobName", "name"}
+    _JOB_CO    = {"companyName", "company", "advertiserName", "employer", "hiringOrganization"}
+    if isinstance(obj, list) and len(obj) >= 1:
+        sample = obj[0]
+        if isinstance(sample, dict):
+            if any(k in sample for k in _JOB_TITLE) and any(k in sample for k in _JOB_CO):
+                return [x for x in obj if isinstance(x, dict)]
+    if isinstance(obj, dict):
+        for v in obj.values():
+            found = _find_job_objects_in_json(v, _depth + 1)
+            if found:
+                return found
+    elif isinstance(obj, list):
+        for item in obj:
+            if isinstance(item, (dict, list)):
+                found = _find_job_objects_in_json(item, _depth + 1)
+                if found:
+                    return found
+    return []
+
+
+def _extract_nextdata_jobs_direct(html: str, source_url: str) -> list[dict]:
+    """
+    Parse __NEXT_DATA__ JSON in full — recursively find job arrays,
+    extract without Claude. Works for Jobstreet, Reed, and any Next.js job board.
+    """
+    m = re.search(
+        r'<script[^>]+id=["\']__NEXT_DATA__["\'][^>]*>(.*?)</script>',
+        html, re.DOTALL | re.IGNORECASE
+    )
+    if not m:
+        return []
+    try:
+        data = json.loads(m.group(1).strip())
+    except Exception:
+        return []
+    job_items = _find_job_objects_in_json(data)
+    if not job_items:
+        return []
+    currency = _currency_for_location(source_url)
+    results: list[dict] = []
+    for item in job_items[:8]:
+        title = (
+            item.get("title") or item.get("jobTitle") or
+            item.get("positionTitle") or item.get("name") or ""
+        )
+        company = (
+            item.get("companyName") or item.get("company") or
+            item.get("advertiserName") or item.get("employer") or
+            (item.get("hiringOrganization") or {}).get("name", "") if isinstance(item.get("hiringOrganization"), dict) else
+            item.get("hiringOrganization") or ""
+        )
+        loc_str = (
+            item.get("locationLabel") or item.get("location") or
+            item.get("suburb") or item.get("area") or ""
+        )
+        desc = (
+            item.get("teaser") or item.get("description") or
+            item.get("shortDescription") or item.get("snippet") or ""
+        )
+        apply_url = (
+            item.get("jobUrl") or item.get("url") or
+            item.get("applyUrl") or item.get("detailUrl") or source_url
+        )
+        if apply_url and apply_url.startswith("/"):
+            from urllib.parse import urlparse as _up
+            p = _up(source_url)
+            apply_url = f"{p.scheme}://{p.netloc}{apply_url}"
+        if not title or not company:
+            continue
+        if len(str(desc)) < 20:
+            desc = f"{title} at {company}."
+        results.append({
+            "job_description": str(desc)[:1000],
+            "title": str(title),
+            "company_name": str(company),
+            "url": apply_url,
+            "apply_link": apply_url,
+            "location": str(loc_str),
+            "skills_listed": [],
+            "date_posted": item.get("listingDate") or item.get("datePosted") or "",
+            "num_applicants": None,
+            "salary_min": 0.0,
+            "salary_max": 0.0,
+            "salary_currency": currency,
+            "is_remote": False,
+            "remote_type": "on-site",
+            "seniority_level": "unknown",
+            "employment_type": "full-time",
+            "company_industry": "",
+            "company_size": "",
+            "company_description": "",
+            "source": _detect_job_source(source_url),
+            "is_verified": True,
+            "extracted_skills": [],
+            "freshness_score": 0.7,
+            "competition_score": 0.5,
+            "dual_signal": {},
+            "cross_source_confirmed": {},
+        })
+    logger.info("__NEXT_DATA__ direct: %d jobs from %s", len(results), source_url)
+    return results
+
+
 def _extract_nextdata_text(html: str) -> str:
-    """Extract __NEXT_DATA__ script JSON — contains pre-rendered page props for Next.js apps."""
+    """Extract __NEXT_DATA__ JSON as text for Claude fallback (when direct parse finds nothing)."""
     m = re.search(
         r'<script[^>]+id=["\']__NEXT_DATA__["\'][^>]*>(.*?)</script>',
         html, re.DOTALL | re.IGNORECASE
     )
     if not m:
         return ""
-    return m.group(1).strip()[:8000]
+    # Take a middle slice — first 8K is often metadata, real data starts later
+    raw = m.group(1).strip()
+    # Try to find the first job-like substring and take surrounding context
+    for marker in ('"jobTitle"', '"title":', '"companyName"', '"advertiserName"'):
+        idx = raw.find(marker)
+        if idx > 100:
+            start = max(0, idx - 200)
+            return raw[start:start + 8000]
+    return raw[:8000]
 
 
 async def _fetch_indeed_rss(role: str, location: str) -> list[dict]:
@@ -933,17 +1049,26 @@ async def _find_jobs_via_web(role: str, location: str) -> list[dict]:
             logger.info("JSON-LD extraction: %d jobs for '%s'", len(jsonld_jobs), role)
             return jsonld_jobs[:8]
 
-        # Path B: __NEXT_DATA__ — Next.js boards (Jobstreet, Reed) pre-render data here
+        # Path B: __NEXT_DATA__ direct parse — no Claude, works for Jobstreet/Reed (Next.js)
         nextdata_jobs: list[dict] = []
+        for url, html in page_htmls[:3]:
+            nd_jobs = _extract_nextdata_jobs_direct(html, url)
+            nextdata_jobs.extend(nd_jobs)
+        if nextdata_jobs:
+            logger.info("__NEXT_DATA__ direct: %d jobs for '%s'", len(nextdata_jobs), role)
+            return nextdata_jobs[:8]
+
+        # Path B2: __NEXT_DATA__ via Claude (fallback — send contextual slice)
+        nextdata_claude_jobs: list[dict] = []
         for url, html in page_htmls[:3]:
             nextdata_text = _extract_nextdata_text(html)
             if nextdata_text:
                 source = _detect_job_source(url)
                 nd_jobs = await _extract_jobs_from_search_page(url, nextdata_text, role, location, source)
-                nextdata_jobs.extend(nd_jobs)
-        if nextdata_jobs:
-            logger.info("__NEXT_DATA__ extraction: %d jobs for '%s'", len(nextdata_jobs), role)
-            return nextdata_jobs[:8]
+                nextdata_claude_jobs.extend(nd_jobs)
+        if nextdata_claude_jobs:
+            logger.info("__NEXT_DATA__ Claude: %d jobs for '%s'", len(nextdata_claude_jobs), role)
+            return nextdata_claude_jobs[:8]
 
         # Path C: individual job page text extraction (original path)
         page_texts = [(url, _html_to_text(html, max_chars=4000)) for url, html in page_htmls]
@@ -1619,14 +1744,17 @@ async def _search_direct_job_boards(role: str, location: str) -> list[dict]:
             html = await _fetch_with_unlocker(url)
             if not html or len(html) < 500:
                 return []
-            # Try structured extraction first (zero/fewer Claude calls)
+            # Structured extraction — zero Claude calls, fastest path
             jsonld = _extract_jsonld_jobs(html, url)
             if jsonld:
                 return jsonld[:6]
-            nextdata = _extract_nextdata_text(html)
-            if nextdata:
-                return await _extract_jobs_from_search_page(url, nextdata, role, location, source)
-            # Fallback: stripped text extraction
+            nd_direct = _extract_nextdata_jobs_direct(html, url)
+            if nd_direct:
+                return nd_direct[:6]
+            # Claude fallback: contextual __NEXT_DATA__ slice or stripped text
+            nextdata_text = _extract_nextdata_text(html)
+            if nextdata_text:
+                return await _extract_jobs_from_search_page(url, nextdata_text, role, location, source)
             text = _html_to_text(html, max_chars=6000)
             return await _extract_jobs_from_search_page(url, text, role, location, source)
         except Exception as exc:
@@ -2131,7 +2259,7 @@ async def get_salary_intel(req: SalaryRequest) -> dict:
 # Health check — Addendum J §26.1
 # ---------------------------------------------------------------------------
 
-@app.get("/health", include_in_schema=False)
+@app.api_route("/health", methods=["GET", "HEAD"], include_in_schema=False)
 async def health(request: Request) -> dict:
     uptime_s = time.monotonic() - _PROCESS_START
     h, rem = divmod(int(uptime_s), 3600)
