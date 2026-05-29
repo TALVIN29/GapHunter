@@ -1070,8 +1070,20 @@ async def _find_jobs_via_web(role: str, location: str) -> list[dict]:
             logger.info("__NEXT_DATA__ Claude: %d jobs for '%s'", len(nextdata_claude_jobs), role)
             return nextdata_claude_jobs[:8]
 
-        # Path C: individual job page text extraction (original path)
-        page_texts = [(url, _html_to_text(html, max_chars=4000)) for url, html in page_htmls]
+        # Path C: content-aware text extraction — skips 80K header, reads actual job section
+        all_listing_jobs: list[dict] = []
+        for url, html in page_htmls[:3]:
+            source = _detect_job_source(url)
+            content_text = _html_to_text_content(html, max_chars=15000)
+            if content_text:
+                listing_jobs = await _extract_jobs_from_search_page(url, content_text, role, location, source)
+                all_listing_jobs.extend(listing_jobs)
+        if all_listing_jobs:
+            logger.info("Content extraction: %d jobs for '%s'", len(all_listing_jobs), role)
+            return all_listing_jobs[:8]
+
+        # Path D: fallback to beginning of page (original path — short pages / individual job pages)
+        page_texts = [(url, _html_to_text(html, max_chars=6000)) for url, html in page_htmls]
         extracted = await asyncio.gather(*[
             _extract_job_from_page(url, text) for url, text in page_texts
         ])
@@ -1079,18 +1091,6 @@ async def _find_jobs_via_web(role: str, location: str) -> list[dict]:
         if jobs:
             logger.info("Page text extraction: %d jobs for '%s'", len(jobs), role)
             return jobs
-
-        # Path D: treat pages as search result listings (wider text window)
-        all_listing_jobs: list[dict] = []
-        for url, html in page_htmls[:2]:
-            source = _detect_job_source(url)
-            listing_jobs = await _extract_jobs_from_search_page(
-                url, _html_to_text(html, max_chars=6000), role, location, source
-            )
-            all_listing_jobs.extend(listing_jobs)
-        if all_listing_jobs:
-            logger.info("Listing extraction: %d jobs for '%s'", len(all_listing_jobs), role)
-            return all_listing_jobs[:8]
 
     # Tier 4: Last resort — extract from DDG snippet text if available
     if ddg_html:
@@ -1543,6 +1543,25 @@ def _html_to_text(html: str, max_chars: int = 3000) -> str:
     return text[:max_chars]
 
 
+def _html_to_text_content(html: str, max_chars: int = 15000) -> str:
+    """
+    Extract text from the CONTENT section of long JS-heavy pages.
+    Navigation/header/scripts occupy the first ~80KB of React/Next.js pages.
+    Skipping to byte 80K+ dramatically increases the chance of hitting job listings.
+    Falls back to beginning if the page is short.
+    """
+    if len(html) > 120_000:
+        # Start past the header/nav/CSS/script preamble
+        start = 80_000
+        # Take a wide window — job listings can span 100K+ bytes
+        section = html[start:start + 300_000]
+    else:
+        section = html
+    text = re.sub(r"<[^>]+>", " ", section)
+    text = re.sub(r"\s+", " ", text).strip()
+    return text[:max_chars]
+
+
 async def _serp_via_unlocker(role: str, location: str) -> list[str]:
     """
     DuckDuckGo HTML SERP via Web Unlocker.
@@ -1751,12 +1770,14 @@ async def _search_direct_job_boards(role: str, location: str) -> list[dict]:
             nd_direct = _extract_nextdata_jobs_direct(html, url)
             if nd_direct:
                 return nd_direct[:6]
-            # Claude fallback: contextual __NEXT_DATA__ slice or stripped text
+            # Claude fallback: contextual __NEXT_DATA__ slice, then content section
             nextdata_text = _extract_nextdata_text(html)
             if nextdata_text:
-                return await _extract_jobs_from_search_page(url, nextdata_text, role, location, source)
-            text = _html_to_text(html, max_chars=6000)
-            return await _extract_jobs_from_search_page(url, text, role, location, source)
+                nd_jobs = await _extract_jobs_from_search_page(url, nextdata_text, role, location, source)
+                if nd_jobs:
+                    return nd_jobs
+            content_text = _html_to_text_content(html, max_chars=15000)
+            return await _extract_jobs_from_search_page(url, content_text, role, location, source)
         except Exception as exc:
             logger.warning("Board fetch failed for %s: %s", url, exc)
             return []
@@ -2439,8 +2460,11 @@ async def debug_html(url: str = "https://www.jobstreet.com.my/en/job-search/data
         except Exception as exc:
             nextdata_info["parse_error"] = str(exc)
 
-    # Text snippet — characters 5000-6000 (past the header/nav)
-    text_mid = _html_to_text(html[5000:10000], max_chars=2000)
+    # Text at multiple offsets — find where job listings actually start
+    def _slice(start: int, length: int = 8000) -> str:
+        chunk = html[start:start + length]
+        t = re.sub(r"<[^>]+>", " ", chunk)
+        return re.sub(r"\s+", " ", t).strip()[:400]
 
     return {
         "status": "ok",
@@ -2449,7 +2473,11 @@ async def debug_html(url: str = "https://www.jobstreet.com.my/en/job-search/data
         "jsonld_blocks": len(jsonld_blocks),
         "jsonld_types": jsonld_types,
         "nextdata": nextdata_info,
-        "text_sample_5k_10k": text_mid[:500],
+        "text_at_5k":   _slice(5_000),
+        "text_at_30k":  _slice(30_000),
+        "text_at_80k":  _slice(80_000),
+        "text_at_150k": _slice(150_000),
+        "text_at_250k": _slice(250_000),
     }
 
 
