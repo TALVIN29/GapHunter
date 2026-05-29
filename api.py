@@ -2062,11 +2062,18 @@ async def hr_competitors(req: HRRequest) -> dict:
     except Exception:
         normalized_role = role_input
 
-    postings, _ = await _scrape_with_fallback(
-        f"{normalized_role} {req.company_name}", req.location
-    )
+    # Use LinkedIn-only scrape — skip web extraction fallback (too memory-heavy for HR path)
+    try:
+        from scraper import scrape_jobs
+        postings = await asyncio.wait_for(
+            asyncio.to_thread(scrape_jobs, f"{normalized_role} {req.company_name}", req.location),
+            timeout=_SCRAPE_TIMEOUT_S,
+        )
+    except (asyncio.TimeoutError, Exception) as exc:
+        logger.warning("HR scrape failed: %s", exc)
+        postings = []
     if not postings:
-        return {"status": "error", "message": "No competitor postings found"}
+        return {"status": "error", "message": "No competitor postings found. Check the company name and role spelling."}
 
     enrich_postings(postings)
     jd_list = [p["job_description"] for p in postings if p["job_description"]]
