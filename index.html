@@ -191,7 +191,9 @@
     /* Particles container */
     #particles-js {
       position: fixed; inset: 0; z-index: 0; pointer-events: none;
+      opacity: 1;
     }
+    #particles-js canvas { display: block; }
 
     /* Ensure content is above particles */
     header, main { position: relative; z-index: 1; }
@@ -1113,7 +1115,7 @@
       </div>
     </div>
 
-    <div class="main-grid" style="">
+    <div class="main-grid" style="grid-template-columns: 300px 1fr;">
       <div class="search-col flex flex-col gap-4">
 
         <!-- Enterprise search -->
@@ -1149,7 +1151,7 @@
               <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
             </svg>
             <i x-show="!hrSearching" class="fa-solid fa-satellite-dish text-sm"></i>
-            <span x-text="hrSearching ? 'Scanning live postings…' : 'Run Market Intelligence'"></span>
+            <span class="whitespace-nowrap" x-text="hrSearching ? 'Scanning…' : 'Run Market Intelligence'"></span>
           </button>
 
           <p x-show="hrPostings > 0" class="text-xs text-slate-500 text-center leading-relaxed">
