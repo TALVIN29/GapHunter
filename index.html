@@ -180,6 +180,8 @@
     /* Animations */
     @keyframes shake { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-5px)} 40%{transform:translateX(5px)} 60%{transform:translateX(-3px)} 80%{transform:translateX(3px)} }
     .animate-shake { animation: shake .35s ease; }
+    @keyframes cv-indeterminate { 0%{transform:translateX(-100%)} 100%{transform:translateX(400%)} }
+    .cv-upload-bar { animation: cv-indeterminate 1.4s ease-in-out infinite; }
 
     @keyframes pulse-glow { 0%,100%{box-shadow:0 0 10px rgba(59,130,246,0.2)} 50%{box-shadow:0 0 25px rgba(59,130,246,0.4)} }
     .pulse-glow { animation: pulse-glow 2s ease-in-out infinite; }
@@ -417,12 +419,15 @@
               <i class="fa-solid fa-cloud-arrow-up text-blue-400"></i>
             </div>
             <div>
-              <p class="text-sm font-medium text-slate-300" x-text="cvStatus && cvStatus.startsWith('✓') ? 'CV uploaded successfully' : 'Upload your CV'"></p>
-              <p class="text-xs text-slate-500" x-text="cvStatus && cvStatus.startsWith('✓') ? cvStatus : 'PDF or DOCX · Auto-detects your role and skills'"></p>
+              <p class="text-sm font-medium text-slate-300" x-text="cvUploading ? 'Reading your CV…' : cvStatus && cvStatus.startsWith('✓') ? 'CV uploaded successfully' : 'Upload your CV'"></p>
+              <p class="text-xs text-slate-500" x-text="cvUploading ? 'Extracting skills with AI — takes ~10s' : cvStatus && cvStatus.startsWith('✓') ? cvStatus : 'Drop a PDF or DOCX · or type your skills below'"></p>
             </div>
             <i x-show="cvStatus && cvStatus.startsWith('✓')" class="fa-solid fa-circle-check text-emerald-400 ml-auto"></i>
             <input type="file" accept=".pdf,.doc,.docx" class="hidden" @change="uploadCV($event)" />
           </label>
+          <div x-show="cvUploading" class="w-full h-1 bg-slate-700/60 rounded-full overflow-hidden mb-3 -mt-2">
+            <div class="h-full bg-blue-500 rounded-full cv-upload-bar"></div>
+          </div>
           <p x-show="cvStatus && !cvStatus.startsWith('✓') && cvStatus !== 'Parsing…'" x-text="cvStatus" class="text-red-400 text-xs mb-4 -mt-2"></p>
 
           <!-- Find My Gaps button -->
@@ -1340,6 +1345,7 @@
         totalPostings: 0,
         circuitOpen: false,
         cvStatus: '',
+        cvUploading: false,
         selectedJob: null,
         analysis: null,
         analysing: false,
@@ -1665,6 +1671,7 @@
           const file = event.target.files?.[0];
           if (!file) return;
           this.cvStatus = 'Parsing…';
+          this.cvUploading = true;
           const form = new FormData();
           form.append('file', file);
           try {
@@ -1683,6 +1690,7 @@
               this.cvStatus = data.message || 'Parse failed — try manual entry';
             }
           } catch { this.cvStatus = 'Upload error — try manual entry'; }
+          finally { this.cvUploading = false; }
         },
 
         _startRoadmapPoll() {
