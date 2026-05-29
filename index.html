@@ -83,22 +83,40 @@
     <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
       <div class="flex items-center gap-3">
         <div class="flex flex-col leading-tight">
-          <span class="text-accent font-bold text-lg">GapHunter</span>
-          <span class="text-slate-500 text-xs tracking-wide">AI Labor Intelligence Agent</span>
+          <span class="text-accent font-bold text-lg tracking-tight">GapHunter</span>
+          <span class="text-slate-500 text-xs tracking-wide">Labor Market Intelligence · Powered by Bright Data</span>
         </div>
         <span class="badge badge-blue">v2.0</span>
       </div>
       <nav class="flex gap-6">
         <button class="pb-1 text-sm transition-all"
           :class="activeTab === 'seeker' ? 'tab-active' : 'tab-inactive'"
-          @click="activeTab = 'seeker'">Job Seeker</button>
+          @click="activeTab = 'seeker'">
+          <span class="hidden sm:inline">👤 </span>Individual Intelligence
+        </button>
         <button class="pb-1 text-sm transition-all"
           :class="activeTab === 'hr' ? 'tab-active' : 'tab-inactive'"
-          @click="activeTab = 'hr'; maybeInitRadar()">HR Intelligence</button>
+          @click="activeTab = 'hr'; maybeInitRadar()">
+          <span class="hidden sm:inline">🏢 </span>Enterprise Intelligence
+        </button>
       </nav>
       <div class="flex items-center gap-2">
         <span x-show="circuitOpen" class="badge badge-red">Demo Mode</span>
         <span x-show="!circuitOpen" class="badge badge-green">Live</span>
+      </div>
+    </div>
+    <!-- Two-sided value proposition strip -->
+    <div class="border-t border-border/50 bg-slate-900/30">
+      <div class="max-w-7xl mx-auto px-4 py-1.5 flex items-center justify-center gap-8 text-xs text-slate-500">
+        <span>
+          <span class="text-slate-300 font-medium">For individuals:</span>
+          Know your skill gaps · Get interview-ready · Tailor your application
+        </span>
+        <span class="text-slate-700">|</span>
+        <span>
+          <span class="text-slate-300 font-medium">For enterprises:</span>
+          Monitor competitor hiring · Benchmark skills · Track market demand in real time
+        </span>
       </div>
     </div>
   </header>
@@ -764,26 +782,37 @@
   </main>
 
   <!-- ════════════════════════════════════════════════════════════
-       HR INTELLIGENCE TAB
+       ENTERPRISE INTELLIGENCE TAB (Track 1 GTM + Track 2 Finance)
   ════════════════════════════════════════════════════════════ -->
   <main x-show="activeTab === 'hr'" class="max-w-7xl mx-auto px-4 py-6">
 
+    <!-- Enterprise value proposition -->
+    <div class="mb-4 px-4 py-3 rounded-lg border border-blue-800/40 bg-blue-900/10 text-xs text-slate-400 leading-relaxed">
+      <span class="text-slate-200 font-semibold">Enterprise Market Intelligence — </span>
+      Job postings are <span class="text-blue-300">alternative data</span>: real-time signals of competitor investment, skill scarcity, and hiring strategy.
+      GapHunter scrapes live postings via <span class="text-blue-300">Bright Data LinkedIn Dataset + SERP API</span>, extracts structured skill demand signals, and surfaces actionable competitive intelligence.
+      <span class="text-slate-500 ml-2">Track 1: GTM Intelligence · Track 2: Finance &amp; Market Intelligence</span>
+    </div>
+
     <div class="bento" style="grid-template-columns: 340px 1fr;">
 
-      <!-- HR Search Panel -->
+      <!-- Enterprise Search Panel -->
       <div class="card flex flex-col gap-4">
-        <h2 class="font-semibold text-sm text-slate-400 uppercase tracking-wider">Competitor Intel</h2>
+        <div>
+          <h2 class="font-semibold text-sm text-slate-400 uppercase tracking-wider">Competitor Hiring Scanner</h2>
+          <p class="text-xs text-slate-600 mt-1">What skills is a competitor actively hiring for right now?</p>
+        </div>
         <div>
           <label class="text-xs text-slate-500 mb-1 block">Company Name</label>
-          <input class="input-field" type="text" x-model="hrCompany" placeholder="e.g. Stripe" />
+          <input class="input-field" type="text" x-model="hrCompany" placeholder="e.g. Grab, Shopee, Maybank" />
         </div>
         <div>
-          <label class="text-xs text-slate-500 mb-1 block">Role</label>
-          <input class="input-field" type="text" x-model="hrRole" placeholder="e.g. Data Engineer" />
+          <label class="text-xs text-slate-500 mb-1 block">Role / Function</label>
+          <input class="input-field" type="text" x-model="hrRole" placeholder="e.g. Data Engineer, Product Manager" />
         </div>
         <div>
-          <label class="text-xs text-slate-500 mb-1 block">Location</label>
-          <input class="input-field" type="text" x-model="hrLocation" placeholder="e.g. Singapore or London, UK" />
+          <label class="text-xs text-slate-500 mb-1 block">Market</label>
+          <input class="input-field" type="text" x-model="hrLocation" placeholder="e.g. Kuala Lumpur, Singapore" />
         </div>
         <button class="btn-primary w-full flex items-center justify-center gap-2"
           @click="doHRSearch()" :disabled="hrSearching">
@@ -791,24 +820,28 @@
             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
           </svg>
-          <span x-text="hrSearching ? 'Scanning…' : 'Analyse Competitor'"></span>
+          <span x-text="hrSearching ? 'Scanning live postings…' : 'Run Market Intelligence'"></span>
         </button>
         <p x-show="hrPostings > 0" class="text-xs text-slate-500 text-center">
-          Analysed <span x-text="hrPostings" class="text-slate-300"></span> postings for
-          <span x-text="hrCompany" class="text-slate-300"></span>
+          Scraped &amp; analysed <span x-text="hrPostings" class="text-slate-300"></span> live postings
+          from <span x-text="hrCompany" class="text-slate-300"></span>
+          via <span class="text-blue-400">Bright Data</span>
         </p>
       </div>
 
-      <!-- HR Radar Chart — Addendum H: hardcoded for demo -->
+      <!-- Skill Demand Radar -->
       <div class="card flex flex-col gap-3">
         <div class="flex items-center justify-between">
-          <h2 class="font-semibold text-sm text-slate-400 uppercase tracking-wider">Skill Demand Radar</h2>
+          <div>
+            <h2 class="font-semibold text-sm text-slate-400 uppercase tracking-wider">Skill Demand Signal</h2>
+            <p class="text-xs text-slate-600 mt-0.5">Top skills extracted from live job postings — alternative data for talent market positioning</p>
+          </div>
           <span x-show="hrSkills.length > 0" class="badge badge-blue text-xs"
             x-text="hrCompany || 'Competitor'"></span>
         </div>
         <div x-show="hrSkills.length === 0"
           class="flex-1 flex items-center justify-center text-slate-600 text-sm">
-          Run a competitor search to see the radar
+          Run a competitor scan to see live skill demand signals
         </div>
         <div id="hr-radar-chart" x-show="hrSkills.length > 0" style="min-height: 260px;"></div>
       </div>
