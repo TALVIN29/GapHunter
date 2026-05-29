@@ -336,105 +336,135 @@
   ══════════════════════════════════════════ -->
   <main x-show="activeTab === 'seeker'">
 
-    <!-- ═══ HERO STATE — no jobs yet (LinkedIn/Indeed style) ═══ -->
-    <div x-show="!jobs.length" class="min-h-[88vh] flex flex-col items-center justify-center px-4 py-12 relative">
+    <!-- ═══ HERO STATE ═══ -->
+    <div x-show="!jobs.length" class="min-h-[92vh] flex flex-col items-center justify-center px-4 py-16 relative">
 
       <!-- Headline -->
-      <div class="text-center mb-10" data-aos="fade-up">
-        <p class="text-sm font-medium text-blue-400 mb-3 tracking-widest uppercase">
-          <i class="fa-solid fa-database mr-1.5"></i> Powered by Bright Data · Claude AI
-        </p>
-        <h1 class="text-4xl sm:text-5xl font-bold text-white leading-tight mb-4">
-          Find jobs. Know your gaps.<br>
-          <span class="text-accent">Get hired faster.</span>
+      <div class="text-center mb-8" data-aos="fade-up">
+        <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-xs text-blue-300 font-medium mb-5">
+          <span class="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse"></span>
+          Live labor market data via Bright Data
+        </div>
+        <h1 class="text-4xl sm:text-5xl lg:text-6xl font-bold text-white leading-tight mb-5">
+          LinkedIn shows you jobs.<br>
+          <span class="text-accent">GapHunter shows you</span><br>
+          what's standing between you.
         </h1>
-        <p class="text-slate-400 text-lg max-w-xl mx-auto leading-relaxed">
-          <span id="typed-hero" class="text-slate-300"></span>
+        <p class="text-slate-400 text-base sm:text-lg max-w-lg mx-auto min-h-[28px]">
+          <span id="typed-hero"></span>
         </p>
       </div>
 
-      <!-- Search card — centered, LinkedIn-style -->
-      <div class="w-full max-w-2xl" data-aos="fade-up" data-aos-delay="100">
-        <div class="glass-card card-glow p-6">
+      <!-- Agent pipeline — visible BEFORE search (for judges) -->
+      <div class="flex items-center gap-2 mb-8 flex-wrap justify-center text-xs" data-aos="fade-up" data-aos-delay="50">
+        <span class="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-800 border border-slate-700 text-slate-300">
+          <i class="fa-brands fa-linkedin text-blue-400"></i> Bright Data SERP
+        </span>
+        <i class="fa-solid fa-arrow-right text-slate-700"></i>
+        <span class="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-800 border border-slate-700 text-slate-300">
+          <i class="fa-solid fa-database text-blue-400"></i> LinkedIn Dataset
+        </span>
+        <i class="fa-solid fa-arrow-right text-slate-700"></i>
+        <span class="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-800 border border-slate-700 text-slate-300">
+          <i class="fa-solid fa-shield-check text-emerald-400"></i> Scam Detection
+        </span>
+        <i class="fa-solid fa-arrow-right text-slate-700"></i>
+        <span class="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-800 border border-slate-700 text-slate-300">
+          <i class="fa-solid fa-robot text-purple-400"></i> Claude AI Analysis
+        </span>
+        <i class="fa-solid fa-arrow-right text-slate-700"></i>
+        <span class="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-blue-600/20 border border-blue-500/40 text-blue-300 font-medium">
+          <i class="fa-solid fa-chart-bar text-blue-400"></i> Your Gap Report
+        </span>
+      </div>
 
-          <!-- Row 1: Job + Location side by side -->
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
-            <div>
-              <label class="text-xs text-slate-400 mb-1.5 block font-medium">
-                <i class="fa-solid fa-briefcase text-slate-500 mr-1.5"></i>Job Title
-                <span x-show="inferredRole && role === inferredRole" class="badge badge-green text-xs ml-2">
-                  <i class="fa-solid fa-wand-magic-sparkles text-xs"></i> Auto-detected
-                </span>
-              </label>
-              <input class="input-field text-base py-3 transition-all" type="text" x-model="role"
-                :class="roleError ? 'border-red-500/60 ring-2 ring-red-500/20 animate-shake' : (inferredRole && role === inferredRole ? 'border-emerald-500/40' : '')"
-                @input="roleError = false" placeholder="e.g. Data Analyst" @keydown.enter="doSearch()" />
-              <p x-show="roleError" class="text-red-400 text-xs mt-1 flex items-center gap-1">
-                <i class="fa-solid fa-circle-exclamation text-xs"></i>Enter a job title or upload your CV first
-              </p>
-            </div>
-            <div>
-              <label class="text-xs text-slate-400 mb-1.5 block font-medium">
-                <i class="fa-solid fa-location-dot text-slate-500 mr-1.5"></i>Location
-              </label>
-              <input class="input-field text-base py-3" type="text" x-model="location"
-                placeholder="e.g. Kuala Lumpur, KL" @keydown.enter="doSearch()" />
-            </div>
-          </div>
+      <!-- Search card -->
+      <div class="w-full max-w-xl" data-aos="fade-up" data-aos-delay="100">
+        <div class="glass-card card-glow" style="padding: 1.75rem;">
 
-          <!-- Row 2: Skills -->
-          <div class="mb-3">
-            <label class="text-xs text-slate-400 mb-1.5 block font-medium">
-              <i class="fa-solid fa-code text-slate-500 mr-1.5"></i>Your Skills
-              <span class="text-slate-600 ml-1">— required for gap analysis</span>
+          <!-- Job Title -->
+          <div class="mb-4">
+            <label class="text-xs font-semibold text-slate-400 mb-2 flex items-center gap-2">
+              <i class="fa-solid fa-briefcase text-blue-400/70"></i>
+              Job Title
+              <span x-show="inferredRole && role === inferredRole" class="badge badge-green text-xs ml-auto">
+                <i class="fa-solid fa-wand-magic-sparkles"></i> Auto-detected from CV
+              </span>
             </label>
-            <input class="input-field" type="text" x-model="skills"
-              placeholder="e.g. Python, SQL, Tableau, Excel — or upload CV below" @keydown.enter="doSearch()" />
+            <input class="input-field py-3 text-base transition-all" type="text" x-model="role"
+              :class="roleError ? 'border-red-500/60 ring-2 ring-red-500/20 animate-shake' : (inferredRole && role === inferredRole ? 'border-emerald-500/40' : '')"
+              @input="roleError = false" placeholder="e.g. Data Analyst, Software Engineer" @keydown.enter="doSearch()" />
+            <p x-show="roleError" class="text-red-400 text-xs mt-1.5 flex items-center gap-1">
+              <i class="fa-solid fa-circle-exclamation"></i> Enter a job title or upload your CV first
+            </p>
           </div>
+
+          <!-- Location -->
+          <div class="mb-4">
+            <label class="text-xs font-semibold text-slate-400 mb-2 flex items-center gap-2">
+              <i class="fa-solid fa-location-dot text-blue-400/70"></i>
+              Location
+            </label>
+            <input class="input-field py-3 text-base" type="text" x-model="location"
+              placeholder="e.g. Kuala Lumpur · Singapore · London" @keydown.enter="doSearch()" />
+          </div>
+
+          <!-- Skills -->
+          <div class="mb-5">
+            <label class="text-xs font-semibold text-slate-400 mb-2 flex items-center gap-2">
+              <i class="fa-solid fa-code text-blue-400/70"></i>
+              Your Skills
+              <span class="text-slate-600 font-normal">— needed to compute YOUR actual gaps</span>
+            </label>
+            <input class="input-field py-3" type="text" x-model="skills"
+              placeholder="e.g. Python, SQL, Excel, Tableau" @keydown.enter="doSearch()" />
+          </div>
+
+          <!-- Divider -->
+          <div class="divider mb-5"></div>
 
           <!-- CV Upload -->
-          <label class="flex items-center justify-center gap-2 w-full px-4 py-3 border border-dashed border-blue-500/25 rounded-xl cursor-pointer hover:border-blue-500/50 hover:bg-blue-500/5 transition-all text-sm text-slate-400">
-            <i class="fa-solid fa-cloud-arrow-up text-slate-400 text-base"></i>
-            <span x-text="cvStatus && cvStatus.startsWith('✓') ? cvStatus : 'Upload CV (PDF / DOCX) — auto-detects your role & skills'"></span>
+          <label class="flex items-center gap-3 w-full px-4 py-3.5 mb-4 border border-dashed border-blue-500/20 rounded-xl cursor-pointer hover:border-blue-500/40 hover:bg-blue-500/5 transition-all group">
+            <div class="w-9 h-9 rounded-lg bg-blue-500/10 border border-blue-500/15 flex items-center justify-center group-hover:bg-blue-500/15 transition-all shrink-0">
+              <i class="fa-solid fa-cloud-arrow-up text-blue-400"></i>
+            </div>
+            <div>
+              <p class="text-sm font-medium text-slate-300" x-text="cvStatus && cvStatus.startsWith('✓') ? 'CV uploaded successfully' : 'Upload your CV'"></p>
+              <p class="text-xs text-slate-500" x-text="cvStatus && cvStatus.startsWith('✓') ? cvStatus : 'PDF or DOCX · Auto-detects your role and skills'"></p>
+            </div>
+            <i x-show="cvStatus && cvStatus.startsWith('✓')" class="fa-solid fa-circle-check text-emerald-400 ml-auto"></i>
             <input type="file" accept=".pdf,.doc,.docx" class="hidden" @change="uploadCV($event)" />
           </label>
-          <p x-show="cvStatus && !cvStatus.startsWith('✓')" x-text="cvStatus" class="text-red-400 text-xs -mt-1"></p>
+          <p x-show="cvStatus && !cvStatus.startsWith('✓') && cvStatus !== 'Parsing…'" x-text="cvStatus" class="text-red-400 text-xs mb-4 -mt-2"></p>
 
           <!-- Find My Gaps button -->
-          <button class="btn-primary w-full gap-2 py-3.5 text-base" @click="doSearch()" :disabled="searching">
-            <svg x-show="searching" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+          <button class="btn-primary w-full py-4 text-base font-bold gap-2" @click="doSearch()" :disabled="searching">
+            <svg x-show="searching" class="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24">
               <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
               <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
             </svg>
-            <i x-show="!searching" class="fa-solid fa-rocket"></i>
+            <i x-show="!searching" class="fa-solid fa-rocket text-lg"></i>
             <span x-text="searching ? 'Agent Running…' : 'Find My Gaps'"></span>
           </button>
 
-          <!-- Progress steps during search -->
-          <div x-show="searching" class="mt-4 space-y-1.5 border-t border-blue-500/10 pt-4">
+          <!-- Agent progress during search -->
+          <div x-show="searching" class="mt-5 space-y-2 border-t border-blue-500/10 pt-5">
+            <p class="text-xs text-slate-500 font-medium mb-3 flex items-center gap-2">
+              <i class="fa-solid fa-circle-nodes text-blue-400 animate-pulse"></i>
+              AI Agent Pipeline Running
+            </p>
             <template x-for="(step, i) in searchSteps" :key="i">
-              <div class="flex items-center gap-2.5" :class="i >= searchStepIdx + 1 ? 'opacity-20' : 'opacity-100'">
-                <div class="w-4 h-4 flex items-center justify-center shrink-0">
-                  <i x-show="i < searchStepIdx" class="fa-solid fa-check text-emerald-400 text-xs"></i>
-                  <div x-show="i === searchStepIdx" class="w-2 h-2 rounded-full bg-blue-400 animate-pulse"></div>
-                  <div x-show="i > searchStepIdx" class="w-1.5 h-1.5 rounded-full bg-slate-700"></div>
+              <div class="flex items-center gap-3" :class="i >= searchStepIdx + 1 ? 'opacity-20' : 'opacity-100'">
+                <div class="w-5 h-5 rounded-full border flex items-center justify-center shrink-0"
+                  :class="i < searchStepIdx ? 'bg-emerald-500/15 border-emerald-500/40' : i === searchStepIdx ? 'bg-blue-500/15 border-blue-500/40' : 'border-slate-700'">
+                  <i x-show="i < searchStepIdx" class="fa-solid fa-check text-emerald-400" style="font-size:.6rem"></i>
+                  <div x-show="i === searchStepIdx" class="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse"></div>
                 </div>
                 <span x-text="step" class="text-xs"
-                  :class="i === searchStepIdx ? 'text-slate-200' : i < searchStepIdx ? 'text-slate-500 line-through' : 'text-slate-700'"></span>
+                  :class="i === searchStepIdx ? 'text-slate-200 font-medium' : i < searchStepIdx ? 'text-slate-500 line-through' : 'text-slate-700'"></span>
               </div>
             </template>
           </div>
-        </div>
-
-        <!-- Powered by strip -->
-        <div class="flex items-center justify-center gap-4 mt-5 text-xs text-slate-600 flex-wrap">
-          <span class="flex items-center gap-1.5"><i class="fa-brands fa-linkedin text-slate-500"></i> LinkedIn Dataset</span>
-          <span class="text-slate-800">·</span>
-          <span class="flex items-center gap-1.5"><i class="fa-solid fa-magnifying-glass text-slate-500"></i> SERP API</span>
-          <span class="text-slate-800">·</span>
-          <span class="flex items-center gap-1.5"><i class="fa-solid fa-unlock text-slate-500"></i> Web Unlocker</span>
-          <span class="text-slate-800">·</span>
-          <span class="flex items-center gap-1.5"><i class="fa-solid fa-robot text-slate-500"></i> Claude AI</span>
         </div>
       </div>
     </div>
