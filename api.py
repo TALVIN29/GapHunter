@@ -1030,10 +1030,10 @@ async def _find_jobs_via_web(role: str, location: str) -> list[dict]:
         logger.info("DDG Unlocker: 0 — trying direct board URLs")
         job_urls = _direct_board_urls(role, location)
 
-    # Fetch pages — return raw HTML (not stripped text) for structured extraction
+    # Fetch pages — use Scraping Browser for JS-heavy sites so jobs are rendered
     async def _fetch_safe(url: str) -> tuple[str, str]:
         try:
-            html = await _fetch_best_effort(url)
+            html = await _fetch_with_browser(url)
             return url, html or ""
         except Exception:
             return url, ""
@@ -1528,6 +1528,12 @@ _UNLOCKER_ENDPOINT = "https://api.brightdata.com/request"
 _UNLOCKER_ZONE = os.environ.get("BRIGHTDATA_UNLOCKER_ZONE", "unlocker")
 _UNLOCKER_TIMEOUT_S = 15
 
+# Bright Data Scraping Browser — full JS execution for SPA/React job boards
+# Same REST endpoint as Web Unlocker but uses a browser zone.
+# Set BRIGHTDATA_BROWSER_ZONE in Render to the name of your scraping_browser zone.
+_BROWSER_ZONE = os.environ.get("BRIGHTDATA_BROWSER_ZONE", "")
+_BROWSER_TIMEOUT_S = 60
+
 
 def _unlocker_fetch_sync(url: str) -> str:
     """Synchronous Web Unlocker fetch — run via asyncio.to_thread."""
@@ -1543,6 +1549,46 @@ def _unlocker_fetch_sync(url: str) -> str:
     )
     resp.raise_for_status()
     return resp.text
+
+
+def _browser_fetch_sync(url: str) -> str:
+    """Bright Data Scraping Browser — executes JavaScript, returns fully-rendered HTML.
+    Uses same REST endpoint as Web Unlocker but with a browser zone.
+    Required for SPA/React job boards (Jobstreet, Indeed) that load jobs via JS.
+    """
+    import requests as _req
+    token = os.environ.get("BRIGHTDATA_API_TOKEN", "")
+    if not token or not _BROWSER_ZONE:
+        return ""
+    try:
+        resp = _req.post(
+            _UNLOCKER_ENDPOINT,
+            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+            json={"url": url, "zone": _BROWSER_ZONE, "format": "raw"},
+            timeout=_BROWSER_TIMEOUT_S,
+        )
+        resp.raise_for_status()
+        return resp.text
+    except Exception as exc:
+        logger.warning("Scraping Browser failed for %s: %s", url, exc)
+    return ""
+
+
+async def _fetch_with_browser(url: str) -> str:
+    """Bright Data Scraping Browser — JS-rendered HTML for SPA job boards.
+    Falls back to Web Unlocker if browser zone not configured or fails.
+    """
+    if _BROWSER_ZONE:
+        try:
+            async with asyncio.timeout(_BROWSER_TIMEOUT_S + 5):
+                text = await asyncio.to_thread(_browser_fetch_sync, url)
+            if len(text) >= 500:
+                logger.info("Scraping Browser: %d chars from %s", len(text), url)
+                return text
+            logger.warning("Scraping Browser: too short (%d chars) — falling back to Unlocker", len(text))
+        except Exception as exc:
+            logger.warning("Scraping Browser timeout/error: %s — falling back", exc)
+    return await _fetch_with_unlocker(url)
 
 
 async def _fetch_with_unlocker(url: str) -> str:
@@ -1786,7 +1832,9 @@ async def _search_direct_job_boards(role: str, location: str) -> list[dict]:
     async def _fetch_board(url: str) -> list[dict]:
         source = _detect_job_source(url)
         try:
-            html = await _fetch_with_unlocker(url)
+            # Use Scraping Browser for JS-heavy boards (Jobstreet, Indeed)
+            # so job listings are rendered before extraction
+            html = await _fetch_with_browser(url)
             if not html or len(html) < 500:
                 return []
             # Structured extraction — zero Claude calls, fastest path
@@ -2428,6 +2476,7 @@ async def debug_connectivity() -> dict:
             "BRIGHTDATA_DATASET_ID": bool(os.environ.get("BRIGHTDATA_DATASET_ID")),
             "BRIGHTDATA_DATASET_ID_LINKEDIN": bool(os.environ.get("BRIGHTDATA_DATASET_ID_LINKEDIN")),
             "BRIGHTDATA_DATASET_ID_INDEED": bool(os.environ.get("BRIGHTDATA_DATASET_ID_INDEED")),
+            "BRIGHTDATA_BROWSER_ZONE": os.environ.get("BRIGHTDATA_BROWSER_ZONE", "(not set)"),
             "DEMO_MODE": _DEMO_MODE,
         },
     }

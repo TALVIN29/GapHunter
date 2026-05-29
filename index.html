@@ -303,6 +303,11 @@
             Tailorman
             <span class="badge badge-purple" style="font-size:.55rem; padding:.05rem .35rem;">PRO</span>
           </button>
+          <button class="px-3 py-1.5 transition-all"
+            :class="analysisTab === 'interview' ? 'tab-active' : 'tab-inactive'"
+            @click="analysisTab = 'interview'; if(!interviewQuestions) runInterviewPrep()">
+            Interview
+          </button>
         </div>
 
         <!-- Tab: Gap Analysis -->
@@ -486,6 +491,54 @@
             <span class="text-slate-400" x-text="selectedJob?.source"></span>
             <span x-show="selectedJob?.date_posted" class="text-slate-600"> · Posted: </span>
             <span x-show="selectedJob?.date_posted" class="text-slate-400" x-text="fmtDate(selectedJob?.date_posted)"></span>
+          </div>
+        </div>
+
+        <!-- Tab: Interview Prep -->
+        <div x-show="selectedJob && analysisTab === 'interview'" class="flex flex-col gap-3">
+          <!-- Loading -->
+          <div x-show="loadingInterview" class="flex items-center gap-2 text-slate-500 text-sm py-4">
+            <svg class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+            </svg>
+            Predicting interview questions…
+          </div>
+
+          <!-- Questions loaded -->
+          <div x-show="!loadingInterview && interviewQuestions?.length">
+            <p class="text-xs text-slate-500 mb-3">
+              Predicted for <span class="text-slate-300" x-text="selectedJob?.title"></span>
+              <span x-show="selectedJob?.company"> at <span class="text-slate-300" x-text="selectedJob?.company"></span></span>
+            </p>
+            <div class="flex flex-col gap-3">
+              <template x-for="(q, i) in interviewQuestions" :key="i">
+                <div class="border border-border rounded-lg p-3">
+                  <div class="flex items-start gap-2">
+                    <span class="text-accent font-mono text-xs shrink-0 mt-0.5" x-text="'Q' + (i+1)"></span>
+                    <div class="flex-1">
+                      <p class="text-slate-200 text-xs font-medium" x-text="q.question"></p>
+                      <p class="text-slate-500 text-xs mt-1.5 leading-relaxed" x-text="'💡 ' + q.tip"></p>
+                      <span class="inline-block mt-1.5 text-xs px-1.5 py-0.5 rounded border"
+                        :class="{
+                          'border-blue-700 text-blue-400': q.type === 'technical',
+                          'border-yellow-700 text-yellow-400': q.type === 'behavioural',
+                          'border-purple-700 text-purple-400': q.type === 'situational'
+                        }"
+                        x-text="q.type"></span>
+                    </div>
+                  </div>
+                </div>
+              </template>
+            </div>
+            <button @click="runInterviewPrep()" class="btn-ghost text-xs mt-2 w-full">Regenerate</button>
+          </div>
+
+          <!-- Empty — no analysis yet -->
+          <div x-show="!loadingInterview && !interviewQuestions" class="text-center py-6">
+            <div class="text-3xl mb-2">🎯</div>
+            <p class="text-sm text-slate-300 font-medium">Interview questions will appear here</p>
+            <p class="text-xs text-slate-500 mt-1">Select a job and run gap analysis first</p>
           </div>
         </div>
 
@@ -908,6 +961,8 @@
         _stepTimer: null,
         tailormanResult: null,
         loadingTailor: false,
+        interviewQuestions: null,
+        loadingInterview: false,
 
         // ── roadmap ──────────────────────────────────────────
         roadmaps: {},
@@ -1063,6 +1118,7 @@
           this.analysis = null;
           this.companyProfile = null;
           this.tailormanResult = null;
+          this.interviewQuestions = null;
           this.analysisTab = 'gaps';
 
           // Fire both in parallel — don't block on company profile
@@ -1143,6 +1199,34 @@
             console.warn('Salary intel failed', err);
           } finally {
             this.loadingSalary = false;
+          }
+        },
+
+        // ── interview prep ────────────────────────────────────
+        async runInterviewPrep() {
+          if (!this.selectedJob) return;
+          this.interviewQuestions = null;
+          this.loadingInterview = true;
+          try {
+            const res = await fetch(`${API}/api/interview`, {
+              method: 'POST',
+              headers: _headers(),
+              body: JSON.stringify({
+                job_title: this.selectedJob.title || '',
+                company: this.selectedJob.company || '',
+                location: this.selectedJob.location || '',
+                seniority: this.selectedJob.seniority || '',
+                gap_skills: this.analysis?.gap_skills || [],
+                highlight_skills: this.analysis?.highlight_skills || [],
+                user_skills: this.skills || '',
+              }),
+            });
+            const data = await res.json();
+            if (data.status === 'ok') this.interviewQuestions = data.questions;
+          } catch (err) {
+            console.warn('Interview prep failed', err);
+          } finally {
+            this.loadingInterview = false;
           }
         },
 
