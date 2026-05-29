@@ -183,16 +183,44 @@ def _poll_snapshot(snapshot_id: str, max_wait_s: int = SERP_POLL_MAX_S) -> dict:
     return {}
 
 
+_SERP_GL_MAP: dict[str, str] = {
+    "malaysia": "my", "kuala lumpur": "my", "kl": "my", "penang": "my",
+    "johor": "my", "selangor": "my",
+    "singapore": "sg",
+    "australia": "au", "sydney": "au", "melbourne": "au",
+    "new zealand": "nz", "auckland": "nz",
+    "india": "in", "bangalore": "in", "mumbai": "in", "delhi": "in",
+    "philippines": "ph", "manila": "ph",
+    "indonesia": "id", "jakarta": "id",
+    "thailand": "th", "bangkok": "th",
+    "united kingdom": "gb", "london": "gb",
+    "germany": "de", "berlin": "de",
+    "canada": "ca", "toronto": "ca",
+    "united states": "us", "new york": "us", "san francisco": "us",
+}
+
+
+def _serp_gl(location: str) -> str:
+    loc = location.lower()
+    for kw, gl in _SERP_GL_MAP.items():
+        if kw in loc:
+            return gl
+    return "us"
+
+
 def _step1_serp(job_role: str, location: str) -> list[str]:
     """Bright Data SERP → LinkedIn job view URLs.
 
     Handles both sync responses (organic results) and async (snapshot_id).
     Quotes role for precision; location unquoted for recall.
+    gl parameter geo-filters Google results to the correct country.
     """
     if location:
         keyword = f'"{job_role}" {location} site:linkedin.com/jobs/view'
+        gl = _serp_gl(location)
     else:
         keyword = f'"{job_role}" jobs site:linkedin.com/jobs/view'
+        gl = "us"
 
     payload = {
         "input": [
@@ -200,6 +228,7 @@ def _step1_serp(job_role: str, location: str) -> list[str]:
                 "url": "https://www.google.com/",
                 "keyword": keyword,
                 "language": "en",
+                "gl": gl,
                 "tbs": "qdr:m",
                 "tbm": "",
                 "uule": "",

@@ -142,8 +142,10 @@
       background: #1a2640;
       border: 1px solid #2a3f60;
       border-radius: .875rem; padding: 1rem; cursor: pointer;
-      transition: all .2s;
+      transition: border-color .2s, background .2s, box-shadow .2s, transform .2s;
+      animation: card-in .25s ease both;
     }
+    @keyframes card-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
     .job-card:hover { border-color: #3b82f6; background: #1e2e4a; transform: translateX(2px); box-shadow: 0 4px 20px rgba(0,0,0,0.3); }
     .job-card-active { border-color: #3b82f6 !important; background: #1e3055 !important; box-shadow: 0 0 20px rgba(59,130,246,0.15); }
 
@@ -515,7 +517,7 @@
       </div>
 
       <!-- 2-column results: Jobs | Analysis -->
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-3">
 
         <!-- Job cards -->
         <div class="flex flex-col gap-2.5" id="jobs-list">
@@ -962,7 +964,7 @@
       </div><!-- end 2-col results grid -->
 
       <!-- ── Demand Score + Gap Chart ────────────────────────── -->
-    <div class="card mt-5" x-show="gaps.length > 0" data-aos="fade-up">
+    <div class="card mt-2" x-show="gaps.length > 0" data-aos="fade-up">
       <div class="flex items-center justify-between mb-3">
         <h2 class="font-semibold text-slate-300 flex items-center gap-2">
           <i class="fa-solid fa-chart-bar text-accent text-sm"></i>
@@ -972,15 +974,21 @@
       </div>
 
       <!-- Formula explainer -->
-      <div class="mb-3 px-4 py-3 rounded-xl bg-black/30 border border-blue-500/10 text-xs">
-        <p class="text-slate-400 font-semibold mb-1 flex items-center gap-1.5">
+      <div class="mb-3 px-4 py-3 rounded-xl bg-slate-800/60 border border-blue-500/20 text-xs">
+        <p class="text-slate-200 font-semibold mb-2 flex items-center gap-1.5">
           <i class="fa-solid fa-function text-blue-400 text-xs"></i>
           How demand is scored
         </p>
-        <p class="font-mono text-slate-500 text-xs leading-relaxed">
-          score = (0.35 × <span class="text-blue-400">frequency</span> + 0.25 × <span class="text-emerald-400">freshness</span> + 0.20 × <span class="text-yellow-400">opportunity</span> + 0.10 × <span class="text-purple-400">dual_signal</span> + 0.10 × <span class="text-pink-400">cross_source</span>) × 1.3 bonus
+        <p class="font-mono text-slate-300 text-xs leading-relaxed break-words whitespace-normal">
+          score = (0.35 × <span class="text-blue-400 font-semibold">frequency</span> + 0.25 × <span class="text-emerald-400 font-semibold">freshness</span> + 0.20 × <span class="text-yellow-400 font-semibold">opportunity</span> + 0.10 × <span class="text-purple-400 font-semibold">dual_signal</span> + 0.10 × <span class="text-pink-400 font-semibold">cross_source</span>) × 1.3 bonus
         </p>
-        <p class="text-slate-700 mt-1">frequency = posting frequency · freshness = recency · opportunity = low competition · dual_signal = LinkedIn+SERP · cross_source = multi-platform verified</p>
+        <p class="text-slate-400 mt-2 break-words leading-relaxed">
+          <span class="text-blue-400">frequency</span> = posting frequency ·
+          <span class="text-emerald-400">freshness</span> = recency ·
+          <span class="text-yellow-400">opportunity</span> = low competition ·
+          <span class="text-purple-400">dual_signal</span> = LinkedIn+SERP ·
+          <span class="text-pink-400">cross_source</span> = multi-platform verified
+        </p>
       </div>
 
       <div id="gaps-chart" style="min-height: 220px;"></div>
@@ -1444,10 +1452,10 @@
 
           this.searching = true;
           this.searchStepIdx = 0;
-          this.jobs = [];
+          // Don't clear jobs here — keep old results visible during re-search
+          // to avoid flashing back to the hero. Jobs update when new results arrive.
           this.gaps = [];
           this.sessionId = null;
-          this.totalPostings = 0;
           this.selectedJob = null;
           this.analysis = null;
           clearInterval(this._stepTimer);
@@ -1513,14 +1521,8 @@
                 timer: 5000, timerProgressBar: true });
             }
 
-            // GSAP animate job cards in
             this.$nextTick(() => {
               renderGapsChart(this.gaps);
-              if (typeof gsap !== 'undefined') {
-                gsap.from('#jobs-list .job-card', {
-                  opacity: 0, y: 12, stagger: 0.05, duration: 0.35, ease: 'power2.out',
-                });
-              }
             });
 
             this.fetchSalary();
