@@ -1140,230 +1140,227 @@
   ══════════════════════════════════════════ -->
   <main x-show="activeTab === 'hr'" class="max-w-screen-xl mx-auto px-4 sm:px-6 py-6">
 
-
-    <div class="flex flex-col lg:flex-row gap-4 items-start">
-      <div class="w-full lg:w-72 shrink-0 flex flex-col gap-4">
-
-        <!-- Enterprise search -->
-        <div class="glass-card card-glow flex flex-col gap-4">
-          <div class="flex items-center gap-2 mb-1">
-            <i class="fa-solid fa-crosshairs text-accent text-sm"></i>
-            <span class="section-label">Competitor Hiring Scanner</span>
-          </div>
-          <p class="text-xs text-slate-500 -mt-2">What skills is a competitor actively hiring for right now?</p>
-
-          <div>
-            <label class="text-xs text-slate-400 mb-1.5 flex items-center gap-1.5">
-              <i class="fa-solid fa-building text-slate-500 text-xs"></i> Company
-            </label>
-            <input class="input-field" type="text" x-model="hrCompany" placeholder="e.g. Grab, Shopee, Maybank" />
-            <p class="text-slate-600 text-xs mt-1">Use exact company name as it appears on LinkedIn</p>
-          </div>
-          <div>
-            <label class="text-xs text-slate-400 mb-1.5 flex items-center gap-1.5">
-              <i class="fa-solid fa-briefcase text-slate-500 text-xs"></i> Role / Function
-            </label>
-            <input class="input-field" type="text" x-model="hrRole" placeholder="e.g. Data Engineer, Product Manager" />
-          </div>
-          <div>
-            <label class="text-xs text-slate-400 mb-1.5 flex items-center gap-1.5">
-              <i class="fa-solid fa-globe text-slate-500 text-xs"></i> Market
-            </label>
-            <input class="input-field" type="text" x-model="hrLocation" placeholder="e.g. Kuala Lumpur, Singapore" />
-          </div>
-
-          <button class="btn-primary w-full gap-2 py-3" @click="doHRSearch()" :disabled="hrSearching">
-            <svg x-show="hrSearching" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
-              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
-            </svg>
-            <i x-show="!hrSearching" class="fa-solid fa-satellite-dish text-sm"></i>
-            <span class="whitespace-nowrap" x-text="hrSearching ? 'Scanning…' : 'Run Market Intelligence'"></span>
-          </button>
-
-          <p x-show="hrPostings > 0" class="text-xs text-slate-500 text-center leading-relaxed">
-            Scraped &amp; analysed <span x-text="hrPostings" class="text-slate-200 font-medium"></span> live postings
-            from <span x-text="hrCompany" class="text-slate-200 font-medium"></span>
-            via <span class="text-blue-400 font-medium">Bright Data</span>
-          </p>
-        </div>
+    <!-- ── Search bar (TOP, full-width) ── -->
+    <div class="glass-card card-glow mb-6">
+      <div class="flex items-center gap-2 mb-4">
+        <i class="fa-solid fa-crosshairs text-accent text-sm"></i>
+        <span class="section-label">Competitor Hiring Scanner</span>
+        <span class="text-slate-600 text-xs ml-1">— what skills is a competitor actively hiring for right now?</span>
       </div>
-
-      <!-- Results column -->
-      <div class="flex-1 min-w-0 flex flex-col gap-4">
-        <!-- Loading bar -->
-        <div x-show="hrSearching" class="w-full h-1 bg-slate-700/60 rounded-full overflow-hidden">
-          <div class="h-full bg-blue-500 rounded-full cv-upload-bar"></div>
+      <div class="flex flex-wrap gap-3 items-end">
+        <div class="flex-1 min-w-[160px]">
+          <label class="text-xs text-slate-500 mb-1.5 block">Company <span class="text-slate-600">(exact LinkedIn name)</span></label>
+          <input class="input-field py-2.5" type="text" x-model="hrCompany" placeholder="e.g. Grab, Shopee, Maybank" @keydown.enter="doHRSearch()" />
         </div>
-
-        <div class="card card-glow">
-          <div class="flex items-center justify-between mb-3">
-            <div>
-              <h2 class="font-semibold text-slate-300 flex items-center gap-2">
-                <i class="fa-solid fa-chart-bar text-accent text-sm"></i>
-                Skill Demand Signal
-              </h2>
-              <p class="text-xs text-slate-500 mt-0.5">
-                <span x-show="hrSkills.length > 0">Live signals from <span class="text-blue-400 font-medium" x-text="hrPostings"></span> postings via Bright Data · Source: LinkedIn</span>
-                <span x-show="hrSkills.length === 0">Skills <span x-text="hrCompany || 'competitor'"></span> is actively hiring for right now</span>
-              </p>
-            </div>
-            <span x-show="hrSkills.length > 0" class="badge badge-blue" x-text="hrCompany || 'Competitor'"></span>
-          </div>
-
-          <!-- Empty state -->
-          <div x-show="!hrSearching && hrSkills.length === 0" class="flex flex-col items-center justify-center py-16 text-center gap-3">
-            <div class="w-14 h-14 rounded-2xl bg-blue-500/10 border border-blue-500/15 flex items-center justify-center">
-              <i class="fa-solid fa-satellite-dish text-blue-400/60 text-2xl"></i>
-            </div>
-            <p class="text-slate-400 text-sm font-medium">No scan run yet</p>
-            <p class="text-slate-600 text-xs">Enter a company and role, then click Run Market Intelligence</p>
-          </div>
-
-          <!-- Scanning state -->
-          <div x-show="hrSearching" class="flex flex-col items-center justify-center py-16 text-center gap-3">
-            <svg class="animate-spin w-8 h-8 text-blue-400" fill="none" viewBox="0 0 24 24">
-              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
-              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
-            </svg>
-            <p class="text-slate-300 text-sm font-medium">Scanning <span x-text="hrCompany || 'competitor'" class="text-blue-400"></span> live postings…</p>
-            <p class="text-slate-500 text-xs">Bright Data SERP → LinkedIn Dataset → Claude AI extraction</p>
-          </div>
-
-          <div id="hr-radar-chart" style="min-height: 220px; width:100%;"></div>
+        <div class="flex-1 min-w-[140px]">
+          <label class="text-xs text-slate-500 mb-1.5 block">Role / Function</label>
+          <input class="input-field py-2.5" type="text" x-model="hrRole" placeholder="e.g. Data Engineer" @keydown.enter="doHRSearch()" />
         </div>
-
-        <!-- Skills breakdown table -->
-        <div class="card" x-show="hrSkills.length > 0" data-aos="fade-up">
-          <div class="flex items-center justify-between mb-3">
-            <h2 class="font-semibold text-slate-300 flex items-center gap-2">
-              <i class="fa-solid fa-table-list text-accent text-sm"></i>
-              Top Skills Breakdown
-            </h2>
-          </div>
-          <!-- Formula — collapsible -->
-          <div class="mb-4" x-data="{open:false}">
-            <button @click="open=!open" class="flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-300 transition-colors mb-1">
-              <i class="fa-solid fa-function text-blue-400/70 text-xs"></i>
-              How demand score is computed
-              <i class="fa-solid fa-chevron-down text-xs transition-transform" :class="open ? 'rotate-180' : ''"></i>
-            </button>
-            <div x-show="open" x-transition class="px-3 py-2.5 rounded-lg bg-slate-800/60 border border-blue-500/20 text-xs">
-              <p class="font-mono text-slate-300 text-xs break-words whitespace-normal leading-relaxed">
-                score = (0.35 × <span class="text-blue-400 font-semibold">frequency</span> + 0.25 × <span class="text-emerald-400 font-semibold">freshness</span> + 0.20 × <span class="text-yellow-400 font-semibold">opportunity</span> + 0.10 × <span class="text-purple-400 font-semibold">dual_signal</span> + 0.10 × <span class="text-pink-400 font-semibold">cross_source</span>) × <span class="text-orange-400 font-bold">1.3 bonus</span>
-              </p>
-              <p class="text-slate-500 mt-1.5 text-xs break-words leading-relaxed">
-                <span class="text-blue-400">frequency</span> = posting count ·
-                <span class="text-emerald-400">freshness</span> = recency ·
-                <span class="text-yellow-400">opportunity</span> = low competition ·
-                <span class="text-orange-400">1.3×</span> = cross-platform verified
-              </p>
-            </div>
-          </div>
-          <div class="overflow-x-auto">
-            <table class="w-full text-sm">
-              <thead>
-                <tr class="border-b border-blue-500/10 text-left">
-                  <th class="pb-2.5 section-label">Rank</th>
-                  <th class="pb-2.5 section-label">Skill</th>
-                  <th class="pb-2.5 section-label">Demand Score</th>
-                  <th class="pb-2.5 section-label">Signal</th>
-                </tr>
-              </thead>
-              <tbody>
-                <template x-for="(sk, idx) in hrSkills.slice(0, 10)" :key="sk.skill">
-                  <tr class="border-b border-blue-500/8 hover:bg-blue-500/5 transition-colors">
-                    <td class="py-2.5 text-slate-500 font-mono text-xs" x-text="idx + 1"></td>
-                    <td class="py-2.5 font-medium text-slate-200" x-text="sk.skill"></td>
-                    <td class="py-2.5">
-                      <div class="flex items-center gap-2">
-                        <div class="bg-black/40 border border-blue-500/10 rounded-full h-1.5 w-24">
-                          <div class="bg-accent h-1.5 rounded-full transition-all"
-                            :style="'width:' + Math.min(100, (sk.score / (hrSkills[0]?.score || 1)) * 100) + '%'">
-                          </div>
-                        </div>
-                        <span class="text-xs text-slate-400 font-mono" x-text="sk.score.toFixed(3)"></span>
-                      </div>
-                    </td>
-                    <td class="py-2.5">
-                      <span class="badge text-xs"
-                        :class="sk.score > 0.7 ? 'badge-red' : sk.score > 0.4 ? 'badge-yellow' : 'badge-blue'"
-                        x-text="sk.score > 0.7 ? '🔥 High Demand' : sk.score > 0.4 ? '📈 Growing' : '🌱 Emerging'">
-                      </span>
-                    </td>
-                  </tr>
-                </template>
-              </tbody>
-            </table>
-          </div>
-        <!-- Outreach Message + Training Roadmap -->
-        <div class="flex flex-col gap-4" x-show="hrSkills.length > 0" data-aos="fade-up">
-
-          <!-- LinkedIn Outreach Message -->
-          <div class="card">
-            <div class="flex items-center justify-between mb-3">
-              <h2 class="font-semibold text-slate-300 flex items-center gap-2">
-                <i class="fa-brands fa-linkedin text-blue-400 text-sm"></i>
-                Candidate Outreach Message
-              </h2>
-              <button x-show="hrOutreachMsg"
-                @click="navigator.clipboard.writeText(hrOutreachMsg).then(() => { $event.target.textContent='Copied!'; setTimeout(() => $event.target.textContent='Copy', 1500) })"
-                class="text-xs px-3 py-1 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-300 hover:bg-blue-500/20 transition-all">
-                Copy
-              </button>
-            </div>
-            <p class="text-slate-500 text-xs mb-3">Ready-to-send LinkedIn message to invite the right candidate</p>
-            <div x-show="hrLoadingRec && !hrOutreachMsg" class="flex items-center gap-2 text-slate-500 text-xs py-3">
-              <i class="fa-solid fa-spinner animate-spin"></i> Generating outreach message…
-            </div>
-            <div x-show="hrOutreachMsg" class="bg-slate-900/60 border border-blue-500/10 rounded-xl p-4 text-sm text-slate-200 leading-relaxed italic" x-text="hrOutreachMsg"></div>
-          </div>
-
-          <!-- Internal Training Roadmap -->
-          <div class="card">
-            <h2 class="font-semibold text-slate-300 flex items-center gap-2 mb-1">
-              <i class="fa-solid fa-graduation-cap text-purple-400 text-sm"></i>
-              Internal Training Academy Roadmap
-            </h2>
-            <p class="text-slate-500 text-xs mb-4">Upskill your existing team toward the skills the market demands</p>
-            <div x-show="hrLoadingRec && !hrTrainingRoadmap?.length" class="flex items-center gap-2 text-slate-500 text-xs py-3">
-              <i class="fa-solid fa-spinner animate-spin"></i> Building training roadmap…
-            </div>
-            <div class="flex flex-col gap-3" x-show="hrTrainingRoadmap?.length > 0">
-              <template x-for="(item, i) in hrTrainingRoadmap" :key="i">
-                <div class="rounded-xl border border-blue-500/10 bg-slate-900/40 p-4">
-                  <div class="flex items-center justify-between mb-2">
-                    <div class="flex items-center gap-2">
-                      <span class="w-6 h-6 rounded-full bg-purple-500/20 border border-purple-500/30 text-purple-300 text-xs font-bold flex items-center justify-center" x-text="i+1"></span>
-                      <span class="font-semibold text-slate-200 text-sm" x-text="item.skill"></span>
-                    </div>
-                    <span class="text-xs text-slate-500 flex items-center gap-1">
-                      <i class="fa-regular fa-clock text-xs"></i>
-                      <span x-text="item.timeline"></span>
-                    </span>
-                  </div>
-                  <p class="text-xs text-slate-400 mb-2 leading-relaxed" x-text="item.why"></p>
-                  <ul class="flex flex-col gap-1 mb-2">
-                    <template x-for="(step, si) in item.steps" :key="si">
-                      <li class="text-xs text-slate-300 flex items-start gap-1.5">
-                        <i class="fa-solid fa-circle-check text-emerald-400/70 text-xs mt-0.5 shrink-0"></i>
-                        <span x-text="step"></span>
-                      </li>
-                    </template>
-                  </ul>
-                  <div class="flex items-center gap-1.5 mt-2 pt-2 border-t border-blue-500/10">
-                    <i class="fa-solid fa-book-open text-blue-400 text-xs"></i>
-                    <span class="text-xs text-blue-300" x-text="item.resource"></span>
-                  </div>
-                </div>
-              </template>
-            </div>
-          </div>
-
+        <div class="flex-1 min-w-[130px]">
+          <label class="text-xs text-slate-500 mb-1.5 block">Market</label>
+          <input class="input-field py-2.5" type="text" x-model="hrLocation" placeholder="e.g. Kuala Lumpur" @keydown.enter="doHRSearch()" />
         </div>
-
+        <button class="btn-primary gap-2 py-2.5 px-5 shrink-0" @click="doHRSearch()" :disabled="hrSearching">
+          <svg x-show="hrSearching" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+          </svg>
+          <i x-show="!hrSearching" class="fa-solid fa-satellite-dish text-sm"></i>
+          <span x-text="hrSearching ? 'Scanning…' : 'Run Market Intelligence'"></span>
+        </button>
       </div>
+      <!-- Loading bar -->
+      <div x-show="hrSearching" class="w-full h-1 bg-slate-700/60 rounded-full overflow-hidden mt-4">
+        <div class="h-full bg-blue-500 rounded-full cv-upload-bar"></div>
+      </div>
+      <div x-show="hrSearching" class="mt-3 text-xs text-slate-500 text-center">
+        Bright Data SERP → LinkedIn Dataset → Claude AI extraction · takes ~60s
+      </div>
+      <p x-show="hrPostings > 0 && !hrSearching" class="text-xs text-slate-500 mt-3">
+        Scraped &amp; analysed <span x-text="hrPostings" class="text-slate-200 font-medium"></span> live postings from
+        <span x-text="hrCompany" class="text-blue-300 font-medium"></span> via Bright Data · Source: LinkedIn
+      </p>
     </div>
+
+    <!-- ── Empty state ── -->
+    <div x-show="!hrSearching && hrSkills.length === 0" class="flex flex-col items-center justify-center py-20 text-center gap-3">
+      <div class="w-16 h-16 rounded-2xl bg-blue-500/10 border border-blue-500/15 flex items-center justify-center">
+        <i class="fa-solid fa-satellite-dish text-blue-400/60 text-2xl"></i>
+      </div>
+      <p class="text-slate-400 text-sm font-medium">No scan run yet</p>
+      <p class="text-slate-600 text-xs">Fill in company, role, and market above then click Run Market Intelligence</p>
+    </div>
+
+    <!-- ── Results (stacked, visible after scan) ── -->
+    <div x-show="hrSkills.length > 0" class="flex flex-col gap-6">
+
+      <!-- Section 1: Skill Demand Chart -->
+      <div class="card card-glow">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h2 class="font-semibold text-slate-200 flex items-center gap-2 text-base">
+              <i class="fa-solid fa-chart-bar text-accent"></i> Skill Demand Signal
+            </h2>
+            <p class="text-xs text-slate-500 mt-0.5">
+              Live signals from <span class="text-blue-400 font-medium" x-text="hrPostings"></span> postings via Bright Data · Source: LinkedIn
+            </p>
+          </div>
+          <span class="badge badge-blue px-3 py-1" x-text="hrCompany"></span>
+        </div>
+        <div id="hr-radar-chart" style="min-height: 220px; width:100%;"></div>
+      </div>
+
+      <!-- Section 2: Top Skills Breakdown -->
+      <div class="card">
+        <h2 class="font-semibold text-slate-200 flex items-center gap-2 text-base mb-4">
+          <i class="fa-solid fa-table-list text-accent"></i> Top Skills Breakdown
+        </h2>
+        <!-- Formula collapsible -->
+        <div class="mb-4" x-data="{open:false}">
+          <button @click="open=!open" class="flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-300 transition-colors">
+            <i class="fa-solid fa-function text-blue-400/70 text-xs"></i>
+            How demand score is computed
+            <i class="fa-solid fa-chevron-down text-xs transition-transform duration-200" :class="open ? 'rotate-180' : ''"></i>
+          </button>
+          <div x-show="open" x-transition class="mt-2 px-3 py-2.5 rounded-lg bg-slate-800/60 border border-blue-500/20 text-xs">
+            <p class="font-mono text-slate-300 break-words whitespace-normal leading-relaxed">
+              score = (0.35 × <span class="text-blue-400 font-semibold">frequency</span> + 0.25 × <span class="text-emerald-400 font-semibold">freshness</span> + 0.20 × <span class="text-yellow-400 font-semibold">opportunity</span> + 0.10 × <span class="text-purple-400 font-semibold">dual_signal</span> + 0.10 × <span class="text-pink-400 font-semibold">cross_source</span>) × <span class="text-orange-400 font-bold">1.3 bonus</span>
+            </p>
+            <p class="text-slate-500 mt-1.5 break-words leading-relaxed">
+              <span class="text-blue-400">frequency</span> = posting count · <span class="text-emerald-400">freshness</span> = recency · <span class="text-yellow-400">opportunity</span> = low competition · <span class="text-orange-400">1.3×</span> = cross-platform verified
+            </p>
+          </div>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="border-b border-blue-500/10 text-left">
+                <th class="pb-3 section-label w-12">Rank</th>
+                <th class="pb-3 section-label">Skill</th>
+                <th class="pb-3 section-label">Demand Score</th>
+                <th class="pb-3 section-label">Signal</th>
+              </tr>
+            </thead>
+            <tbody>
+              <template x-for="(sk, idx) in hrSkills.slice(0, 10)" :key="sk.skill">
+                <tr class="border-b border-blue-500/8 hover:bg-blue-500/5 transition-colors">
+                  <td class="py-3 text-slate-500 font-mono text-xs" x-text="idx + 1"></td>
+                  <td class="py-3 font-medium text-slate-200" x-text="sk.skill"></td>
+                  <td class="py-3">
+                    <div class="flex items-center gap-2">
+                      <div class="bg-black/40 border border-blue-500/10 rounded-full h-1.5 w-28">
+                        <div class="bg-accent h-1.5 rounded-full transition-all" :style="'width:' + Math.min(100, (sk.score / (hrSkills[0]?.score || 1)) * 100) + '%'"></div>
+                      </div>
+                      <span class="text-xs text-slate-400 font-mono" x-text="sk.score.toFixed(3)"></span>
+                    </div>
+                  </td>
+                  <td class="py-3">
+                    <span class="badge text-xs" :class="sk.score > 0.7 ? 'badge-red' : sk.score > 0.4 ? 'badge-yellow' : 'badge-blue'"
+                      x-text="sk.score > 0.7 ? '🔥 High Demand' : sk.score > 0.4 ? '📈 Growing' : '🌱 Emerging'"></span>
+                  </td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Section 3: Source Postings -->
+      <div class="card" x-show="hrPostingLinks.length > 0">
+        <h2 class="font-semibold text-slate-200 flex items-center gap-2 text-base mb-3">
+          <i class="fa-brands fa-linkedin text-blue-400"></i> Source Postings
+          <span class="text-xs text-slate-500 font-normal">— the live LinkedIn postings used for this analysis</span>
+        </h2>
+        <div class="flex flex-col gap-2">
+          <template x-for="(url, i) in hrPostingLinks.slice(0, 9)" :key="i">
+            <a :href="url" target="_blank" rel="noopener"
+              class="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-800/40 border border-blue-500/10 hover:border-blue-500/30 hover:bg-blue-500/5 transition-all text-xs text-blue-300 group">
+              <i class="fa-brands fa-linkedin text-blue-400/60 shrink-0"></i>
+              <span class="truncate" x-text="'LinkedIn Posting #' + (i+1) + ' — ' + url.split('/').slice(-2, -1)[0].replace(/-at-.*/, '').replace(/-/g,' ')"></span>
+              <i class="fa-solid fa-arrow-up-right-from-square text-xs ml-auto opacity-0 group-hover:opacity-100 shrink-0"></i>
+            </a>
+          </template>
+        </div>
+      </div>
+
+      <!-- Section 4: Candidate Outreach -->
+      <div class="card">
+        <h2 class="font-semibold text-slate-200 flex items-center gap-2 text-base mb-1">
+          <i class="fa-brands fa-linkedin text-blue-400"></i> Candidate Outreach Message
+        </h2>
+        <p class="text-slate-500 text-xs mb-4">Enter the candidate's profile below — GapHunter drafts a personalised LinkedIn message based on who they are</p>
+
+        <!-- Candidate input -->
+        <div class="flex gap-2 mb-4">
+          <input class="input-field flex-1 py-2.5 text-sm" type="text" x-model="hrCandidateProfile"
+            placeholder="Paste LinkedIn URL or describe candidate — e.g. John, Senior Python Dev at Axiata, 5 yrs experience"
+            @keydown.enter="generateOutreach()" />
+          <button class="btn-primary px-4 py-2.5 text-sm shrink-0" @click="generateOutreach()" :disabled="hrGeneratingMsg">
+            <svg x-show="hrGeneratingMsg" class="animate-spin w-3.5 h-3.5" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+            </svg>
+            <span x-show="!hrGeneratingMsg"><i class="fa-solid fa-pen-nib mr-1"></i>Draft Message</span>
+            <span x-show="hrGeneratingMsg">Drafting…</span>
+          </button>
+        </div>
+
+        <div x-show="!hrOutreachMsg && !hrGeneratingMsg" class="text-slate-600 text-xs py-2">
+          ↑ Enter the candidate's name, current role, company, and experience — the more context the better the message
+        </div>
+        <div x-show="hrGeneratingMsg && !hrOutreachMsg" class="flex items-center gap-2 text-slate-500 text-xs py-2">
+          <i class="fa-solid fa-spinner animate-spin"></i> Drafting personalised message…
+        </div>
+        <div x-show="hrOutreachMsg" class="relative">
+          <div class="bg-slate-900/60 border border-blue-500/15 rounded-xl p-4 text-sm text-slate-200 leading-relaxed whitespace-pre-wrap" x-text="hrOutreachMsg"></div>
+          <button @click="navigator.clipboard.writeText(hrOutreachMsg).then(() => { $event.target.innerHTML='<i class=\'fa-solid fa-check\'></i> Copied!'; setTimeout(() => $event.target.innerHTML='<i class=\'fa-regular fa-copy\'></i> Copy', 2000) })"
+            class="absolute top-3 right-3 text-xs px-3 py-1.5 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-300 hover:bg-blue-500/20 transition-all flex items-center gap-1.5">
+            <i class="fa-regular fa-copy text-xs"></i> Copy
+          </button>
+        </div>
+      </div>
+
+      <!-- Section 4: Training Academy Roadmap -->
+      <div class="card">
+        <h2 class="font-semibold text-slate-200 flex items-center gap-2 text-base mb-1">
+          <i class="fa-solid fa-graduation-cap text-purple-400"></i> Internal Training Academy Roadmap
+        </h2>
+        <p class="text-slate-500 text-xs mb-5">Upskill your existing team toward the skills the market demands — hand this to your L&D team</p>
+        <div x-show="hrLoadingRec && !hrTrainingRoadmap?.length" class="flex items-center gap-2 text-slate-500 text-xs py-3">
+          <i class="fa-solid fa-spinner animate-spin"></i> Building training roadmap…
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4" x-show="hrTrainingRoadmap?.length > 0">
+          <template x-for="(item, i) in hrTrainingRoadmap" :key="i">
+            <div class="rounded-xl border border-purple-500/15 bg-slate-900/40 p-4 flex flex-col gap-3">
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                  <span class="w-7 h-7 rounded-full bg-purple-500/20 border border-purple-500/30 text-purple-300 text-xs font-bold flex items-center justify-center" x-text="i+1"></span>
+                  <span class="font-semibold text-slate-100 text-sm capitalize" x-text="item.skill"></span>
+                </div>
+                <span class="text-xs text-slate-500 flex items-center gap-1 shrink-0">
+                  <i class="fa-regular fa-clock text-xs"></i><span x-text="item.timeline"></span>
+                </span>
+              </div>
+              <p class="text-xs text-slate-400 leading-relaxed" x-text="item.why"></p>
+              <ul class="flex flex-col gap-1.5">
+                <template x-for="(step, si) in item.steps" :key="si">
+                  <li class="text-xs text-slate-300 flex items-start gap-1.5">
+                    <i class="fa-solid fa-circle-check text-emerald-400/70 text-xs mt-0.5 shrink-0"></i>
+                    <span x-text="step"></span>
+                  </li>
+                </template>
+              </ul>
+              <a :href="item.link || '#'" target="_blank" rel="noopener"
+                class="mt-auto flex items-center gap-1.5 px-3 py-2 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-300 hover:bg-blue-500/20 transition-all text-xs font-medium">
+                <i class="fa-solid fa-arrow-up-right-from-square text-xs"></i>
+                <span x-text="item.resource"></span>
+              </a>
+            </div>
+          </template>
+        </div>
+      </div>
+
+    </div><!-- end results -->
 
   </main>
 
@@ -1497,6 +1494,9 @@
         hrOutreachMsg: '',
         hrTrainingRoadmap: [],
         hrLoadingRec: false,
+        hrCandidateProfile: '',
+        hrGeneratingMsg: false,
+        hrPostingLinks: [],
 
         init() {
           // Init AOS
@@ -1846,8 +1846,10 @@
             if (data.status === 'ok') {
               this.hrSkills = data.top_skills || [];
               this.hrPostings = data.postings_analysed || 0;
+              this.hrPostingLinks = data.posting_urls || [];
               this.hrOutreachMsg = '';
               this.hrTrainingRoadmap = [];
+              this.hrCandidateProfile = '';
               this.$nextTick(() => setTimeout(() => renderHRRadar(this.hrSkills), 120));
               this.fetchHRRecommendations();
             } else {
@@ -1871,11 +1873,31 @@
             });
             if (res.ok) {
               const d = await res.json();
-              if (d.outreach_message) this.hrOutreachMsg = d.outreach_message;
               if (d.training_roadmap?.length) this.hrTrainingRoadmap = d.training_roadmap;
             }
           } catch { /* silent */ }
           finally { this.hrLoadingRec = false; }
+        },
+
+        async generateOutreach() {
+          if (!this.hrSkills.length || !this.hrCandidateProfile.trim()) return;
+          this.hrGeneratingMsg = true;
+          this.hrOutreachMsg = '';
+          const topSkills = this.hrSkills.slice(0, 5).map(s => s.skill).join(', ');
+          try {
+            const res = await fetch(`${API}/api/hr/outreach`, {
+              method: 'POST', headers: _headers(),
+              body: JSON.stringify({
+                company: this.hrCompany, role: this.hrRole,
+                top_skills: topSkills, candidate_profile: this.hrCandidateProfile,
+              }),
+            });
+            if (res.ok) {
+              const d = await res.json();
+              if (d.message) this.hrOutreachMsg = d.message;
+            }
+          } catch { /* silent */ }
+          finally { this.hrGeneratingMsg = false; }
         },
 
         maybeInitRadar() {

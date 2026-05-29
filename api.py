@@ -2077,12 +2077,15 @@ async def hr_competitors(req: HRRequest) -> dict:
         key=lambda x: x[1], reverse=True
     )[:15]
 
+    posting_urls = [p.get("url", "") for p in postings if p.get("url")]
+
     return {
         "status": "ok",
         "company": req.company_name,
         "role": req.role,
         "postings_analysed": len(postings),
         "top_skills": [{"skill": s, "score": sc} for s, sc in top_skills],
+        "posting_urls": posting_urls,
     }
 
 
@@ -2206,15 +2209,14 @@ async def hr_recommendations(req: HRRecommendationRequest) -> dict:
         f"Live skills in demand from their job postings: {req.top_skills}.\n\n"
         "Return JSON only with exactly this structure:\n"
         "{\n"
-        '  "outreach_message": "<A professional LinkedIn message (4-5 sentences) that an HR recruiter sends to a target candidate. '
-        "Open with a personalised hook referencing the candidate's likely background. "
-        "Mention the role and company. Highlight 2 key skills from the demand list. "
-        'End with a soft call to action. Write in first person as the recruiter.>",\n'
         '  "training_roadmap": [\n'
         '    {"skill": "<skill name>", "why": "<1 sentence: why this skill matters for the team>", '
-        '"steps": ["<step 1>", "<step 2>", "<step 3>"], "resource": "<one specific course/tool/platform>", "timeline": "<e.g. 6 weeks>"},\n'
-        '    {"skill": "<skill name>", "why": "...", "steps": ["...", "...", "..."], "resource": "...", "timeline": "..."},\n'
-        '    {"skill": "<skill name>", "why": "...", "steps": ["...", "...", "..."], "resource": "...", "timeline": "..."}\n'
+        '"steps": ["<step 1>", "<step 2>", "<step 3>"], '
+        '"resource": "<specific course/platform name e.g. fast.ai Practical Deep Learning>", '
+        '"link": "<real URL to that course e.g. https://course.fast.ai>", '
+        '"timeline": "<e.g. 6 weeks>"},\n'
+        '    {"skill": "...", "why": "...", "steps": ["...", "...", "..."], "resource": "...", "link": "https://...", "timeline": "..."},\n'
+        '    {"skill": "...", "why": "...", "steps": ["...", "...", "..."], "resource": "...", "link": "https://...", "timeline": "..."}\n'
         "  ]\n"
         "}"
     )
@@ -2232,12 +2234,53 @@ async def hr_recommendations(req: HRRecommendationRequest) -> dict:
         data = json.loads(text)
         return {
             "status": "ok",
-            "outreach_message": data.get("outreach_message", ""),
             "training_roadmap": data.get("training_roadmap", []),
         }
     except Exception as exc:
         logger.warning("HR recommendations failed: %s", exc)
         return {"status": "error", "message": "Could not generate recommendations"}
+
+
+class HROutreachRequest(BaseModel):
+    company: str
+    role: str = ""
+    top_skills: str
+    candidate_profile: str  # name/URL/background the HR entered
+
+
+@app.post("/api/hr/outreach", dependencies=[Depends(_require_demo_secret)])
+async def hr_outreach(req: HROutreachRequest) -> dict:
+    """Generate a personalised LinkedIn outreach message for a specific candidate."""
+    prompt = (
+        f"You are an HR recruiter at a company hiring for: {req.role or 'this role'}.\n"
+        f"The candidate you want to reach out to: {req.candidate_profile}\n"
+        f"Key skills you need (from live market data): {req.top_skills}\n\n"
+        "Write a personalised LinkedIn connection message (4-6 sentences) to invite this candidate to explore the role.\n"
+        "Rules:\n"
+        "- Open with a specific hook based on the candidate's background\n"
+        "- Mention 2 skills from the list that match their profile\n"
+        "- Keep it conversational, not corporate\n"
+        "- End with a soft, no-pressure call to action\n"
+        "- Write in first person as the recruiter\n"
+        "- No subject line, just the message body\n\n"
+        'Return JSON only: {"message": "<the outreach message>"}'
+    )
+    try:
+        async with asyncio.timeout(20):
+            resp = await _client.messages.create(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=400,
+                system="You are a professional recruiter. Return valid JSON only.",
+                messages=[{"role": "user", "content": prompt}],
+            )
+        text = resp.content[0].text.strip()
+        if text.startswith("```"):
+            text = text.split("\n", 1)[1].rsplit("```", 1)[0].strip()
+        data = json.loads(text)
+        return {"status": "ok", "message": data.get("message", "")}
+    except Exception as exc:
+        logger.warning("HR outreach failed: %s", exc)
+        return {"status": "error", "message": "Could not generate outreach message"}
 
 
 @app.post("/api/company", dependencies=[Depends(_require_demo_secret)])
