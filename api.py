@@ -2173,6 +2173,40 @@ def _company_serp_sync(company_name: str) -> dict:
     }
 
 
+class HRRecommendationRequest(BaseModel):
+    company: str
+    role: str = ""
+    top_skills: str  # comma-separated
+
+
+@app.post("/api/hr/recommendations", dependencies=[Depends(_require_demo_secret)])
+async def hr_recommendations(req: HRRecommendationRequest) -> dict:
+    """Generate hire profile + staff training plan from competitor skill signals."""
+    prompt = (
+        f"Company: {req.company}. Role: {req.role or 'general'}.\n"
+        f"Live skill demand signals from their job postings: {req.top_skills}.\n\n"
+        "Return JSON only:\n"
+        '{"hire_profile": "<2-3 sentences: ideal candidate — seniority level, must-have skills, experience type to target in recruitment>", '
+        '"training_plan": "<2-3 sentences: top 3 skills to upskill your existing team toward, with a practical suggested approach for each>"}'
+    )
+    try:
+        async with asyncio.timeout(20):
+            resp = await _client.messages.create(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=400,
+                system="You are an HR strategist. Return valid JSON only.",
+                messages=[{"role": "user", "content": prompt}],
+            )
+        text = resp.content[0].text.strip()
+        if text.startswith("```"):
+            text = text.split("\n", 1)[1].rsplit("```", 1)[0].strip()
+        data = json.loads(text)
+        return {"status": "ok", "hire_profile": data.get("hire_profile", ""), "training_plan": data.get("training_plan", "")}
+    except Exception as exc:
+        logger.warning("HR recommendations failed: %s", exc)
+        return {"status": "error", "message": "Could not generate recommendations"}
+
+
 @app.post("/api/company", dependencies=[Depends(_require_demo_secret)])
 async def get_company_profile(req: CompanyRequest) -> dict:
     """

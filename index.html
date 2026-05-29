@@ -1140,26 +1140,9 @@
   ══════════════════════════════════════════ -->
   <main x-show="activeTab === 'hr'" class="max-w-screen-xl mx-auto px-4 sm:px-6 py-6">
 
-    <!-- Track banner -->
-    <div class="mb-5 px-5 py-4 rounded-xl border border-blue-500/20 bg-blue-500/5" data-aos="fade-down">
-      <div class="flex items-start gap-3">
-        <i class="fa-solid fa-chart-network text-blue-400 text-lg mt-0.5"></i>
-        <div>
-          <p class="text-slate-200 font-semibold text-sm">Enterprise Market Intelligence</p>
-          <p class="text-xs text-slate-400 mt-1 leading-relaxed">
-            Job postings are <span class="text-blue-300 font-medium">alternative data</span> — real-time signals of competitor investment, skill scarcity, and hiring strategy.
-            GapHunter ingests live postings via <span class="text-blue-300 font-medium">Bright Data LinkedIn Dataset + SERP API</span>, extracts structured skill demand signals, and surfaces actionable competitive intelligence.
-          </p>
-          <div class="flex gap-2 mt-2.5">
-            <span class="badge badge-blue text-xs"><i class="fa-solid fa-chart-line mr-1 text-xs"></i> Track 1: GTM Intelligence</span>
-            <span class="badge badge-purple text-xs"><i class="fa-solid fa-coins mr-1 text-xs"></i> Track 2: Finance & Market Intelligence</span>
-          </div>
-        </div>
-      </div>
-    </div>
 
-    <div class="main-grid" style="grid-template-columns: 300px 1fr;">
-      <div class="search-col flex flex-col gap-4">
+    <div class="flex flex-col lg:flex-row gap-4 items-start">
+      <div class="w-full lg:w-72 shrink-0 flex flex-col gap-4">
 
         <!-- Enterprise search -->
         <div class="glass-card card-glow flex flex-col gap-4">
@@ -1205,32 +1188,74 @@
         </div>
       </div>
 
-      <!-- Radar + table (right/center) -->
-      <div class="xl:col-span-2 flex flex-col gap-4">
+      <!-- Results column -->
+      <div class="flex-1 min-w-0 flex flex-col gap-4">
+        <!-- Loading bar -->
+        <div x-show="hrSearching" class="w-full h-1 bg-slate-700/60 rounded-full overflow-hidden">
+          <div class="h-full bg-blue-500 rounded-full cv-upload-bar"></div>
+        </div>
+
         <div class="card card-glow">
           <div class="flex items-center justify-between mb-3">
             <div>
               <h2 class="font-semibold text-slate-300 flex items-center gap-2">
-                <i class="fa-solid fa-radar text-accent text-sm"></i>
+                <i class="fa-solid fa-chart-bar text-accent text-sm"></i>
                 Skill Demand Signal
               </h2>
-              <p class="text-xs text-slate-600 mt-0.5">Alternative data for talent market positioning</p>
+              <p class="text-xs text-slate-500 mt-0.5">
+                <span x-show="hrSkills.length > 0">Live signals from <span class="text-blue-400 font-medium" x-text="hrPostings"></span> postings via Bright Data · Source: LinkedIn</span>
+                <span x-show="hrSkills.length === 0">Skills <span x-text="hrCompany || 'competitor'"></span> is actively hiring for right now</span>
+              </p>
             </div>
             <span x-show="hrSkills.length > 0" class="badge badge-blue" x-text="hrCompany || 'Competitor'"></span>
           </div>
-          <div x-show="hrSkills.length === 0" class="flex flex-col items-center justify-center py-16 text-center">
-            <i class="fa-solid fa-chart-radar text-slate-700 text-4xl mb-3"></i>
-            <p class="text-slate-600 text-sm">Run a competitor scan to see live skill demand signals</p>
+
+          <!-- Empty state -->
+          <div x-show="!hrSearching && hrSkills.length === 0" class="flex flex-col items-center justify-center py-16 text-center gap-3">
+            <div class="w-14 h-14 rounded-2xl bg-blue-500/10 border border-blue-500/15 flex items-center justify-center">
+              <i class="fa-solid fa-satellite-dish text-blue-400/60 text-2xl"></i>
+            </div>
+            <p class="text-slate-400 text-sm font-medium">No scan run yet</p>
+            <p class="text-slate-600 text-xs">Enter a company and role, then click Run Market Intelligence</p>
           </div>
-          <div id="hr-radar-chart" x-show="hrSkills.length > 0" style="min-height: 260px;"></div>
+
+          <!-- Scanning state -->
+          <div x-show="hrSearching" class="flex flex-col items-center justify-center py-16 text-center gap-3">
+            <svg class="animate-spin w-8 h-8 text-blue-400" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+            </svg>
+            <p class="text-slate-300 text-sm font-medium">Scanning <span x-text="hrCompany || 'competitor'" class="text-blue-400"></span> live postings…</p>
+            <p class="text-slate-500 text-xs">Bright Data SERP → LinkedIn Dataset → Claude AI extraction</p>
+          </div>
+
+          <div x-show="hrSkills.length > 0" id="hr-radar-chart" style="min-height: 220px; width:100%;"></div>
         </div>
 
         <!-- Skills breakdown table -->
         <div class="card" x-show="hrSkills.length > 0" data-aos="fade-up">
-          <h2 class="font-semibold text-slate-300 flex items-center gap-2 mb-4">
-            <i class="fa-solid fa-table-list text-accent text-sm"></i>
-            Top Skills Breakdown
-          </h2>
+          <div class="flex items-center justify-between mb-3">
+            <h2 class="font-semibold text-slate-300 flex items-center gap-2">
+              <i class="fa-solid fa-table-list text-accent text-sm"></i>
+              Top Skills Breakdown
+            </h2>
+          </div>
+          <!-- Formula (same as individual view) -->
+          <div class="mb-4 px-3 py-2.5 rounded-lg bg-slate-800/60 border border-blue-500/20 text-xs">
+            <p class="text-slate-200 font-semibold mb-1.5 flex items-center gap-1.5">
+              <i class="fa-solid fa-function text-blue-400 text-xs"></i> How demand score is computed
+            </p>
+            <p class="font-mono text-slate-300 text-xs break-words whitespace-normal leading-relaxed">
+              score = (0.35 × <span class="text-blue-400 font-semibold">frequency</span> + 0.25 × <span class="text-emerald-400 font-semibold">freshness</span> + 0.20 × <span class="text-yellow-400 font-semibold">opportunity</span> + 0.10 × <span class="text-purple-400 font-semibold">dual_signal</span> + 0.10 × <span class="text-pink-400 font-semibold">cross_source</span>) × <span class="text-orange-400 font-bold cursor-help group relative inline-flex items-center gap-0.5">1.3 bonus<span class="absolute bottom-full left-0 mb-2 w-60 p-3 rounded-xl bg-slate-900 border border-orange-400/30 text-slate-200 font-sans font-normal text-xs leading-relaxed shadow-xl z-50 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"><span class="text-orange-400 font-semibold block mb-1">Cross-platform bonus</span>30% uplift when skill confirmed by both LinkedIn and SERP independently.</span></span>
+            </p>
+            <p class="text-slate-400 mt-1.5 text-xs break-words leading-relaxed">
+              <span class="text-blue-400">frequency</span> = appears across postings ·
+              <span class="text-emerald-400">freshness</span> = recent postings ·
+              <span class="text-yellow-400">opportunity</span> = low competition ·
+              <span class="text-purple-400">dual_signal</span> = LinkedIn+SERP ·
+              <span class="text-pink-400">cross_source</span> = multi-platform
+            </p>
+          </div>
           <div class="overflow-x-auto">
             <table class="w-full text-sm">
               <thead>
@@ -1267,7 +1292,35 @@
               </tbody>
             </table>
           </div>
+        <!-- Hire Profile + Training Plan -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4" x-show="hrSkills.length > 0" data-aos="fade-up">
+
+          <!-- Ideal Hire Profile -->
+          <div class="card">
+            <h2 class="font-semibold text-slate-300 flex items-center gap-2 mb-3">
+              <i class="fa-solid fa-user-tie text-emerald-400 text-sm"></i>
+              Ideal Candidate Profile
+            </h2>
+            <div x-show="!hrHireProfile && !hrLoadingRec" class="text-slate-500 text-xs py-4 text-center">
+              <i class="fa-solid fa-spinner animate-spin mr-1"></i> Generating hire profile…
+            </div>
+            <div x-show="hrHireProfile" class="text-xs text-slate-300 leading-relaxed" x-html="hrHireProfile"></div>
+          </div>
+
+          <!-- Staff Training Plan -->
+          <div class="card">
+            <h2 class="font-semibold text-slate-300 flex items-center gap-2 mb-3">
+              <i class="fa-solid fa-graduation-cap text-purple-400 text-sm"></i>
+              Staff Training Plan
+            </h2>
+            <div x-show="!hrTrainingPlan && !hrLoadingRec" class="text-slate-500 text-xs py-4 text-center">
+              <i class="fa-solid fa-spinner animate-spin mr-1"></i> Generating training plan…
+            </div>
+            <div x-show="hrTrainingPlan" class="text-xs text-slate-300 leading-relaxed" x-html="hrTrainingPlan"></div>
+          </div>
+
         </div>
+
       </div>
     </div>
 
@@ -1331,26 +1384,24 @@
       if (!el) return;
       const top8 = skills.slice(0, 8);
       const opts = {
-        series: [{ name: 'Demand', data: top8.map(s => +(s.score * 100).toFixed(1)) }],
-        chart: { type: 'radar', height: 260, background: 'transparent',
-          toolbar: { show: false } },
-        xaxis: { categories: top8.map(s => s.skill) },
+        series: [{ name: 'Demand Score', data: top8.map(s => +(s.score).toFixed(3)) }],
+        chart: { type: 'bar', height: 220, background: 'transparent', toolbar: { show: false },
+          animations: { enabled: true, speed: 400 } },
+        plotOptions: { bar: { horizontal: true, borderRadius: 4, dataLabels: { position: 'right' } } },
+        dataLabels: { enabled: true, formatter: v => v.toFixed(3), style: { colors: ['#94a3b8'], fontSize: '11px' } },
+        xaxis: { categories: top8.map(s => s.skill), labels: { style: { colors: '#64748b', fontSize: '12px' } }, axisBorder: { show: false }, axisTicks: { show: false } },
+        yaxis: { labels: { style: { colors: '#94a3b8', fontSize: '12px' } } },
         colors: ['#3b82f6'],
-        fill: { opacity: 0.15 },
-        stroke: { width: 2 },
-        markers: { size: 4, colors: ['#3b82f6'] },
-        yaxis: { show: false },
-        grid: { show: false },
+        grid: { borderColor: 'rgba(59,130,246,0.08)', strokeDashArray: 4 },
         theme: { mode: 'dark' },
-        tooltip: { theme: 'dark' },
+        tooltip: { theme: 'dark', y: { formatter: v => 'Score: ' + v.toFixed(3) } },
       };
-
       if (_hrRadarChart) {
-        _hrRadarChart.updateOptions(opts);
-      } else {
-        _hrRadarChart = new ApexCharts(el, opts);
-        _hrRadarChart.render();
+        _hrRadarChart.destroy();
+        _hrRadarChart = null;
       }
+      _hrRadarChart = new ApexCharts(el, opts);
+      _hrRadarChart.render();
     }
 
     function app() {
@@ -1402,6 +1453,9 @@
         hrSearching: false,
         hrSkills: [],
         hrPostings: 0,
+        hrHireProfile: '',
+        hrTrainingPlan: '',
+        hrLoadingRec: false,
 
         init() {
           // Init AOS
@@ -1751,7 +1805,10 @@
             if (data.status === 'ok') {
               this.hrSkills = data.top_skills || [];
               this.hrPostings = data.postings_analysed || 0;
+              this.hrHireProfile = '';
+              this.hrTrainingPlan = '';
               this.$nextTick(() => renderHRRadar(this.hrSkills));
+              this.fetchHRRecommendations();
             } else {
               Swal.fire({ icon: 'error', title: 'Search Failed', text: data.message || 'No competitor postings found.',
                 background: '#0d1526', color: '#e2e8f0', confirmButtonColor: '#3b82f6' });
@@ -1760,6 +1817,29 @@
             Swal.fire({ icon: 'error', title: 'Network Error', text: 'Could not reach the server.',
               background: '#0d1526', color: '#e2e8f0', confirmButtonColor: '#3b82f6' });
           } finally { this.hrSearching = false; }
+        },
+
+        async fetchHRRecommendations() {
+          if (!this.hrSkills.length) return;
+          this.hrLoadingRec = true;
+          const topSkills = this.hrSkills.slice(0, 8).map(s => s.skill).join(', ');
+          const prompt = `Company: ${this.hrCompany}. Role: ${this.hrRole || 'general'}. Top skills in demand from live job postings: ${topSkills}.
+
+Return JSON only:
+{"hire_profile": "<2-3 sentences: ideal candidate profile — seniority, must-have skills, experience type>",
+ "training_plan": "<2-3 sentences: top 3 skills to upskill existing staff toward, with suggested approach>"}`;
+          try {
+            const res = await fetch(`${API}/api/hr/recommendations`, {
+              method: 'POST', headers: _headers(),
+              body: JSON.stringify({ company: this.hrCompany, role: this.hrRole, top_skills: topSkills }),
+            });
+            if (res.ok) {
+              const d = await res.json();
+              if (d.hire_profile) this.hrHireProfile = d.hire_profile.replace(/\n/g, '<br>');
+              if (d.training_plan) this.hrTrainingPlan = d.training_plan.replace(/\n/g, '<br>');
+            }
+          } catch { /* silent — cards stay empty */ }
+          finally { this.hrLoadingRec = false; }
         },
 
         maybeInitRadar() {
