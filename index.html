@@ -460,7 +460,7 @@
             <span class="text-slate-600">Source: </span>
             <span class="text-slate-400" x-text="selectedJob?.source"></span>
             <span x-show="selectedJob?.date_posted" class="text-slate-600"> · Posted: </span>
-            <span x-show="selectedJob?.date_posted" class="text-slate-400" x-text="selectedJob?.date_posted"></span>
+            <span x-show="selectedJob?.date_posted" class="text-slate-400" x-text="fmtDate(selectedJob?.date_posted)"></span>
           </div>
         </div>
 
@@ -1108,6 +1108,25 @@
           } finally {
             this.loadingSalary = false;
           }
+        },
+
+        // ── date formatting ───────────────────────────────────
+        fmtDate(iso) {
+          if (!iso) return '';
+          try {
+            const d = new Date(iso);
+            if (isNaN(d)) return iso;
+            const now = new Date();
+            const diffMs = now - d;
+            const diffDays = Math.floor(diffMs / 86400000);
+            if (diffDays === 0) return 'Today';
+            if (diffDays === 1) return 'Yesterday';
+            if (diffDays < 7) return `${diffDays} days ago`;
+            if (diffDays < 14) return '1 week ago';
+            if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`;
+            if (diffDays < 60) return '1 month ago';
+            return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+          } catch { return iso; }
         },
 
         // ── tailorman ─────────────────────────────────────────
