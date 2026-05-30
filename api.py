@@ -2241,48 +2241,39 @@ class HRRecommendationRequest(BaseModel):
     company: str
     role: str = ""
     top_skills: str  # comma-separated
+    your_skills: str = ""  # comma-separated current team skills for gap comparison
 
 
 @app.post("/api/hr/recommendations", dependencies=[Depends(_require_demo_secret)])
 async def hr_recommendations(req: HRRecommendationRequest) -> dict:
-    """
-    Generate:
-    1. LinkedIn outreach message HR can send to recruit the right candidate
-    2. Internal staff training roadmap (3 skills × steps + resources)
-    """
+    """Training roadmap: 3 priority skills to develop, with real course links."""
+    # Pick top 3 skills to focus roadmap on
+    skills_list = [s.strip() for s in req.top_skills.split(",") if s.strip()][:3]
+    skills_focus = ", ".join(skills_list)
+
     prompt = (
-        f"You are an HR strategist. Company being analysed: {req.company}. "
-        f"Role: {req.role or 'general'}. "
-        f"Live skills in demand from their job postings: {req.top_skills}.\n\n"
-        "Return JSON only with exactly this structure:\n"
-        "{\n"
-        '  "training_roadmap": [\n'
-        '    {"skill": "<skill name>", "why": "<1 sentence: why this skill matters for the team>", '
-        '"steps": ["<step 1>", "<step 2>", "<step 3>"], '
-        '"resource": "<specific course/platform name e.g. fast.ai Practical Deep Learning>", '
-        '"link": "<real URL to that course e.g. https://course.fast.ai>", '
-        '"timeline": "<e.g. 6 weeks>"},\n'
-        '    {"skill": "...", "why": "...", "steps": ["...", "...", "..."], "resource": "...", "link": "https://...", "timeline": "..."},\n'
-        '    {"skill": "...", "why": "...", "steps": ["...", "...", "..."], "resource": "...", "link": "https://...", "timeline": "..."}\n'
-        "  ]\n"
-        "}"
+        f"Skills needed for {req.role or 'this role'}: {skills_focus}.\n\n"
+        "For each skill return a training roadmap entry. Use real, specific course URLs.\n"
+        'Return JSON only — an array of exactly 3 objects:\n'
+        '[{"skill":"python","why":"Core language for all data work","steps":["Complete Python basics on Codecademy","Build 2 data projects on GitHub","Practice LeetCode easy/medium"],"resource":"Codecademy Python Course","link":"https://www.codecademy.com/learn/learn-python-3","timeline":"4 weeks"},'
+        '{"skill":"...","why":"...","steps":["...","...","..."],"resource":"...","link":"https://...","timeline":"..."},'
+        '{"skill":"...","why":"...","steps":["...","...","..."],"resource":"...","link":"https://...","timeline":"..."}]'
     )
     try:
         async with asyncio.timeout(25):
             resp = await _client.messages.create(
                 model="claude-haiku-4-5-20251001",
-                max_tokens=700,
-                system="You are an HR strategist. Return valid JSON only.",
+                max_tokens=1200,
+                system="You are an L&D specialist. Return valid JSON array only. Use real course URLs.",
                 messages=[{"role": "user", "content": prompt}],
             )
         text = resp.content[0].text.strip()
         if text.startswith("```"):
             text = text.split("\n", 1)[1].rsplit("```", 1)[0].strip()
-        data = json.loads(text)
-        return {
-            "status": "ok",
-            "training_roadmap": data.get("training_roadmap", []),
-        }
+        roadmap = json.loads(text)
+        if not isinstance(roadmap, list):
+            roadmap = roadmap.get("training_roadmap", [])
+        return {"status": "ok", "training_roadmap": roadmap}
     except Exception as exc:
         logger.warning("HR recommendations failed: %s", exc)
         return {"status": "error", "message": "Could not generate recommendations"}
@@ -2292,18 +2283,30 @@ class HRIntelligenceRequest(BaseModel):
     company: str
     role: str = ""
     top_skills: str
+    your_skills: str = ""  # your team's current skills for personalized gap
 
 
 @app.post("/api/hr/intelligence", dependencies=[Depends(_require_demo_secret)])
 async def hr_intelligence(req: HRIntelligenceRequest) -> dict:
     """Competitive intelligence: interpret skill hiring signals strategically."""
+    your_context = (
+        f"Your team's current skills: {req.your_skills}.\n"
+        if req.your_skills.strip() else
+        "Your team's skills: not provided (give general industry gap advice).\n"
+    )
+    gap_instruction = (
+        '"gap": "<2 sentences: compare YOUR TEAM\'s skills vs what the competitor needs — name the specific skills your team is missing from the competitor\'s list>",'
+        if req.your_skills.strip() else
+        '"gap": "<2 sentences: what skills companies NOT investing in these will lack vs this competitor in 12-18 months>",'
+    )
     prompt = (
-        f"Industry/company scanned: {req.company}. Role: {req.role or 'general'}.\n"
-        f"Top skills being hired for (from live job postings via Bright Data): {req.top_skills}\n\n"
-        "Analyse these hiring signals as a competitive intelligence analyst. Return JSON only:\n"
-        '{"building": "<2 sentences: what strategic capability this company/industry is building based on the skills — be specific and insightful>", '
-        '"gap": "<2 sentences: what this reveals about the competitive gap — what skills companies NOT hiring for these will lack in 12-18 months>", '
-        '"action": "<2 sentences: one specific action an HR team should take NOW based on this signal — concrete, not generic>"}'
+        f"Company/industry scanned: {req.company}. Role: {req.role or 'general'}.\n"
+        f"Skills they are hiring for (live data from Bright Data): {req.top_skills}\n"
+        f"{your_context}\n"
+        "Analyse as a competitive intelligence analyst. Return JSON only:\n"
+        '{"building": "<2 sentences: what capability the scanned company is building — be specific>", '
+        f"{gap_instruction} "
+        '"action": "<2 sentences: one concrete action the HR team should take in the next 30 days>"}'
     )
     try:
         async with asyncio.timeout(15):

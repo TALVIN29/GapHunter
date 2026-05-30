@@ -1160,6 +1160,12 @@
           <label class="text-xs text-slate-500 mb-1.5 block">Market</label>
           <input class="input-field py-2.5" type="text" x-model="hrLocation" placeholder="e.g. Kuala Lumpur" @keydown.enter="doHRSearch()" />
         </div>
+        <div class="w-full">
+          <label class="text-xs text-slate-500 mb-1.5 block">Your Team's Current Skills <span class="text-slate-600">(optional — makes the gap analysis specific to you)</span></label>
+          <input class="input-field py-2.5 text-sm" type="text" x-model="hrYourSkills"
+            placeholder="e.g. Python, SQL, Power BI, Excel — what your team already has"
+            @keydown.enter="doHRSearch()" />
+        </div>
         <button class="btn-primary gap-2 py-2.5 px-5 shrink-0" @click="doHRSearch()" :disabled="hrSearching">
           <svg x-show="hrSearching" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
@@ -1605,6 +1611,7 @@
         hrIntelSummary: null,
         hrPersonas: [],
         hrLoadingHunt: false,
+        hrYourSkills: '',
 
         init() {
           // Init AOS
@@ -1982,11 +1989,11 @@
             const [recRes, intelRes, huntRes] = await Promise.all([
               fetch(`${API}/api/hr/recommendations`, {
                 method: 'POST', headers: _headers(),
-                body: JSON.stringify({ company: this.hrCompany, role: this.hrRole, top_skills: topSkills }),
+                body: JSON.stringify({ company: this.hrCompany, role: this.hrRole, top_skills: topSkills, your_skills: this.hrYourSkills }),
               }),
               fetch(`${API}/api/hr/intelligence`, {
                 method: 'POST', headers: _headers(),
-                body: JSON.stringify({ company: this.hrCompany, role: this.hrRole, top_skills: topSkills }),
+                body: JSON.stringify({ company: this.hrCompany, role: this.hrRole, top_skills: topSkills, your_skills: this.hrYourSkills }),
               }),
               fetch(`${API}/api/hr/talent-hunt`, {
                 method: 'POST', headers: _headers(),
