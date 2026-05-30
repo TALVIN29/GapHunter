@@ -2399,35 +2399,12 @@ async def hr_recommendations(req: HRRecommendationRequest) -> dict:
         if not isinstance(roadmap, list):
             roadmap = roadmap.get("training_roadmap", [])
 
-        # Build URLs in Python — stable search pages, zero hallucination
+        # Build URLs in Python from the skill name — no hardcoded platform dict.
+        # Coursera search always resolves regardless of skill or platform changes.
         import urllib.parse as _up
-        _platform_hints = {
-            "databricks": "https://www.databricks.com/training",
-            "snowflake":  "https://learn.snowflake.com/en/",
-            "spark":      "https://www.udemy.com/courses/search/?q=apache+spark",
-            "kafka":      "https://developer.confluent.io/courses/",
-            "dbt":        "https://courses.getdbt.com/",
-            "airflow":    "https://academy.astronomer.io/",
-            "kubernetes": "https://www.udemy.com/courses/search/?q=kubernetes",
-            "docker":     "https://www.udemy.com/courses/search/?q=docker",
-            "azure":      "https://learn.microsoft.com/en-us/training/",
-            "aws":        "https://aws.amazon.com/training/",
-            "gcp":        "https://cloud.google.com/learn/training",
-            "power bi":   "https://learn.microsoft.com/en-us/training/powerplatform/power-bi",
-            "tableau":    "https://www.tableau.com/learn/training",
-        }
         for entry in roadmap:
-            skill_lower = (entry.get("skill") or "").lower()
-            # Check platform hints first (guaranteed working URLs for known tools)
-            link = next(
-                (url for kw, url in _platform_hints.items() if kw in skill_lower),
-                None
-            )
-            if not link:
-                # Default: Coursera search — stable, always resolves
-                q = _up.quote(f"{entry.get('skill', '')} {req.role or ''}".strip())
-                link = f"https://www.coursera.org/search?query={q}"
-            entry["link"] = link
+            q = _up.quote(f"{entry.get('skill', '')} {req.role or ''}".strip())
+            entry["link"] = f"https://www.coursera.org/search?query={q}"
 
         return {"status": "ok", "training_roadmap": roadmap}
     except Exception as exc:
