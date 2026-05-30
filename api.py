@@ -2377,12 +2377,17 @@ async def hr_recommendations(req: HRRecommendationRequest) -> dict:
     prompt = (
         f"Skills needed for {req.role or 'this role'}: {skills_focus}.\n\n"
         "For each skill return a training roadmap entry. Do NOT include a link field — it will be added automatically.\n"
-        'Return JSON only — an array of exactly 3 objects:\n'
+        'Return JSON only — an array of exactly 3 objects.\n'
+        'Use a DIFFERENT platform for each skill (Coursera / YouTube / LinkedIn Learning / Udemy / Pluralsight):\n'
         '[{"skill":"python","why":"Core language for all data work",'
         '"steps":["Complete Python basics","Build 2 data projects","Practice on real datasets"],'
         '"resource":"Coursera","timeline":"4 weeks"},'
-        '{"skill":"...","why":"...","steps":["...","...","..."],"resource":"...","timeline":"..."},'
-        '{"skill":"...","why":"...","steps":["...","...","..."],"resource":"...","timeline":"..."}]'
+        '{"skill":"databricks","why":"Industry standard for big data pipelines",'
+        '"steps":["Complete Databricks fundamentals","Build a lakehouse pipeline","Practice with Delta Lake"],'
+        '"resource":"YouTube","timeline":"6 weeks"},'
+        '{"skill":"data modeling","why":"Foundation for scalable analytics",'
+        '"steps":["Learn dimensional modeling","Design star schemas","Build 2 models from scratch"],'
+        '"resource":"Udemy","timeline":"4 weeks"}]'
     )
     try:
         async with asyncio.timeout(25):
