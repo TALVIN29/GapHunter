@@ -1205,7 +1205,136 @@
     <!-- ── Results (stacked, visible after scan) ── -->
     <div x-show="hrSkills.length > 0" class="flex flex-col gap-6">
 
-      <!-- Section 1: Skill Demand Chart -->
+      <!-- Executive Summary — manager reads this, stops here -->
+      <div class="card">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h2 class="font-semibold text-slate-200 flex items-center gap-2 text-base">
+              <i class="fa-solid fa-gauge-high text-accent"></i> Situation at a Glance
+            </h2>
+            <p class="text-slate-500 text-xs mt-0.5">For managers — full breakdown below</p>
+          </div>
+          <!-- Urgency badge (derives from top skill score while intel loads) -->
+          <template x-if="!hrIntelSummary">
+            <span class="text-xs px-3 py-1 rounded-full font-semibold"
+              :class="(hrSkills[0]?.score||0) > 0.35 ? 'bg-red-500/20 text-red-300 border border-red-500/30' :
+                      (hrSkills[0]?.score||0) > 0.25 ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' :
+                                                        'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'"
+              x-text="(hrSkills[0]?.score||0) > 0.35 ? '⚠ HIGH URGENCY' :
+                      (hrSkills[0]?.score||0) > 0.25 ? '▲ MONITOR' : '✓ LOW RISK'">
+            </span>
+          </template>
+          <template x-if="hrIntelSummary?.urgency">
+            <span class="text-xs px-3 py-1 rounded-full font-semibold"
+              :class="hrIntelSummary.urgency==='High' ? 'bg-red-500/20 text-red-300 border border-red-500/30' :
+                      hrIntelSummary.urgency==='Medium' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' :
+                                                          'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'"
+              x-text="hrIntelSummary.urgency==='High' ? '⚠ HIGH URGENCY' :
+                      hrIntelSummary.urgency==='Medium' ? '▲ MONITOR CLOSELY' : '✓ LOW RISK'">
+            </span>
+          </template>
+        </div>
+
+        <!-- 3 KPI tiles -->
+        <div class="grid grid-cols-3 gap-3 mb-4">
+          <!-- Competitor -->
+          <div class="rounded-xl border border-blue-500/20 bg-blue-500/5 p-3 text-center">
+            <p class="text-lg font-bold text-blue-300 truncate" x-text="hrCompany"></p>
+            <p class="text-xs text-slate-500 mt-0.5">Competitor scanned</p>
+          </div>
+          <!-- Top signal -->
+          <div class="rounded-xl border border-yellow-500/20 bg-yellow-500/5 p-3 text-center">
+            <p class="text-lg font-bold text-yellow-300 capitalize truncate" x-text="hrSkills[0]?.skill || '—'"></p>
+            <p class="text-xs text-slate-500 mt-0.5">#1 skill signal · <span x-text="hrSkills[0]?.score?.toFixed(2) || '—'"></span> score</p>
+          </div>
+          <!-- Postings -->
+          <div class="rounded-xl border border-slate-600/40 bg-slate-800/40 p-3 text-center">
+            <p class="text-lg font-bold text-slate-200" x-text="hrPostings"></p>
+            <p class="text-xs text-slate-500 mt-0.5">Live postings · Bright Data</p>
+          </div>
+        </div>
+
+        <!-- Urgency reason (from intel, fades in) -->
+        <p x-show="hrIntelSummary?.urgency_reason"
+           class="text-xs text-slate-400 italic border-t border-slate-700/50 pt-3"
+           x-text="hrIntelSummary?.urgency_reason"></p>
+      </div>
+
+      <!-- Section 2: Competitive Intelligence — bullets, scannable for managers -->
+      <div class="card" x-show="hrIntelSummary || hrLoadingRec">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h2 class="font-semibold text-slate-200 flex items-center gap-2 text-base">
+              <i class="fa-solid fa-chess text-yellow-400"></i> Competitive Intelligence
+            </h2>
+            <p class="text-slate-500 text-xs mt-0.5">What <span class="text-blue-300 font-medium" x-text="hrCompany"></span>'s signals reveal — and the gap vs your team</p>
+          </div>
+          <span x-show="hrNewsSignals" class="text-xs text-emerald-400 flex items-center gap-1">
+            <i class="fa-solid fa-satellite-dish text-xs"></i> + market news
+          </span>
+        </div>
+        <div x-show="hrLoadingRec && !hrIntelSummary" class="flex items-center gap-2 text-slate-500 text-xs py-2">
+          <i class="fa-solid fa-spinner animate-spin"></i> Analysing competitive signals…
+        </div>
+        <div x-show="hrIntelSummary" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div class="rounded-xl bg-yellow-500/5 border border-yellow-500/20 p-4">
+            <p class="text-xs font-semibold text-yellow-400 mb-3 flex items-center gap-1.5">
+              <i class="fa-solid fa-bullseye text-xs"></i> What they're building
+            </p>
+            <template x-if="Array.isArray(hrIntelSummary?.building)">
+              <div class="flex flex-col gap-2">
+                <template x-for="pt in hrIntelSummary.building" :key="pt">
+                  <div class="flex items-start gap-2">
+                    <i class="fa-solid fa-circle-dot text-yellow-500/60 text-xs mt-0.5 shrink-0"></i>
+                    <span class="text-xs text-slate-300 leading-snug" x-text="pt"></span>
+                  </div>
+                </template>
+              </div>
+            </template>
+            <template x-if="!Array.isArray(hrIntelSummary?.building)">
+              <p class="text-xs text-slate-300 leading-relaxed" x-text="hrIntelSummary?.building"></p>
+            </template>
+          </div>
+          <div class="rounded-xl bg-red-500/5 border border-red-500/20 p-4">
+            <p class="text-xs font-semibold text-red-400 mb-3 flex items-center gap-1.5">
+              <i class="fa-solid fa-triangle-exclamation text-xs"></i> Your competitive gap
+            </p>
+            <template x-if="Array.isArray(hrIntelSummary?.gap)">
+              <div class="flex flex-col gap-2">
+                <template x-for="pt in hrIntelSummary.gap" :key="pt">
+                  <div class="flex items-start gap-2">
+                    <i class="fa-solid fa-xmark text-red-500/60 text-xs mt-0.5 shrink-0"></i>
+                    <span class="text-xs text-slate-300 leading-snug" x-text="pt"></span>
+                  </div>
+                </template>
+              </div>
+            </template>
+            <template x-if="!Array.isArray(hrIntelSummary?.gap)">
+              <p class="text-xs text-slate-300 leading-relaxed" x-text="hrIntelSummary?.gap"></p>
+            </template>
+          </div>
+          <div class="rounded-xl bg-emerald-500/5 border border-emerald-500/20 p-4">
+            <p class="text-xs font-semibold text-emerald-400 mb-3 flex items-center gap-1.5">
+              <i class="fa-solid fa-rocket text-xs"></i> Action for your team
+            </p>
+            <template x-if="Array.isArray(hrIntelSummary?.action)">
+              <div class="flex flex-col gap-2">
+                <template x-for="(pt, ai) in hrIntelSummary.action" :key="pt">
+                  <div class="flex items-start gap-2">
+                    <span class="w-4 h-4 rounded-full bg-emerald-500/20 text-emerald-400 text-xs font-bold flex items-center justify-center shrink-0 mt-0.5" x-text="ai+1"></span>
+                    <span class="text-xs text-slate-300 leading-snug" x-text="pt"></span>
+                  </div>
+                </template>
+              </div>
+            </template>
+            <template x-if="!Array.isArray(hrIntelSummary?.action)">
+              <p class="text-xs text-slate-300 leading-relaxed" x-text="hrIntelSummary?.action"></p>
+            </template>
+          </div>
+        </div>
+      </div>
+
+      <!-- Section 3: Skill Demand Chart — staff detail -->
       <div class="card card-glow">
         <div class="flex items-center justify-between mb-4">
           <div>
@@ -1273,38 +1402,6 @@
               </template>
             </tbody>
           </table>
-        </div>
-      </div>
-
-      <!-- Section 3: Competitive Intelligence Summary -->
-      <div class="card" x-show="hrIntelSummary || hrLoadingRec">
-        <h2 class="font-semibold text-slate-200 flex items-center gap-2 text-base mb-1">
-          <i class="fa-solid fa-chess text-yellow-400"></i> Competitive Intelligence
-        </h2>
-        <p class="text-slate-500 text-xs mb-1">What <span class="text-blue-300 font-medium" x-text="hrCompany"></span>'s signals reveal — and the gap vs your team</p>
-        <p class="text-xs text-slate-600 mb-4" x-show="hrNewsSignals">Sources: LinkedIn job postings + market news via Bright Data SERP</p>
-        <div x-show="hrLoadingRec && !hrIntelSummary" class="flex items-center gap-2 text-slate-500 text-xs py-2">
-          <i class="fa-solid fa-spinner animate-spin"></i> Analysing competitive signals…
-        </div>
-        <div x-show="hrIntelSummary" class="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div class="rounded-xl bg-yellow-500/5 border border-yellow-500/20 p-4">
-            <p class="text-xs font-semibold text-yellow-400 mb-2 flex items-center gap-1.5">
-              <i class="fa-solid fa-bullseye text-xs"></i> What they're building
-            </p>
-            <p class="text-xs text-slate-300 leading-relaxed" x-text="hrIntelSummary?.building"></p>
-          </div>
-          <div class="rounded-xl bg-red-500/5 border border-red-500/20 p-4">
-            <p class="text-xs font-semibold text-red-400 mb-2 flex items-center gap-1.5">
-              <i class="fa-solid fa-triangle-exclamation text-xs"></i> Your competitive gap
-            </p>
-            <p class="text-xs text-slate-300 leading-relaxed" x-text="hrIntelSummary?.gap"></p>
-          </div>
-          <div class="rounded-xl bg-emerald-500/5 border border-emerald-500/20 p-4">
-            <p class="text-xs font-semibold text-emerald-400 mb-2 flex items-center gap-1.5">
-              <i class="fa-solid fa-rocket text-xs"></i> Action for your team
-            </p>
-            <p class="text-xs text-slate-300 leading-relaxed" x-text="hrIntelSummary?.action"></p>
-          </div>
         </div>
       </div>
 

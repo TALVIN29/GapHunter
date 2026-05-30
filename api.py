@@ -2388,9 +2388,9 @@ async def hr_intelligence(req: HRIntelligenceRequest) -> dict:
         "Your team's skills: not provided (give general industry gap advice).\n"
     )
     gap_instruction = (
-        '"gap": "<2 sentences: compare YOUR TEAM\'s skills vs what the competitor needs — name the specific skills your team is missing from the competitor\'s list>",'
+        '"gap": ["<skill your team has vs competitor — 8 words max>", "<second gap — 8 words max>", "<third gap — 8 words max>"],'
         if req.your_skills.strip() else
-        '"gap": "<2 sentences: what skills companies NOT investing in these will lack vs this competitor in 12-18 months>",'
+        '"gap": ["<industry risk if not investing — 8 words max>", "<second risk>", "<third risk>"],'
     )
     news_section = f"Market news/trends (from Bright Data SERP): {req.news_context}\n" if req.news_context else ""
     prompt = (
@@ -2398,17 +2398,19 @@ async def hr_intelligence(req: HRIntelligenceRequest) -> dict:
         f"Skills they are hiring for (live LinkedIn data via Bright Data): {req.top_skills}\n"
         f"{news_section}"
         f"{your_context}\n"
-        "Analyse as a competitive intelligence analyst using both job posting signals and market news. Return JSON only:\n"
-        '{"building": "<2 sentences: what capability the scanned company is building — reference both skill signals AND market trends if available>", '
+        "Analyse as a competitive intelligence analyst. Return JSON only — each array field has exactly 3 short bullet strings (8 words max each):\n"
+        '{"urgency": "<High|Medium|Low>", '
+        '"urgency_reason": "<one sentence: why this urgency level — reference top skill and timeline>", '
+        '"building": ["<what competitor is building — 8 words max>", "<second signal>", "<third signal>"], '
         f"{gap_instruction} "
-        '"action": "<2 sentences: one concrete action the HR team should take in the next 30 days — be specific to this company/role/market>"}'
+        '"action": ["<concrete action in next 30 days — 8 words max>", "<second action>", "<third action>"]}'
     )
     try:
         async with asyncio.timeout(15):
             resp = await _client.messages.create(
                 model="claude-haiku-4-5-20251001",
-                max_tokens=350,
-                system="You are a competitive intelligence analyst. Return valid JSON only.",
+                max_tokens=500,
+                system="You are a competitive intelligence analyst. Return valid JSON only. Keep each bullet under 8 words.",
                 messages=[{"role": "user", "content": prompt}],
             )
         text = resp.content[0].text.strip()
