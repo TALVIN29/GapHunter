@@ -2441,24 +2441,46 @@ async def hr_talent_hunt(req: HRTalentHuntRequest) -> dict:
     Generate 3 candidate personas + search LinkedIn for real profile URLs via Bright Data SERP.
     """
     # Step 1: Generate personas via Claude
+    market = req.location.strip() if req.location.strip() else "Malaysia"
+    market_lower = market.lower()
+    if any(k in market_lower for k in ("malaysia", "kl", "kuala lumpur", "selangor")):
+        local_companies_hint = (
+            "Use Malaysian companies and regional companies with Malaysia offices: "
+            "Grab Malaysia, Shopee Malaysia, CIMB, Hong Leong Bank, TM, Axiata, Maxis, "
+            "Petronas Digital, Lazada Malaysia, Agoda KL, AirAsia, DKSH, RHB Bank, AmBank."
+        )
+    elif any(k in market_lower for k in ("singapore", "sg")):
+        local_companies_hint = (
+            "Use Singapore companies: DBS, OCBC, UOB, Shopee, Sea Limited, Grab, Carousell, "
+            "Singtel, ST Engineering, GovTech, Nium, Endowus."
+        )
+    else:
+        local_companies_hint = f"Use companies operating in {market}."
+
     prompt = (
-        f"You are a headhunter. Hiring company: {req.company or 'client'}. Role: {req.role or 'talent'}. "
-        f"Required skills: {req.top_skills}. Market: {req.location or 'Southeast Asia'}.\n\n"
-        "Generate 3 distinct candidate personas. Each is a real type of person who has these skills.\n"
+        f"You are a headhunter. Your client: {req.company or 'client'} in {market}. "
+        f"Hiring for: {req.role or 'talent'}. Required skills: {req.top_skills}.\n\n"
+        f"LOCATION RULE: {local_companies_hint} Do NOT suggest companies outside {market} unless they have a known office there.\n\n"
+        "Generate 3 distinct candidate personas. Each is a real type of person in this market who is actively open to new roles.\n"
         "Return JSON array only — no wrapper object:\n"
-        '[{"title":"<e.g. The MLOps Practitioner>","background":"<2 sentences: who they are, current role type, company type>",'
-        '"likely_at":["<company 1>","<company 2>","<company 3>"],'
-        '"search_query":"<Google search query to find their LinkedIn profiles: site:linkedin.com/in + 2 key skills + location>","outreach":"<4-5 sentence LinkedIn message: specific hook + 2 skills + soft CTA, first person>"},'
-        '{"title":"...","background":"...","likely_at":["...","...","..."],"search_query":"...","outreach":"..."},'
-        '{"title":"...","background":"...","likely_at":["...","...","..."],"search_query":"...","outreach":"..."}]'
+        '[{"title":"<e.g. The Cloud Data Platform Architect>",'
+        '"background":"<2 sentences: seniority, current role type, company type in the target market>",'
+        '"likely_at":["<company 1>","<company 2>","<company 3>","<company 4>","<company 5>"],'
+        '"leaving_signal":"<1 sentence: why this persona type is realistically open to move right now — e.g. limited ML investment at traditional banks, flat growth at mature tech companies, desire for more impact, better comp at fintech>,"'
+        '"search_query":"<LinkedIn search: site:linkedin.com/in [2 key skills] [market] \\"open to work\\">",'
+        '"outreach":"<4-5 sentence LinkedIn message: specific hook + 2 skills + soft CTA, first person>"},'
+        '{"title":"...","background":"...","likely_at":["...","...","...","...","..."],'
+        '"leaving_signal":"...","search_query":"...","outreach":"..."},'
+        '{"title":"...","background":"...","likely_at":["...","...","...","...","..."],'
+        '"leaving_signal":"...","search_query":"...","outreach":"..."}]'
     )
     personas = []
     try:
         async with asyncio.timeout(25):
             resp = await _client.messages.create(
                 model="claude-haiku-4-5-20251001",
-                max_tokens=900,
-                system="You are an expert headhunter. Return valid JSON array only.",
+                max_tokens=1400,
+                system=f"You are an expert headhunter focused on {market}. Return valid JSON array only.",
                 messages=[{"role": "user", "content": prompt}],
             )
         text = resp.content[0].text.strip()
@@ -2499,6 +2521,16 @@ async def hr_talent_hunt(req: HRTalentHuntRequest) -> dict:
 
     for persona, profile_urls in zip(personas, profile_results):
         persona["profile_urls"] = profile_urls
+        # Build a direct LinkedIn People Search URL from the search_query.
+        # Strip the Google site: operator — LinkedIn People Search uses keywords only.
+        import re as _re
+        import urllib.parse as _urlparse
+        raw_q = persona.get("search_query", "")
+        keywords = _re.sub(r"site:linkedin\.com/in\s*", "", raw_q, flags=_re.IGNORECASE).strip()
+        persona["linkedin_search_url"] = (
+            "https://www.linkedin.com/search/results/people/?keywords="
+            + _urlparse.quote(keywords)
+        )
 
     return {"status": "ok", "personas": personas}
 
