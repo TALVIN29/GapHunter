@@ -26,3 +26,13 @@ Thumbs.db
 # IDE
 .vscode/
 .idea/
+
+# Internal planning docs
+CHAOS_TEST_PLAN.md
+DEMO_SCRIPT.md
+E2E_FINAL_TEST_PLAN.md
+E2E_TEST_PLAN.md
+HACKATHON_FIX_PLAN.md
+PROGRESS_PLAN.md
+TEST_PLAN.md
+TEST_PLAN_DETAILED.md

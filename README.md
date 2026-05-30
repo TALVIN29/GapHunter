@@ -1,10 +1,10 @@
 # GapHunter — Real-Time Labor Market Intelligence
 
 > **Hackathon submission — Bright Data × lablab.ai · May 2026**  
-> Built in 5 days. Backend fortified. E2E tested. Production-grade.
+> Built in 5 days. Dual-audience. Production-grade.
 
-**Live demo:** `https://gaphunter.netlify.app`  
-**API:** `https://gaphunter-api.onrender.com/health`
+**Live demo:** `https://gaphunterdemo.netlify.app`  
+**API health:** `https://gaphunter-api.onrender.com/health`
 
 ---
 
@@ -15,77 +15,88 @@ GapHunter is a dual-audience labor market intelligence platform. It answers two 
 | Audience | Question | Answer |
 |---|---|---|
 | **Job Seeker** | Which skills are blocking me from roles I can win today? | Weighted gap score ranked by frequency × freshness × competition |
-| **HR / Recruiter** | What are competitors secretly building toward in their hiring? | Real-time competitor radar chart from live job posting signals |
+| **HR / Enterprise** | What are competitors secretly building toward in their hiring? | Auto-detected competitor → live postings → Skill Priority Map + Talent Hunter |
 
 ---
 
 ## Architecture
 
 ```
-Browser (Alpine.js Bento Grid — Netlify CDN)
+Browser (Alpine.js — Netlify CDN)
         │  HTTPS
         ▼
-FastAPI Backend (Render free tier)
+FastAPI Backend (Render)
         │
-        ├── Bright Data SERP API  ──→  Google → LinkedIn + Indeed URLs
-        ├── Bright Data Jobs API  ──→  30 parallel job description scrapes
-        │       └── asyncio.Semaphore(10) — concurrency cap
+        ├── Bright Data SERP API         ──→  Job URL discovery, market news, course links
+        ├── Bright Data LinkedIn Dataset  ──→  Structured job posting extraction
+        ├── Bright Data Web Unlocker      ──→  Company profile intelligence
+        ├── Bright Data Scraping Browser  ──→  JS-heavy regional job boards
         │
-        ├── Claude Haiku          ──→  Gate 1: role validation
-        │                              30× job skill extraction (parallel)
-        │                              Resume parsing (7-layer defence)
+        ├── Claude Haiku 4.5              ──→  CV skill extraction, role validation,
+        │                                      competitor auto-detection, role typo correction
         │
-        ├── Claude Sonnet         ──→  Gap synthesis + ranking
-        │                              Per-job analysis
-        │                              Learning roadmap generation (Semaphore=3)
+        ├── Claude Sonnet 4.6             ──→  Gap synthesis, competitive intelligence bullets,
+        │                                      Skill Priority Map, Talent Hunter personas,
+        │                                      Training Roadmap generation
         │
-        └── Financial Firewall    ──→  IP rate limit + circuit breaker + shadow mode
+        └── Financial Firewall            ──→  Demo token + circuit breaker + shadow mode
 ```
 
 ---
 
-## Core Engine — Bright Data Integration
+## Bright Data Integration (4 Products)
 
-Bright Data powers every live data interaction:
+| Product | Usage |
+|---|---|
+| **SERP API** | Job URL discovery at query time, market news per company, course links per skill gap |
+| **LinkedIn Dataset API** | Structured job posting extraction — title, company, skills, salary, applicants |
+| **Web Unlocker** | Company profile pages (Glassdoor/Indeed) for competitor intelligence |
+| **Scraping Browser** | JS-heavy regional job boards inaccessible to standard scrapers |
 
-| API | Usage | Volume |
-|---|---|---|
-| **SERP API** | Google search → LinkedIn + Indeed job URLs at query time | 2 queries per search |
-| **Jobs Dataset API** | Structured job posting extraction (title, company, skills, salary, applicants) | Up to 30 postings per search |
-| **SERP API (roadmap)** | Coursera + YouTube resource discovery per skill gap | 1 query per skill, async |
-
-Data is fetched **at query time** — not pre-indexed, not cached from a previous scrape. When a user searches for "Data Analyst," Bright Data discovers live LinkedIn and Indeed URLs on that request. The roadmap links scraped 60 seconds later are live pages that existed at query time.
+All data fetched **at query time** — not pre-indexed, not cached from a previous scrape.
 
 ---
 
-## Key Features
+## Features
 
-### F1 — Resume Upload (7-Layer Defence)
-Upload a PDF or DOCX. Claude Haiku extracts skills, experience years, and seniority. File bytes discarded immediately after extraction — nothing stored.
+### Job Seeker Track
 
-Defence layers: size cap (5 MB) → magic byte detection → zip bomb guard (15 MB uncompressed) → character truncation (10,000 chars) → injection fence in system prompt → Haiku model isolation → JSON output validation.
+**F1 — Resume Upload (7-Layer Defence)**  
+Upload PDF or DOCX. Claude Haiku extracts skills, experience years, seniority. File bytes discarded immediately after extraction — nothing stored.
 
-### F2 — Real-Time Job Search
-Role + location → Bright Data SERP → URL discovery → parallel Bright Data Jobs scraping → Claude Haiku extraction → weighted gap ranking → job card rendering.
+Defence layers: size cap (5 MB) → magic byte detection → zip bomb guard (15 MB uncompressed) → character truncation (10,000 chars) → injection fence → Haiku model isolation → JSON output validation.
 
-Scoring formula: `0.35 × frequency + 0.25 × freshness + 0.20 × opportunity + bonuses`
+**F2 — Real-Time Job Search**  
+Role + location → Bright Data SERP → URL discovery → parallel LinkedIn Dataset extraction → Claude Haiku skill extraction → weighted gap ranking → job card rendering.
 
-### F3 — Weighted Gap Analysis
-ApexCharts horizontal bar. Skills ranked by composite demand signal, not raw keyword frequency. Dual-source and cross-platform bonuses reward skills that appear across LinkedIn AND Indeed simultaneously.
+Scoring formula: `0.35 × frequency + 0.25 × freshness + 0.20 × opportunity + cross-platform bonuses`
 
-### F4 — Optimistic Roadmap Pre-fetching
-Roadmaps fire as `asyncio.create_task()` the moment job cards render. Bright Data SERP finds live Coursera and YouTube resources per skill. By the time a user reads their results and opens the roadmap accordion, generation is already complete. Perceived wait time: 0ms.
+**F3 — Weighted Gap Analysis**  
+ApexCharts horizontal bar. Skills ranked by composite demand signal, not raw keyword frequency. Dual-source bonuses reward skills appearing across LinkedIn AND Indeed simultaneously.
 
-### F9 — HR Competitor Intelligence ("Silent Pivot")
-Radar chart mapping Stripe, Block, and Adyen across six modern data-stack skills. The chart surfaces Stripe's LLM Integration hiring signal (score: 94) — not visible in public announcements, detectable only from job posting frequency. Bloomberg Talent Insights charges $30,000/yr for equivalent signals.
+**F4 — Optimistic Roadmap Pre-fetching**  
+Roadmaps fire as `asyncio.create_task()` the moment job cards render. Bright Data SERP finds live Coursera/YouTube resources per skill. Perceived wait time: 0ms.
+
+### Enterprise Track
+
+**F5 — Competitor Auto-Detection**  
+Enter your company name. Claude detects the primary competitor in your market automatically — no manual input required. Returns competitor name + detection rationale + recent market news.
+
+**F6 — Live Competitor Hiring Intelligence**  
+Bright Data scrapes up to 5 live competitor postings. Parallel pipeline fires three AI analysis threads:
+
+1. **Competitive Intelligence** (~15s) — What competitor is building vs. what you're missing
+2. **Skill Priority Map** (~30s) — Critical / Growing / Emerging tiles from live signal
+3. **Talent Hunter** (~45s) — 3 candidate personas with leaving signals + LinkedIn search + outreach template
+
+**F7 — Training Roadmap**  
+Per priority skill: Bright Data SERP finds real course links at analysis time. Not hardcoded — every link is a live page discovered during the request.
 
 ---
 
 ## Financial Firewall
 
 > **Important for judges testing the platform:**
-
-The backend implements a three-layer cost protection system designed for production use. **Judges should use the demo secret header to bypass rate limiting.**
 
 | Layer | Mechanism | Limit |
 |---|---|---|
@@ -94,9 +105,9 @@ The backend implements a three-layer cost protection system designed for product
 | **Layer 3** | Circuit breaker — trips after N live searches | Serves static demo, $0 cost |
 
 **To test without hitting the rate limit:**  
-Add header `X-Demo-Secret: gaphunter-demo-2026` to all API requests. Authenticated traffic bypasses Layer 2 entirely. The Netlify frontend sends this header automatically — rate limiting only affects raw API calls without the header.
+Add header `X-Demo-Secret: <your-demo-token>` to API requests. The Netlify frontend sends this automatically — rate limiting only affects raw API calls.
 
-**If `circuit_open: true` appears in `/health`:** The daily live-search budget was exhausted. The platform automatically serves a static demo state (real data, pre-scraped) with zero additional cost. This is by design — the demo is still fully functional.
+**If `circuit_open: true` in `/health`:** Daily budget exhausted. Platform serves pre-scraped static demo with zero additional cost. Demo remains fully functional.
 
 ---
 
@@ -108,7 +119,7 @@ Add header `X-Demo-Secret: gaphunter-demo-2026` to all API requests. Authenticat
 | DOCX zip bomb | ZIP central-directory scan (zero decompression) before `python-docx` |
 | Prompt injection via resume | System prompt injection fence + model isolation (Haiku, not Sonnet) |
 | Session cache poisoning | `POISON_GUARD`: reserved `session_id="demo-static"` overridden with fresh UUID |
-| Memory exhaustion (roadmap cache) | `_LRUSessionCache`: `OrderedDict`-backed, 300-session cap, O(1) eviction |
+| Memory exhaustion | `_LRUSessionCache`: `OrderedDict`-backed, 300-session cap, O(1) eviction |
 
 ---
 
@@ -116,18 +127,16 @@ Add header `X-Demo-Secret: gaphunter-demo-2026` to all API requests. Authenticat
 
 | Layer | Technology |
 |---|---|
-| Frontend | Alpine.js, Tailwind CSS, ApexCharts, Netlify CDN |
+| Frontend | Alpine.js, Tailwind CSS, ApexCharts, GSAP, Netlify CDN |
 | Backend | FastAPI, Python 3.12, Uvicorn, Render |
-| AI | Anthropic Claude Haiku 4.5 (extraction) + Claude Sonnet 4.6 (synthesis) |
-| Data | Bright Data SERP API + Jobs Dataset API |
-| Auth | Demo secret (HMAC-safe compare) + JWT for user accounts |
-| Storage | SQLite (Render ephemeral) — search history, user profiles |
+| AI | Anthropic Claude Haiku 4.5 (extraction/detection) + Claude Sonnet 4.6 (synthesis/intelligence) |
+| Data | Bright Data SERP API + LinkedIn Dataset API + Web Unlocker + Scraping Browser |
+| Auth | Demo secret (HMAC-safe compare) |
+| Infra | Render (backend) + Netlify (frontend) |
 
 ---
 
 ## E2E Test Results
-
-All chaos tests and patch verification passed before submission.
 
 | Test | Scenario | Result |
 |---|---|---|
@@ -136,7 +145,7 @@ All chaos tests and patch verification passed before submission.
 | V3 | `session_id="demo-static"` poison attempt | Fresh UUID returned |
 | V4 | Scrape timeout fallback | Static demo in 4.85s |
 | T4A | Circuit breaker trip (limit=1) | `circuit_open: true` |
-| T4B | Zero-LLM circuit path | 403ms, `session_id: demo-static` |
+| T4B | Zero-LLM circuit path | 403ms |
 | T4C | Roadmap poll from startup cache | `status: ready` |
 
 ---
@@ -148,24 +157,28 @@ All chaos tests and patch verification passed before submission.
 | Job Seeker | $19 / month | Individual candidates |
 | HR Enterprise | $499 / seat / month | Recruiters, HR teams |
 
-Pipeline scales linearly with Bright Data: 10 users → 300 postings/day; 1,000 users → 30,000/day. Bright Data is the moat, not a cost center.
-
 ---
 
 ## Repository Structure
 
 ```
-api.py           — FastAPI backend (all endpoints, financial firewall, circuit breaker)
-resume.py        — 7-layer resume pipeline
-roadmap.py       — Optimistic pre-fetching + LRU session cache
-index.html       — Alpine.js frontend (single file)
-scraper.py       — Bright Data SERP + Jobs integration
-extractor.py     — Parallel Claude Haiku skill extraction
-normalizer.py    — Role validation (Gate 0 + Gate 1)
-pipeline.py      — Gap scoring + evidence attachment
-fallback/        — Pre-scraped static demo state (circuit_open fallback)
-PRD.md           — Full product requirements + addendums (locked)
-TEST_REPORT_FINAL.md — Pre-submission E2E test report
+api.py                  — FastAPI backend (all endpoints, firewall, circuit breaker)
+index.html              — Alpine.js frontend (single file, both tracks)
+scraper.py              — Bright Data SERP + LinkedIn Dataset integration
+resume.py               — 7-layer resume pipeline
+extractor.py            — Parallel Claude Haiku skill extraction
+pipeline.py             — Gap scoring + evidence attachment
+normalizer.py           — Role validation (Gate 0 + Gate 1)
+roadmap.py              — Optimistic pre-fetching + LRU session cache
+scoring.py              — Weighted demand scoring formula
+signals.py              — Competitor intelligence signal processing
+security.py             — ASGI content guards, injection fencing
+auth.py                 — Demo token auth + HMAC comparison
+database.py             — SQLite search history
+fallback/               — Pre-scraped static demo state (circuit_open fallback)
+PRD.md                  — Full product requirements (locked)
+TEST_REPORT_FINAL.md    — Pre-submission E2E test report
+DECISION_LOG.md         — Key architectural decisions log
 ```
 
 ---
