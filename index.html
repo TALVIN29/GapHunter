@@ -1154,8 +1154,12 @@
           <input class="input-field py-2.5" type="text" x-model="hrYourCompany" placeholder="e.g. Maybank, Axiata, CIMB" @keydown.enter="doHRSearch()" />
         </div>
         <div class="flex-1 min-w-[160px]">
+          <label class="text-xs text-slate-500 mb-1.5 block">Competitor <span class="text-slate-600">(optional — auto-detected)</span></label>
+          <input class="input-field py-2.5" type="text" x-model="hrCompetitorOverride" placeholder="Leave blank to auto-detect" @keydown.enter="doHRSearch()" />
+        </div>
+        <div class="flex-1 min-w-[160px]">
           <label class="text-xs text-slate-500 mb-1.5 block">Role <span class="text-slate-600">(optional — auto-detected)</span></label>
-          <input class="input-field py-2.5" type="text" x-model="hrRole" placeholder="Leave blank to auto-detect" @keydown.enter="doHRSearch()" />
+          <input class="input-field py-2.5" type="text" x-model="hrRole" placeholder="e.g. Data Engineer" @keydown.enter="doHRSearch()" />
         </div>
         <div class="flex-1 min-w-[140px]">
           <label class="text-xs text-slate-500 mb-1.5 block">Market <span class="text-slate-600">(optional)</span></label>
@@ -1799,6 +1803,7 @@
         hrDetectReason: '',
         hrDataScope: 'market',
         hrScanError: '',
+        hrCompetitorOverride: '',
 
         init() {
           // Init AOS
@@ -2141,28 +2146,39 @@
           this.hrPostings = 0;
           this.hrScanStatus = 'Step 1/3 — Finding competitors via Bright Data SERP…';
           try {
-            // Step 1: detect competitor from your company
-            const detectRes = await fetch(`${API}/api/hr/detect-competitor`, {
-              method: 'POST', headers: _headers(),
-              body: JSON.stringify({ your_company: this.hrYourCompany, role: this.hrRole, location: this.hrLocation }),
-            });
-            const detectData = await detectRes.json();
-            // Hard stop if detection failed — don't silently scan own company
-            if (detectData.status !== 'ok' || !detectData.competitor) {
-              this.hrSearching = false;
-              this.hrScanStatus = '';
-              this.hrScanError = 'Auto-detection failed — the AI could not identify a competitor. Try again, or type the competitor name in the Role field.';
-              return;
-            }
             this.hrScanError = '';
-            const competitor = detectData.competitor;
-            // Always apply the AI-corrected/auto-detected role — fixes typos like "Data Engine" → "Data Engineer"
-            const detectedRole = detectData.detected_role || this.hrRole || 'Data Engineer';
-            this.hrRole = detectedRole;
-            this.hrCompany = competitor;
-            this.hrDetectedCompetitor = competitor;
-            this.hrDetectReason = detectData.reason || '';
-            this.hrScanStatus = `Step 2/3 — Scanning ${competitor}'s live ${detectedRole} postings…`;
+            let competitor, detectedRole;
+
+            if (this.hrCompetitorOverride.trim()) {
+              // User typed a competitor — skip auto-detection entirely
+              competitor = this.hrCompetitorOverride.trim();
+              detectedRole = this.hrRole || 'Data Engineer';
+              this.hrCompany = competitor;
+              this.hrDetectedCompetitor = competitor;
+              this.hrDetectReason = '';
+              this.hrScanStatus = `Step 2/3 — Scanning ${competitor}'s live ${detectedRole} postings…`;
+            } else {
+              // Step 1: auto-detect competitor
+              this.hrScanStatus = 'Step 1/3 — Finding competitors via Bright Data SERP…';
+              const detectRes = await fetch(`${API}/api/hr/detect-competitor`, {
+                method: 'POST', headers: _headers(),
+                body: JSON.stringify({ your_company: this.hrYourCompany, role: this.hrRole, location: this.hrLocation }),
+              });
+              const detectData = await detectRes.json();
+              if (detectData.status !== 'ok' || !detectData.competitor) {
+                this.hrSearching = false;
+                this.hrScanStatus = '';
+                this.hrScanError = 'Auto-detection failed. Try again, or enter the competitor name in the Competitor field above.';
+                return;
+              }
+              competitor = detectData.competitor;
+              detectedRole = detectData.detected_role || this.hrRole || 'Data Engineer';
+              this.hrRole = detectedRole;
+              this.hrCompany = competitor;
+              this.hrDetectedCompetitor = competitor;
+              this.hrDetectReason = detectData.reason || '';
+              this.hrScanStatus = `Step 2/3 — Scanning ${competitor}'s live ${detectedRole} postings…`;
+            }
 
             // Step 2: scrape competitor
             const res = await fetch(`${API}/api/hr/competitors`, {
