@@ -1658,16 +1658,20 @@
     function renderHRRadar(skills) {
       const el = document.getElementById('hr-radar-chart');
       if (!el) return;
-      const top5 = skills.slice(0, 5);
+      const CHART_LIMIT = 5; // change this one number to show more/fewer bubbles
+      const top5 = skills.slice(0, CHART_LIMIT);
 
       const tierColor  = i => i === 0 ? '#ef4444' : i < 3 ? '#f59e0b' : '#3b82f6';
       const tierLabel  = i => i === 0 ? 'Critical' : i < 3 ? 'Growing' : 'Emerging';
       const tierAction = i => i === 0 ? 'Hire now' : i < 3 ? 'Develop team' : 'Monitor';
 
-      // Fixed x positions — spread within 3 zones, no overlap
-      const xPos = [1.5, 3.0, 3.9, 5.1, 5.9];
-      // Rank-based bubble size — forces clear visual hierarchy regardless of score proximity
-      const zSize = [55, 40, 34, 24, 20];
+      // Positions and sizes computed from N — works for any number of skills
+      const N = top5.length;
+      const span = N > 1 ? N - 1 : 1;
+      // Spread evenly from x=1 to x=6 across the 3 zone bands
+      const xPos = top5.map((_, i) => +(1 + (i / span) * 5).toFixed(2));
+      // z linearly from 36 (rank 1) down to 12 (last rank)
+      const zSize = top5.map((_, i) => Math.round(36 - (i / span) * 24));
 
       const series = top5.map((s, i) => ({
         name: s.skill,
@@ -2138,9 +2142,19 @@
               body: JSON.stringify({ your_company: this.hrYourCompany, role: this.hrRole, location: this.hrLocation }),
             });
             const detectData = await detectRes.json();
-            const competitor = detectData.competitor || this.hrYourCompany;
+            // Hard stop if detection failed or returned self — don't silently scan own company
+            if (detectData.status !== 'ok' || !detectData.competitor) {
+              this.hrSearching = false;
+              this.hrScanStatus = '';
+              Swal.fire({ icon: 'error', title: 'Could not identify competitor',
+                text: detectData.message || 'Try a more specific company name, or enter the competitor manually in the Role field.',
+                background: '#0d1526', color: '#e2e8f0', confirmButtonColor: '#3b82f6' });
+              return;
+            }
+            const competitor = detectData.competitor;
+            // Always apply the AI-corrected/auto-detected role — fixes typos like "Data Engine" → "Data Engineer"
             const detectedRole = detectData.detected_role || this.hrRole || 'Data Engineer';
-            if (!this.hrRole.trim()) this.hrRole = detectedRole;
+            this.hrRole = detectedRole;
             this.hrCompany = competitor;
             this.hrDetectedCompetitor = competitor;
             this.hrDetectReason = detectData.reason || '';

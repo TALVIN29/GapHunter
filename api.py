@@ -2401,10 +2401,26 @@ async def hr_recommendations(req: HRRecommendationRequest) -> dict:
 
         # Build URLs in Python from the skill name — no hardcoded platform dict.
         # Coursera search always resolves regardless of skill or platform changes.
+        # Build search URL from skill + Claude's suggested platform name.
+        # These are URL search patterns — the skill name is dynamic, the pattern
+        # is stable (these search routes have not changed in years).
         import urllib.parse as _up
+        _search_patterns = {
+            "youtube":   "https://www.youtube.com/results?search_query={q}+tutorial",
+            "udemy":     "https://www.udemy.com/courses/search/?q={q}",
+            "linkedin":  "https://www.linkedin.com/learning/search?keywords={q}",
+            "coursera":  "https://www.coursera.org/search?query={q}",
+            "pluralsight": "https://www.pluralsight.com/search?q={q}",
+        }
         for entry in roadmap:
-            q = _up.quote(f"{entry.get('skill', '')} {req.role or ''}".strip())
-            entry["link"] = f"https://www.coursera.org/search?query={q}"
+            skill = entry.get("skill", "")
+            resource = (entry.get("resource") or "coursera").lower()
+            q = _up.quote(f"{skill} {req.role or ''}".strip())
+            pattern = next(
+                (v for k, v in _search_patterns.items() if k in resource),
+                "https://www.coursera.org/search?query={q}"
+            )
+            entry["link"] = pattern.format(q=q)
 
         return {"status": "ok", "training_roadmap": roadmap}
     except Exception as exc:
