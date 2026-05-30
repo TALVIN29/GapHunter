@@ -2051,7 +2051,8 @@ async def hr_detect_competitor(req: HRDetectRequest) -> dict:
     """
     # Step A: Claude identifies top competitor + auto-detects role if not provided
     role_instruction = (
-        f'Focus on the role: {req.role}.' if req.role.strip()
+        f'The user entered role: "{req.role}". Correct any obvious typo and use the corrected role.'
+        if req.role.strip()
         else 'Also suggest the single most strategically important role to analyze for this company (the role most likely to reveal competitive advantage).'
     )
     your_co = req.your_company.strip()
@@ -2060,7 +2061,7 @@ async def hr_detect_competitor(req: HRDetectRequest) -> dict:
         f"CRITICAL: the competitor field MUST be a different company — NEVER '{your_co}'.\n\n"
         "Return JSON only:\n"
         '{"competitor": "<single most relevant direct competitor — exact LinkedIn company name — must differ from the input company>", '
-        '"role": "<the role to analyze>", '
+        '"role": "<corrected job title — fix typos like \'Data Engine\' → \'Data Engineer\'>", '
         '"reason": "<one sentence: why this competitor + role combination reveals the most competitive intelligence>"}'
     )
     competitor = None
