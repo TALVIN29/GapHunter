@@ -2582,32 +2582,69 @@ async def hr_talent_hunt(req: HRTalentHuntRequest) -> dict:
         logger.warning("HR talent hunt persona generation failed: %s", exc)
         return {"status": "error", "message": "Could not generate talent hunt"}
 
-    # Step 2: SERP search for real LinkedIn profile URLs (one call per persona, parallel)
+    # Step 2: Find real LinkedIn profile URLs — two attempts per persona
     import requests as _req_lib
+    import re as _re2
+    import urllib.parse as _up2
 
-    async def _serp_profiles(search_query: str) -> list[str]:
+    async def _find_profiles(persona: dict) -> list[str]:
+        raw_q = persona.get("search_query", "")
+        # Strip site: operator — build a clean keyword query instead
+        keywords = _re2.sub(r"site:linkedin\.com/in\s*", "", raw_q, flags=_re2.IGNORECASE).strip()
+
+        # Attempt 1: Google SERP via Bright Data — "keywords linkedin open to work"
+        google_query = f"{keywords} linkedin"
         try:
-            payload = {"input": [{"url": "https://www.google.com/", "keyword": search_query,
+            payload = {"input": [{"url": "https://www.google.com/", "keyword": google_query,
                                    "language": "en", "tbs": "", "tbm": ""}]}
             r = await asyncio.wait_for(
                 asyncio.to_thread(
                     lambda: _req_lib.post(
-                        f"https://api.brightdata.com/datasets/v3/scrape?dataset_id={os.environ.get('BRIGHTDATA_DATASET_ID','')}&include_errors=true",
-                        headers={"Authorization": f"Bearer {os.environ.get('BRIGHTDATA_API_TOKEN','')}", "Content-Type": "application/json"},
+                        f"https://api.brightdata.com/datasets/v3/scrape"
+                        f"?dataset_id={os.environ.get('BRIGHTDATA_DATASET_ID','')}&include_errors=true",
+                        headers={"Authorization": f"Bearer {os.environ.get('BRIGHTDATA_API_TOKEN','')}",
+                                 "Content-Type": "application/json"},
                         json=payload, timeout=15,
                     )
                 ), timeout=18
             )
             data = r.json()
             if isinstance(data, list): data = data[0] if data else {}
-            organic = data.get("organic", []) if isinstance(data, dict) else []
-            return [x["link"] for x in organic if "linkedin.com/in" in x.get("link", "").lower()][:3]
-        except Exception:
-            return []
+            if isinstance(data, dict):
+                # Check organic + related_results + knowledge graph for linkedin.com/in URLs
+                all_links: list[str] = []
+                for item in data.get("organic", []):
+                    all_links.append(item.get("link", ""))
+                    for sub in item.get("sitelinks", []):
+                        all_links.append(sub.get("link", ""))
+                profiles = [l for l in all_links if "linkedin.com/in" in l.lower()][:3]
+                if profiles:
+                    logger.info("SERP found %d LinkedIn profiles", len(profiles))
+                    return profiles
+        except Exception as exc:
+            logger.warning("Profile SERP failed: %s", exc)
 
-    profile_results = await asyncio.gather(*[
-        _serp_profiles(p.get("search_query", "")) for p in personas[:3]
-    ])
+        # Attempt 2: Web Unlocker on LinkedIn people search page directly
+        # LinkedIn may serve some public results without auth for bot-friendly requests
+        encoded_kw = _up2.quote(keywords)
+        li_url = f"https://www.linkedin.com/search/results/people/?keywords={encoded_kw}&f_TP=1"
+        try:
+            html = await asyncio.wait_for(
+                asyncio.to_thread(_unlocker_fetch_sync, li_url),
+                timeout=20,
+            )
+            if html and "linkedin.com/in" in html.lower():
+                found = _re2.findall(r'(?:href="|url":")[^"]*linkedin\.com/in/([a-zA-Z0-9\-_%]+)', html)
+                profiles = [f"https://www.linkedin.com/in/{s}" for s in dict.fromkeys(found) if len(s) > 3][:3]
+                if profiles:
+                    logger.info("Web Unlocker found %d LinkedIn profiles", len(profiles))
+                    return profiles
+        except Exception as exc:
+            logger.warning("LinkedIn unlocker failed: %s", exc)
+
+        return []
+
+    profile_results = await asyncio.gather(*[_find_profiles(p) for p in personas[:3]])
 
     for persona, profile_urls in zip(personas, profile_results):
         persona["profile_urls"] = profile_urls
