@@ -1394,6 +1394,77 @@
         </div>
       </div>
 
+      <!-- Section 6: Talent Hunter -->
+      <div class="card" x-show="hrPersonas?.length > 0 || hrLoadingHunt">
+        <div class="flex items-center gap-2 mb-1">
+          <h2 class="font-semibold text-slate-200 flex items-center gap-2 text-base">
+            <i class="fa-solid fa-crosshairs text-red-400"></i> Talent Hunter
+          </h2>
+          <span class="badge badge-red text-xs">New</span>
+        </div>
+        <p class="text-slate-500 text-xs mb-5">3 candidate profiles GapHunter identified — who to hire, where to find them, and exactly what to say</p>
+
+        <div x-show="hrLoadingHunt && !hrPersonas?.length" class="flex items-center gap-2 text-slate-500 text-xs py-3">
+          <i class="fa-solid fa-spinner animate-spin"></i> Identifying candidate profiles…
+        </div>
+
+        <div class="flex flex-col gap-5" x-show="hrPersonas?.length > 0">
+          <template x-for="(p, i) in hrPersonas" :key="i">
+            <div class="rounded-xl border border-red-500/15 bg-slate-900/40 overflow-hidden">
+
+              <!-- Persona header -->
+              <div class="flex items-center gap-3 px-4 py-3 border-b border-red-500/10 bg-red-500/5">
+                <div class="w-8 h-8 rounded-full bg-red-500/20 border border-red-500/30 text-red-300 text-sm font-bold flex items-center justify-center" x-text="i+1"></div>
+                <div>
+                  <p class="font-semibold text-slate-100 text-sm" x-text="p.title"></p>
+                  <p class="text-slate-500 text-xs" x-text="p.background"></p>
+                </div>
+              </div>
+
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-0 divide-y md:divide-y-0 md:divide-x divide-red-500/10">
+
+                <!-- Where to find them -->
+                <div class="p-4">
+                  <p class="text-xs font-semibold text-slate-400 mb-2 flex items-center gap-1.5">
+                    <i class="fa-solid fa-location-dot text-red-400 text-xs"></i> Where to find them
+                  </p>
+                  <div class="flex flex-wrap gap-1.5 mb-3">
+                    <template x-for="co in p.likely_at" :key="co">
+                      <span class="text-xs px-2 py-1 rounded-full bg-slate-800 border border-slate-700 text-slate-300" x-text="co"></span>
+                    </template>
+                  </div>
+                  <p class="text-xs font-semibold text-slate-400 mb-1.5 flex items-center gap-1.5">
+                    <i class="fa-brands fa-linkedin text-blue-400 text-xs"></i> LinkedIn search
+                  </p>
+                  <div class="bg-slate-800/60 rounded-lg px-3 py-2 font-mono text-xs text-slate-300 break-words leading-relaxed" x-text="p.linkedin_search"></div>
+                  <a :href="'https://www.linkedin.com/search/results/people/?keywords=' + encodeURIComponent(p.linkedin_search)"
+                    target="_blank" rel="noopener"
+                    class="mt-2 inline-flex items-center gap-1.5 text-xs text-blue-300 hover:text-blue-200 transition-colors">
+                    <i class="fa-solid fa-arrow-up-right-from-square text-xs"></i> Search on LinkedIn
+                  </a>
+                </div>
+
+                <!-- Outreach message -->
+                <div class="p-4">
+                  <div class="flex items-center justify-between mb-2">
+                    <p class="text-xs font-semibold text-slate-400 flex items-center gap-1.5">
+                      <i class="fa-solid fa-paper-plane text-emerald-400 text-xs"></i> Ready-to-send message
+                    </p>
+                    <button
+                      @click="navigator.clipboard.writeText(p.outreach).then(() => { $event.target.textContent='Copied!'; setTimeout(() => $event.target.textContent='Copy', 1500) })"
+                      class="text-xs px-2 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 hover:bg-emerald-500/20 transition-all">
+                      Copy
+                    </button>
+                  </div>
+                  <div class="bg-slate-800/40 border border-slate-700/50 rounded-lg p-3 text-xs text-slate-200 leading-relaxed italic" x-text="p.outreach"></div>
+                </div>
+
+              </div>
+            </div>
+          </template>
+        </div>
+      </div>
+
     </div><!-- end results -->
 
   </main>
@@ -1532,6 +1603,8 @@
         hrGeneratingMsg: false,
         hrPostingLinks: [],
         hrIntelSummary: null,
+        hrPersonas: [],
+        hrLoadingHunt: false,
 
         init() {
           // Init AOS
@@ -1886,6 +1959,8 @@
               this.hrTrainingRoadmap = [];
               this.hrCandidateProfile = '';
               this.hrIntelSummary = null;
+              this.hrPersonas = [];
+              this.hrLoadingHunt = false;
               this.$nextTick(() => setTimeout(() => renderHRRadar(this.hrSkills), 120));
               this.fetchHRRecommendations();
             } else {
@@ -1902,8 +1977,9 @@
           if (!this.hrSkills.length) return;
           this.hrLoadingRec = true;
           const topSkills = this.hrSkills.slice(0, 8).map(s => s.skill).join(', ');
+          this.hrLoadingHunt = true;
           try {
-            const [recRes, intelRes] = await Promise.all([
+            const [recRes, intelRes, huntRes] = await Promise.all([
               fetch(`${API}/api/hr/recommendations`, {
                 method: 'POST', headers: _headers(),
                 body: JSON.stringify({ company: this.hrCompany, role: this.hrRole, top_skills: topSkills }),
@@ -1911,6 +1987,10 @@
               fetch(`${API}/api/hr/intelligence`, {
                 method: 'POST', headers: _headers(),
                 body: JSON.stringify({ company: this.hrCompany, role: this.hrRole, top_skills: topSkills }),
+              }),
+              fetch(`${API}/api/hr/talent-hunt`, {
+                method: 'POST', headers: _headers(),
+                body: JSON.stringify({ company: this.hrCompany, role: this.hrRole, top_skills: topSkills, location: this.hrLocation }),
               }),
             ]);
             if (recRes.ok) {
@@ -1921,8 +2001,12 @@
               const d = await intelRes.json();
               if (d.building) this.hrIntelSummary = d;
             }
+            if (huntRes.ok) {
+              const d = await huntRes.json();
+              if (d.personas?.length) this.hrPersonas = d.personas;
+            }
           } catch { /* silent */ }
-          finally { this.hrLoadingRec = false; }
+          finally { this.hrLoadingRec = false; this.hrLoadingHunt = false; }
         },
 
         async generateOutreach() {

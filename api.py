@@ -2317,6 +2317,57 @@ class HROutreachRequest(BaseModel):
     candidate_profile: str  # name/URL/background the HR entered
 
 
+class HRTalentHuntRequest(BaseModel):
+    company: str
+    role: str = ""
+    top_skills: str
+    location: str = ""
+
+
+@app.post("/api/hr/talent-hunt", dependencies=[Depends(_require_demo_secret)])
+async def hr_talent_hunt(req: HRTalentHuntRequest) -> dict:
+    """
+    Generate 3 candidate personas for talent hunting:
+    - Who they are + where to find them
+    - LinkedIn boolean search string
+    - Ready-to-send personalised outreach message
+    """
+    location_hint = f" in {req.location}" if req.location else ""
+    prompt = (
+        f"You are a headhunter. A client needs to hire {req.role or 'talent'} with these skills: {req.top_skills}.\n"
+        f"Target market: {req.location or 'Southeast Asia'}.\n\n"
+        "Generate 3 distinct candidate personas to hunt for. Each persona is a real type of person who has these skills.\n"
+        "Return JSON only:\n"
+        "{\n"
+        '  "personas": [\n'
+        "    {\n"
+        '      "title": "<short persona label e.g. The ML Platform Engineer>",\n'
+        '      "background": "<2 sentences: who this person likely is, what they do now, what company type they work at>",\n'
+        f'      "likely_at": ["<company type 1>", "<company type 2>", "<company type 3>"],\n'
+        '      "linkedin_search": "<Boolean search string to find them on LinkedIn — use AND/OR/NOT and quoted phrases, include location if relevant>",\n'
+        f'      "outreach": "<4-5 sentence LinkedIn message from the recruiter. Open with a specific hook. Mention 2 key skills. Reference their likely background. Soft CTA. First person, conversational, not corporate.>"\n'
+        "    }\n"
+        "  ]\n"
+        "}"
+    )
+    try:
+        async with asyncio.timeout(25):
+            resp = await _client.messages.create(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=900,
+                system="You are an expert headhunter. Return valid JSON only.",
+                messages=[{"role": "user", "content": prompt}],
+            )
+        text = resp.content[0].text.strip()
+        if text.startswith("```"):
+            text = text.split("\n", 1)[1].rsplit("```", 1)[0].strip()
+        data = json.loads(text)
+        return {"status": "ok", "personas": data.get("personas", [])}
+    except Exception as exc:
+        logger.warning("HR talent hunt failed: %s", exc)
+        return {"status": "error", "message": "Could not generate talent hunt"}
+
+
 @app.post("/api/hr/outreach", dependencies=[Depends(_require_demo_secret)])
 async def hr_outreach(req: HROutreachRequest) -> dict:
     """Generate a personalised LinkedIn outreach message for a specific candidate."""
