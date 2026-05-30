@@ -2081,6 +2081,19 @@ async def hr_competitors(req: HRRequest) -> dict:
     if not postings:
         return {"status": "error", "message": "No competitor postings found. Check the company name and role spelling."}
 
+    # Filter: keep only postings where company name matches the target (case-insensitive).
+    # Prevents Agoda/EPAM postings bleeding into a Grab scan.
+    company_lower = req.company_name.strip().lower()
+    postings_filtered = [
+        p for p in postings
+        if company_lower in (p.get("company", "") or "").lower()
+        or company_lower in (p.get("url", "") or "").lower()
+    ]
+    # Only apply filter if it leaves enough results; otherwise keep all (avoids empty scans)
+    if len(postings_filtered) >= 3:
+        postings = postings_filtered
+        logger.info("HR company filter: kept %d/%d postings for '%s'", len(postings), len(postings_filtered), req.company_name)
+
     enrich_postings(postings)
     jd_list = [p["job_description"] for p in postings if p["job_description"]]
     all_skills_lists = await extract_all(_client, jd_list)
