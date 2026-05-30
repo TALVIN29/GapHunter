@@ -2049,13 +2049,17 @@ async def hr_detect_competitor(req: HRDetectRequest) -> dict:
     1. Claude identifies the top competitor for your company + role
     2. Bright Data SERP fetches news/market trend snippets
     """
-    # Step A: Claude identifies top competitor
+    # Step A: Claude identifies top competitor + auto-detects role if not provided
+    role_instruction = (
+        f'Focus on the role: {req.role}.' if req.role.strip()
+        else 'Also suggest the single most strategically important role to analyze for this company (the role most likely to reveal competitive advantage).'
+    )
     competitor_prompt = (
-        f"Company: {req.your_company}. Role they're analyzing: {req.role or 'general tech'}. "
-        f"Location: {req.location or 'Southeast Asia'}.\n\n"
+        f"Company: {req.your_company}. Location: {req.location or 'Southeast Asia'}. {role_instruction}\n\n"
         "Return JSON only:\n"
-        '{"competitor": "<single most relevant direct competitor company name — use exact LinkedIn company name>", '
-        '"reason": "<one sentence why this is the main competitor>"}'
+        '{"competitor": "<single most relevant direct competitor — use exact LinkedIn company name>", '
+        '"role": "<the role to analyze — use the provided role if given, otherwise suggest the most strategic one>", '
+        '"reason": "<one sentence why this competitor and role combination reveals the most competitive intelligence>"}'
     )
     competitor = req.your_company  # fallback
     try:
@@ -2069,15 +2073,18 @@ async def hr_detect_competitor(req: HRDetectRequest) -> dict:
         text = resp.content[0].text.strip()
         if text.startswith("```"):
             text = text.split("\n", 1)[1].rsplit("```", 1)[0].strip()
-        competitor = json.loads(text).get("competitor", req.your_company)
-        logger.info("Detected competitor for '%s': '%s'", req.your_company, competitor)
+        parsed = json.loads(text)
+        competitor = parsed.get("competitor", req.your_company)
+        detected_role = parsed.get("role", req.role or "Data Engineer")
+        logger.info("Detected competitor for '%s': '%s', role: '%s'", req.your_company, competitor, detected_role)
     except Exception as exc:
         logger.warning("Competitor detection failed: %s", exc)
+        detected_role = req.role or "Data Engineer"
 
     # Step B: SERP for market news / trend snippets
     news_snippets = ""
     try:
-        role_kw = req.role or "technology"
+        role_kw = detected_role or req.role or "technology"
         loc_kw = req.location or "Southeast Asia"
         keyword = f"{req.your_company} {role_kw} {loc_kw} hiring trends 2025"
         payload = {"input": [{"url": "https://www.google.com/", "keyword": keyword,
@@ -2100,7 +2107,12 @@ async def hr_detect_competitor(req: HRDetectRequest) -> dict:
     except Exception as exc:
         logger.warning("News SERP failed: %s", exc)
 
-    return {"status": "ok", "competitor": competitor, "news_snippets": news_snippets}
+    return {
+        "status": "ok",
+        "competitor": competitor,
+        "detected_role": detected_role,
+        "news_snippets": news_snippets,
+    }
 
 
 @app.post("/api/hr/competitors", dependencies=[Depends(_require_demo_secret)])
