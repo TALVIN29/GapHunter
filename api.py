@@ -2380,8 +2380,8 @@ async def hr_recommendations(req: HRRecommendationRequest) -> dict:
         "- YouTube: https://www.youtube.com/results?search_query=SKILL+tutorial\n"
         "- LinkedIn Learning: https://www.linkedin.com/learning/search?keywords=SKILL\n"
         "- Udemy: https://www.udemy.com/courses/search/?q=SKILL\n"
-        "- Databricks: https://www.databricks.com/learn/training/catalog\n"
-        "- Snowflake: https://learn.snowflake.com/en/catalog/\n"
+        "- Databricks: https://www.databricks.com/training\n"
+        "- Snowflake: https://learn.snowflake.com/en/\n"
         "Replace SKILL with the actual skill name URL-encoded. Use the best platform for each skill."
     )
     prompt = (
