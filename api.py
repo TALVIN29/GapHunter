@@ -2156,10 +2156,11 @@ async def hr_competitors(req: HRRequest) -> dict:
     except Exception:
         normalized_role = role_input
 
-    # HR path uses a tighter cap and timeout than the individual search path.
-    # POSTINGS_CAP=10 + 150s timeout → 90s+ per scan. Cap at 5 + 60s for HR.
+    # HR path uses a tighter cap than the individual search path.
+    # LinkedIn dataset poll alone = 30-55s + SERP = 20-30s → min 50s, max 85s.
+    # 90s gives enough headroom without the old 150s worst-case.
     _HR_POSTINGS_CAP = 5
-    _HR_TIMEOUT = 60
+    _HR_TIMEOUT = 90
 
     from scraper import scrape_jobs
 
