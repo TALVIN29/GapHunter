@@ -2160,8 +2160,11 @@ async def hr_competitors(req: HRRequest) -> dict:
     try:
         from scraper import scrape_jobs
         async with _scrape_sem:
+            # Search by role only — embedding company name in the query causes LinkedIn
+            # to return 0 results for companies with low posting volume (e.g. CIMB Group).
+            # Company-specific filtering happens post-scrape via the filter below.
             postings = await asyncio.wait_for(
-                asyncio.to_thread(scrape_jobs, f"{normalized_role} {req.company_name}", req.location),
+                asyncio.to_thread(scrape_jobs, normalized_role, req.location),
                 timeout=_SCRAPE_TIMEOUT_S,
             )
     except (asyncio.TimeoutError, Exception) as exc:
