@@ -2156,10 +2156,11 @@ async def hr_competitors(req: HRRequest) -> dict:
     except Exception:
         normalized_role = role_input
 
-    # Use LinkedIn-only scrape — skip web extraction fallback (too memory-heavy for HR path).
-    # Semaphore ensures only 1 concurrent scrape runs — prevents OOM on 512MB Render free tier.
-    # Acquire semaphore with 20s timeout only — once acquired, full scrape timeout applies.
-    # asyncio.timeout(20) must NOT wrap the scrape itself, only the acquire() call.
+    # HR path uses a tighter cap and timeout than the individual search path.
+    # POSTINGS_CAP=10 + 150s timeout → 90s+ per scan. Cap at 5 + 60s for HR.
+    _HR_POSTINGS_CAP = 5
+    _HR_TIMEOUT = 60
+
     from scraper import scrape_jobs
 
     async def _acquire_sem_or_busy():
@@ -2174,8 +2175,9 @@ async def hr_competitors(req: HRRequest) -> dict:
     try:
         postings = await asyncio.wait_for(
             asyncio.to_thread(scrape_jobs, normalized_role, req.location),
-            timeout=_SCRAPE_TIMEOUT_S,
+            timeout=_HR_TIMEOUT,
         )
+        postings = postings[:_HR_POSTINGS_CAP]
     except (asyncio.TimeoutError, Exception) as exc:
         logger.warning("HR scrape failed: %s", exc)
         postings = []
@@ -2189,8 +2191,9 @@ async def hr_competitors(req: HRRequest) -> dict:
         try:
             postings = await asyncio.wait_for(
                 asyncio.to_thread(scrape_jobs, normalized_role, ""),
-                timeout=_SCRAPE_TIMEOUT_S,
+                timeout=_HR_TIMEOUT,
             )
+            postings = postings[:_HR_POSTINGS_CAP]
         except (asyncio.TimeoutError, Exception) as exc:
             logger.warning("HR scrape fallback failed: %s", exc)
             postings = []
@@ -2372,7 +2375,7 @@ async def hr_recommendations(req: HRRecommendationRequest) -> dict:
     import requests as _req_lib
     import urllib.parse as _up
 
-    skills_list = [s.strip() for s in req.top_skills.split(",") if s.strip()][:3]
+    skills_list = [s.strip() for s in req.top_skills.split(",") if s.strip()][:2]
 
     async def _fetch_course(skill: str) -> dict:
         """Bright Data SERP — search for a real course for this skill."""
