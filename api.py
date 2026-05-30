@@ -2054,32 +2054,41 @@ async def hr_detect_competitor(req: HRDetectRequest) -> dict:
         f'Focus on the role: {req.role}.' if req.role.strip()
         else 'Also suggest the single most strategically important role to analyze for this company (the role most likely to reveal competitive advantage).'
     )
+    your_co = req.your_company.strip()
     competitor_prompt = (
-        f"Company: {req.your_company}. Location: {req.location or 'Southeast Asia'}. {role_instruction}\n\n"
+        f"Company: {your_co}. Location: {req.location or 'Southeast Asia'}. {role_instruction}\n\n"
+        f"CRITICAL: the competitor field MUST be a different company — NEVER '{your_co}'.\n\n"
         "Return JSON only:\n"
-        '{"competitor": "<single most relevant direct competitor — use exact LinkedIn company name>", '
-        '"role": "<the role to analyze — use the provided role if given, otherwise suggest the most strategic one>", '
-        '"reason": "<one sentence why this competitor and role combination reveals the most competitive intelligence>"}'
+        '{"competitor": "<single most relevant direct competitor — exact LinkedIn company name — must differ from the input company>", '
+        '"role": "<the role to analyze>", '
+        '"reason": "<one sentence: why this competitor + role combination reveals the most competitive intelligence>"}'
     )
-    competitor = req.your_company  # fallback
+    competitor = None
+    reason = ""
+    detected_role = req.role or "Data Engineer"
     try:
-        async with asyncio.timeout(10):
+        async with asyncio.timeout(12):
             resp = await _client.messages.create(
                 model="claude-haiku-4-5-20251001",
-                max_tokens=80,
-                system="You are a market analyst. Return valid JSON only.",
+                max_tokens=200,
+                system=f"You are a market analyst. The competitor MUST be a different company from '{your_co}'. Return valid JSON only.",
                 messages=[{"role": "user", "content": competitor_prompt}],
             )
         text = resp.content[0].text.strip()
         if text.startswith("```"):
             text = text.split("\n", 1)[1].rsplit("```", 1)[0].strip()
         parsed = json.loads(text)
-        competitor = parsed.get("competitor", req.your_company)
+        competitor = parsed.get("competitor", "").strip()
         detected_role = parsed.get("role", req.role or "Data Engineer")
-        logger.info("Detected competitor for '%s': '%s', role: '%s'", req.your_company, competitor, detected_role)
+        reason = parsed.get("reason", "")
+        # Prevent self-referential competitor
+        if not competitor or competitor.lower() == your_co.lower():
+            competitor = None
+        logger.info("Detected competitor for '%s': '%s', role: '%s'", your_co, competitor, detected_role)
     except Exception as exc:
         logger.warning("Competitor detection failed: %s", exc)
-        detected_role = req.role or "Data Engineer"
+    if not competitor:
+        return {"status": "error", "message": f"Could not identify a competitor for '{your_co}'. Try adding a role or use a more specific company name."}
 
     # Step B: SERP for market news / trend snippets
     news_snippets = ""
@@ -2111,6 +2120,7 @@ async def hr_detect_competitor(req: HRDetectRequest) -> dict:
         "status": "ok",
         "competitor": competitor,
         "detected_role": detected_role,
+        "reason": reason,
         "news_snippets": news_snippets,
     }
 
@@ -2476,7 +2486,7 @@ async def hr_talent_hunt(req: HRTalentHuntRequest) -> dict:
             data = r.json()
             if isinstance(data, list): data = data[0] if data else {}
             organic = data.get("organic", []) if isinstance(data, dict) else []
-            return [x["link"] for x in organic if "linkedin.com/in/" in x.get("link", "")][:3]
+            return [x["link"] for x in organic if "linkedin.com/in" in x.get("link", "").lower()][:3]
         except Exception:
             return []
 
