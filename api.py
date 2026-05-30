@@ -2369,11 +2369,24 @@ async def hr_recommendations(req: HRRecommendationRequest) -> dict:
     skills_list = [s.strip() for s in req.top_skills.split(",") if s.strip()][:3]
     skills_focus = ", ".join(skills_list)
 
+    # Use search-page URLs only — deep course links (e.g. coursera.org/learn/X) change
+    # frequently and 404. Search pages are stable and always resolve.
+    search_url_map = (
+        "For the link field, use the platform's SEARCH page for the skill — these never 404:\n"
+        "- Coursera: https://www.coursera.org/search?query=SKILL\n"
+        "- YouTube: https://www.youtube.com/results?search_query=SKILL+tutorial\n"
+        "- LinkedIn Learning: https://www.linkedin.com/learning/search?keywords=SKILL\n"
+        "- Udemy: https://www.udemy.com/courses/search/?q=SKILL\n"
+        "- Databricks: https://www.databricks.com/learn/training/catalog\n"
+        "- Snowflake: https://learn.snowflake.com/en/catalog/\n"
+        "Replace SKILL with the actual skill name URL-encoded. Use the best platform for each skill."
+    )
     prompt = (
         f"Skills needed for {req.role or 'this role'}: {skills_focus}.\n\n"
-        "For each skill return a training roadmap entry. Use real, specific course URLs.\n"
+        f"{search_url_map}\n\n"
+        "For each skill return a training roadmap entry.\n"
         'Return JSON only — an array of exactly 3 objects:\n'
-        '[{"skill":"python","why":"Core language for all data work","steps":["Complete Python basics on Codecademy","Build 2 data projects on GitHub","Practice LeetCode easy/medium"],"resource":"Codecademy Python Course","link":"https://www.codecademy.com/learn/learn-python-3","timeline":"4 weeks"},'
+        '[{"skill":"python","why":"Core language for all data work","steps":["Complete Python basics on Codecademy","Build 2 data projects on GitHub","Practice LeetCode easy/medium"],"resource":"Coursera — Python for Data Engineering","link":"https://www.coursera.org/search?query=python+data+engineering","timeline":"4 weeks"},'
         '{"skill":"...","why":"...","steps":["...","...","..."],"resource":"...","link":"https://...","timeline":"..."},'
         '{"skill":"...","why":"...","steps":["...","...","..."],"resource":"...","link":"https://...","timeline":"..."}]'
     )
@@ -2382,7 +2395,7 @@ async def hr_recommendations(req: HRRecommendationRequest) -> dict:
             resp = await _client.messages.create(
                 model="claude-haiku-4-5-20251001",
                 max_tokens=1200,
-                system="You are an L&D specialist. Return valid JSON array only. Use real course URLs.",
+                system="You are an L&D specialist. Return valid JSON array only. Use search-page URLs as instructed.",
                 messages=[{"role": "user", "content": prompt}],
             )
         text = resp.content[0].text.strip()
