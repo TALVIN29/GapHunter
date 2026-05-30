@@ -2372,33 +2372,24 @@ async def hr_recommendations(req: HRRecommendationRequest) -> dict:
     skills_list = [s.strip() for s in req.top_skills.split(",") if s.strip()][:3]
     skills_focus = ", ".join(skills_list)
 
-    # Use search-page URLs only — deep course links (e.g. coursera.org/learn/X) change
-    # frequently and 404. Search pages are stable and always resolve.
-    search_url_map = (
-        "For the link field, use the platform's SEARCH page for the skill — these never 404:\n"
-        "- Coursera: https://www.coursera.org/search?query=SKILL\n"
-        "- YouTube: https://www.youtube.com/results?search_query=SKILL+tutorial\n"
-        "- LinkedIn Learning: https://www.linkedin.com/learning/search?keywords=SKILL\n"
-        "- Udemy: https://www.udemy.com/courses/search/?q=SKILL\n"
-        "- Databricks: https://www.databricks.com/training\n"
-        "- Snowflake: https://learn.snowflake.com/en/\n"
-        "Replace SKILL with the actual skill name URL-encoded. Use the best platform for each skill."
-    )
+    # Claude generates content only (skill, why, steps, timeline, resource label).
+    # URLs are built in Python — no hallucination, no 404 risk.
     prompt = (
         f"Skills needed for {req.role or 'this role'}: {skills_focus}.\n\n"
-        f"{search_url_map}\n\n"
-        "For each skill return a training roadmap entry.\n"
+        "For each skill return a training roadmap entry. Do NOT include a link field — it will be added automatically.\n"
         'Return JSON only — an array of exactly 3 objects:\n'
-        '[{"skill":"python","why":"Core language for all data work","steps":["Complete Python basics on Codecademy","Build 2 data projects on GitHub","Practice LeetCode easy/medium"],"resource":"Coursera — Python for Data Engineering","link":"https://www.coursera.org/search?query=python+data+engineering","timeline":"4 weeks"},'
-        '{"skill":"...","why":"...","steps":["...","...","..."],"resource":"...","link":"https://...","timeline":"..."},'
-        '{"skill":"...","why":"...","steps":["...","...","..."],"resource":"...","link":"https://...","timeline":"..."}]'
+        '[{"skill":"python","why":"Core language for all data work",'
+        '"steps":["Complete Python basics","Build 2 data projects","Practice on real datasets"],'
+        '"resource":"Coursera","timeline":"4 weeks"},'
+        '{"skill":"...","why":"...","steps":["...","...","..."],"resource":"...","timeline":"..."},'
+        '{"skill":"...","why":"...","steps":["...","...","..."],"resource":"...","timeline":"..."}]'
     )
     try:
         async with asyncio.timeout(25):
             resp = await _client.messages.create(
                 model="claude-haiku-4-5-20251001",
-                max_tokens=1200,
-                system="You are an L&D specialist. Return valid JSON array only. Use search-page URLs as instructed.",
+                max_tokens=900,
+                system="You are an L&D specialist. Return valid JSON array only. No link field.",
                 messages=[{"role": "user", "content": prompt}],
             )
         text = resp.content[0].text.strip()
@@ -2407,6 +2398,37 @@ async def hr_recommendations(req: HRRecommendationRequest) -> dict:
         roadmap = json.loads(text)
         if not isinstance(roadmap, list):
             roadmap = roadmap.get("training_roadmap", [])
+
+        # Build URLs in Python — stable search pages, zero hallucination
+        import urllib.parse as _up
+        _platform_hints = {
+            "databricks": "https://www.databricks.com/training",
+            "snowflake":  "https://learn.snowflake.com/en/",
+            "spark":      "https://www.udemy.com/courses/search/?q=apache+spark",
+            "kafka":      "https://developer.confluent.io/courses/",
+            "dbt":        "https://courses.getdbt.com/",
+            "airflow":    "https://academy.astronomer.io/",
+            "kubernetes": "https://www.udemy.com/courses/search/?q=kubernetes",
+            "docker":     "https://www.udemy.com/courses/search/?q=docker",
+            "azure":      "https://learn.microsoft.com/en-us/training/",
+            "aws":        "https://aws.amazon.com/training/",
+            "gcp":        "https://cloud.google.com/learn/training",
+            "power bi":   "https://learn.microsoft.com/en-us/training/powerplatform/power-bi",
+            "tableau":    "https://www.tableau.com/learn/training",
+        }
+        for entry in roadmap:
+            skill_lower = (entry.get("skill") or "").lower()
+            # Check platform hints first (guaranteed working URLs for known tools)
+            link = next(
+                (url for kw, url in _platform_hints.items() if kw in skill_lower),
+                None
+            )
+            if not link:
+                # Default: Coursera search — stable, always resolves
+                q = _up.quote(f"{entry.get('skill', '')} {req.role or ''}".strip())
+                link = f"https://www.coursera.org/search?query={q}"
+            entry["link"] = link
+
         return {"status": "ok", "training_roadmap": roadmap}
     except Exception as exc:
         logger.warning("HR recommendations failed: %s", exc)
