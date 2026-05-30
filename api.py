@@ -2275,6 +2275,41 @@ async def hr_recommendations(req: HRRecommendationRequest) -> dict:
         return {"status": "error", "message": "Could not generate recommendations"}
 
 
+class HRIntelligenceRequest(BaseModel):
+    company: str
+    role: str = ""
+    top_skills: str
+
+
+@app.post("/api/hr/intelligence", dependencies=[Depends(_require_demo_secret)])
+async def hr_intelligence(req: HRIntelligenceRequest) -> dict:
+    """Competitive intelligence: interpret skill hiring signals strategically."""
+    prompt = (
+        f"Industry/company scanned: {req.company}. Role: {req.role or 'general'}.\n"
+        f"Top skills being hired for (from live job postings via Bright Data): {req.top_skills}\n\n"
+        "Analyse these hiring signals as a competitive intelligence analyst. Return JSON only:\n"
+        '{"building": "<2 sentences: what strategic capability this company/industry is building based on the skills — be specific and insightful>", '
+        '"gap": "<2 sentences: what this reveals about the competitive gap — what skills companies NOT hiring for these will lack in 12-18 months>", '
+        '"action": "<2 sentences: one specific action an HR team should take NOW based on this signal — concrete, not generic>"}'
+    )
+    try:
+        async with asyncio.timeout(15):
+            resp = await _client.messages.create(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=350,
+                system="You are a competitive intelligence analyst. Return valid JSON only.",
+                messages=[{"role": "user", "content": prompt}],
+            )
+        text = resp.content[0].text.strip()
+        if text.startswith("```"):
+            text = text.split("\n", 1)[1].rsplit("```", 1)[0].strip()
+        data = json.loads(text)
+        return {"status": "ok", **data}
+    except Exception as exc:
+        logger.warning("HR intelligence failed: %s", exc)
+        return {"status": "error"}
+
+
 class HROutreachRequest(BaseModel):
     company: str
     role: str = ""

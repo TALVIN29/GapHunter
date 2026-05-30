@@ -1144,13 +1144,13 @@
     <div class="glass-card card-glow mb-6">
       <div class="flex items-center gap-2 mb-4">
         <i class="fa-solid fa-crosshairs text-accent text-sm"></i>
-        <span class="section-label">Competitor Hiring Scanner</span>
-        <span class="text-slate-600 text-xs ml-1">— what skills is a competitor actively hiring for right now?</span>
+        <span class="section-label">Industry Skill Intelligence</span>
+        <span class="text-slate-600 text-xs ml-1">— scan a company or industry to see what skills the market is building toward</span>
       </div>
       <div class="flex flex-wrap gap-3 items-end">
         <div class="flex-1 min-w-[160px]">
-          <label class="text-xs text-slate-500 mb-1.5 block">Company <span class="text-slate-600">(exact LinkedIn name)</span></label>
-          <input class="input-field py-2.5" type="text" x-model="hrCompany" placeholder="e.g. Grab, Shopee, Maybank" @keydown.enter="doHRSearch()" />
+          <label class="text-xs text-slate-500 mb-1.5 block">Company / Industry <span class="text-slate-600">(LinkedIn name, or try "Fintech Malaysia")</span></label>
+          <input class="input-field py-2.5" type="text" x-model="hrCompany" placeholder="e.g. Grab, Maybank, CIMB" @keydown.enter="doHRSearch()" />
         </div>
         <div class="flex-1 min-w-[140px]">
           <label class="text-xs text-slate-500 mb-1.5 block">Role / Function</label>
@@ -1265,7 +1265,38 @@
         </div>
       </div>
 
-      <!-- Section 3: Source Postings -->
+      <!-- Section 3: Competitive Intelligence Summary -->
+      <div class="card" x-show="hrIntelSummary || hrLoadingRec">
+        <h2 class="font-semibold text-slate-200 flex items-center gap-2 text-base mb-1">
+          <i class="fa-solid fa-chess text-yellow-400"></i> Competitive Intelligence
+        </h2>
+        <p class="text-slate-500 text-xs mb-4">What <span class="text-blue-300 font-medium" x-text="hrCompany"></span>'s hiring signals reveal about their strategy — and what that means for your team</p>
+        <div x-show="hrLoadingRec && !hrIntelSummary" class="flex items-center gap-2 text-slate-500 text-xs py-2">
+          <i class="fa-solid fa-spinner animate-spin"></i> Analysing competitive signals…
+        </div>
+        <div x-show="hrIntelSummary" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div class="rounded-xl bg-yellow-500/5 border border-yellow-500/20 p-4">
+            <p class="text-xs font-semibold text-yellow-400 mb-2 flex items-center gap-1.5">
+              <i class="fa-solid fa-bullseye text-xs"></i> What they're building
+            </p>
+            <p class="text-xs text-slate-300 leading-relaxed" x-text="hrIntelSummary?.building"></p>
+          </div>
+          <div class="rounded-xl bg-red-500/5 border border-red-500/20 p-4">
+            <p class="text-xs font-semibold text-red-400 mb-2 flex items-center gap-1.5">
+              <i class="fa-solid fa-triangle-exclamation text-xs"></i> Your competitive gap
+            </p>
+            <p class="text-xs text-slate-300 leading-relaxed" x-text="hrIntelSummary?.gap"></p>
+          </div>
+          <div class="rounded-xl bg-emerald-500/5 border border-emerald-500/20 p-4">
+            <p class="text-xs font-semibold text-emerald-400 mb-2 flex items-center gap-1.5">
+              <i class="fa-solid fa-rocket text-xs"></i> Action for your team
+            </p>
+            <p class="text-xs text-slate-300 leading-relaxed" x-text="hrIntelSummary?.action"></p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Section 4: Source Postings -->
       <div class="card" x-show="hrPostingLinks.length > 0">
         <h2 class="font-semibold text-slate-200 flex items-center gap-2 text-base mb-3">
           <i class="fa-brands fa-linkedin text-blue-400"></i> Source Postings
@@ -1275,8 +1306,11 @@
           <template x-for="(url, i) in hrPostingLinks.slice(0, 9)" :key="i">
             <a :href="url" target="_blank" rel="noopener"
               class="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-800/40 border border-blue-500/10 hover:border-blue-500/30 hover:bg-blue-500/5 transition-all text-xs text-blue-300 group">
-              <i class="fa-brands fa-linkedin text-blue-400/60 shrink-0"></i>
-              <span class="truncate" x-text="'LinkedIn Posting #' + (i+1) + ' — ' + url.split('/').slice(-2, -1)[0].replace(/-at-.*/, '').replace(/-/g,' ')"></span>
+              <i class="fa-brands fa-linkedin text-blue-400/60 shrink-0 text-sm"></i>
+              <div class="flex flex-col min-w-0">
+                <span class="font-medium text-slate-200" x-text="'Posting #' + (i+1)"></span>
+                <span class="truncate text-slate-500" x-text="url.replace('https://www.linkedin.com/jobs/view/','').replace(/\?.*/, '').replace(/\/$/, '')"></span>
+              </div>
               <i class="fa-solid fa-arrow-up-right-from-square text-xs ml-auto opacity-0 group-hover:opacity-100 shrink-0"></i>
             </a>
           </template>
@@ -1497,6 +1531,7 @@
         hrCandidateProfile: '',
         hrGeneratingMsg: false,
         hrPostingLinks: [],
+        hrIntelSummary: null,
 
         init() {
           // Init AOS
@@ -1850,6 +1885,7 @@
               this.hrOutreachMsg = '';
               this.hrTrainingRoadmap = [];
               this.hrCandidateProfile = '';
+              this.hrIntelSummary = null;
               this.$nextTick(() => setTimeout(() => renderHRRadar(this.hrSkills), 120));
               this.fetchHRRecommendations();
             } else {
@@ -1867,13 +1903,23 @@
           this.hrLoadingRec = true;
           const topSkills = this.hrSkills.slice(0, 8).map(s => s.skill).join(', ');
           try {
-            const res = await fetch(`${API}/api/hr/recommendations`, {
-              method: 'POST', headers: _headers(),
-              body: JSON.stringify({ company: this.hrCompany, role: this.hrRole, top_skills: topSkills }),
-            });
-            if (res.ok) {
-              const d = await res.json();
+            const [recRes, intelRes] = await Promise.all([
+              fetch(`${API}/api/hr/recommendations`, {
+                method: 'POST', headers: _headers(),
+                body: JSON.stringify({ company: this.hrCompany, role: this.hrRole, top_skills: topSkills }),
+              }),
+              fetch(`${API}/api/hr/intelligence`, {
+                method: 'POST', headers: _headers(),
+                body: JSON.stringify({ company: this.hrCompany, role: this.hrRole, top_skills: topSkills }),
+              }),
+            ]);
+            if (recRes.ok) {
+              const d = await recRes.json();
               if (d.training_roadmap?.length) this.hrTrainingRoadmap = d.training_roadmap;
+            }
+            if (intelRes.ok) {
+              const d = await intelRes.json();
+              if (d.building) this.hrIntelSummary = d;
             }
           } catch { /* silent */ }
           finally { this.hrLoadingRec = false; }
