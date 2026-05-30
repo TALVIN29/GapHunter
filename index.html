@@ -1267,7 +1267,14 @@
             <h2 class="font-semibold text-slate-200 flex items-center gap-2 text-base">
               <i class="fa-solid fa-chess text-yellow-400"></i> Competitive Intelligence
             </h2>
-            <p class="text-slate-500 text-xs mt-0.5">What <span class="text-blue-300 font-medium" x-text="hrCompany"></span>'s signals reveal — and the gap vs your team</p>
+            <p class="text-slate-500 text-xs mt-0.5">
+              <template x-if="hrDataScope === 'company'">
+                <span>What <span class="text-blue-300 font-medium" x-text="hrCompany"></span>'s job postings reveal — and the gap vs your team</span>
+              </template>
+              <template x-if="hrDataScope !== 'company'">
+                <span>Market-wide <span class="text-blue-300 font-medium" x-text="hrRole"></span> signals in <span x-text="hrLocation || 'this market'"></span> — limited <span x-text="hrCompany"></span>-specific postings found</span>
+              </template>
+            </p>
           </div>
           <span x-show="hrNewsSignals" class="text-xs text-emerald-400 flex items-center gap-1">
             <i class="fa-solid fa-satellite-dish text-xs"></i> + market news
@@ -1342,7 +1349,8 @@
               <i class="fa-solid fa-chart-bar text-accent"></i> Skill Demand Signal
             </h2>
             <p class="text-xs text-slate-500 mt-0.5">
-              Live signals from <span class="text-blue-400 font-medium" x-text="hrPostings"></span> postings via Bright Data · Source: LinkedIn
+              Top 5 skills · <span x-text="hrPostings"></span> postings via Bright Data ·
+              <span x-text="hrDataScope === 'company' ? hrCompany + ' specific' : hrRole + ' market-wide'"></span>
             </p>
           </div>
           <span class="badge badge-blue px-3 py-1" x-text="hrCompany"></span>
@@ -1630,24 +1638,31 @@
     function renderHRRadar(skills) {
       const el = document.getElementById('hr-radar-chart');
       if (!el) return;
-      const top8 = skills.slice(0, 8);
+      // Top 5 only — more readable, highlights signal over noise
+      const top5 = skills.slice(0, 5);
+      // Color tiers: #1 red (critical), #2-3 amber, #4-5 blue
+      const barColors = top5.map((_, i) =>
+        i === 0 ? '#ef4444' : i < 3 ? '#f59e0b' : '#3b82f6'
+      );
       const opts = {
-        series: [{ name: 'Demand Score', data: top8.map(s => +(s.score).toFixed(3)) }],
-        chart: { type: 'bar', height: 220, background: 'transparent', toolbar: { show: false },
+        series: [{ name: 'Demand Score', data: top5.map(s => +(s.score).toFixed(3)) }],
+        chart: { type: 'bar', height: 200, background: 'transparent', toolbar: { show: false },
           animations: { enabled: true, speed: 400 } },
-        plotOptions: { bar: { horizontal: true, borderRadius: 4, dataLabels: { position: 'right' } } },
-        dataLabels: { enabled: true, formatter: v => v.toFixed(3), style: { colors: ['#94a3b8'], fontSize: '11px' } },
-        xaxis: { categories: top8.map(s => s.skill), labels: { style: { colors: '#64748b', fontSize: '12px' } }, axisBorder: { show: false }, axisTicks: { show: false } },
-        yaxis: { labels: { style: { colors: '#94a3b8', fontSize: '12px' } } },
-        colors: ['#3b82f6'],
-        grid: { borderColor: 'rgba(59,130,246,0.08)', strokeDashArray: 4 },
+        plotOptions: { bar: { horizontal: true, borderRadius: 5, distributed: true,
+          dataLabels: { position: 'right' } } },
+        dataLabels: { enabled: true, formatter: v => v.toFixed(3),
+          style: { colors: ['#94a3b8'], fontSize: '11px', fontWeight: 400 } },
+        xaxis: { categories: top5.map(s => s.skill),
+          labels: { style: { colors: '#64748b', fontSize: '12px' } },
+          axisBorder: { show: false }, axisTicks: { show: false } },
+        yaxis: { labels: { style: { colors: '#cbd5e1', fontSize: '12px' } } },
+        colors: barColors,
+        legend: { show: false },
+        grid: { borderColor: 'rgba(255,255,255,0.05)', strokeDashArray: 4 },
         theme: { mode: 'dark' },
-        tooltip: { theme: 'dark', y: { formatter: v => 'Score: ' + v.toFixed(3) } },
+        tooltip: { theme: 'dark', y: { formatter: v => 'Demand score: ' + v.toFixed(3) } },
       };
-      if (_hrRadarChart) {
-        _hrRadarChart.destroy();
-        _hrRadarChart = null;
-      }
+      if (_hrRadarChart) { _hrRadarChart.destroy(); _hrRadarChart = null; }
       _hrRadarChart = new ApexCharts(el, opts);
       _hrRadarChart.render();
     }
@@ -1713,6 +1728,7 @@
         hrScanStatus: '',
         hrDetectedCompetitor: '',
         hrDetectReason: '',
+        hrDataScope: 'market',
 
         init() {
           // Init AOS
@@ -2079,6 +2095,7 @@
               this.hrSkills = data.top_skills || [];
               this.hrPostings = data.postings_analysed || 0;
               this.hrPostingLinks = data.posting_urls || [];
+              this.hrDataScope = data.data_scope || 'market';
               this.hrTrainingRoadmap = [];
               this.hrIntelSummary = null;
               this.hrPersonas = [];

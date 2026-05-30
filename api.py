@@ -2208,8 +2208,10 @@ async def hr_competitors(req: HRRequest) -> dict:
         or company_lower in (p.get("url", "") or "").lower()
     ]
     # Only apply filter if it leaves enough results; otherwise keep all (avoids empty scans)
+    data_scope = "market"  # default — market-wide signals
     if len(postings_filtered) >= 3:
         postings = postings_filtered
+        data_scope = "company"  # enough company-specific postings found
         logger.info("HR company filter: kept %d/%d postings for '%s'", len(postings), len(postings_filtered), req.company_name)
 
     enrich_postings(postings)
@@ -2249,6 +2251,7 @@ async def hr_competitors(req: HRRequest) -> dict:
         "company": req.company_name,
         "role": req.role,
         "postings_analysed": len(postings),
+        "data_scope": data_scope,  # "company" = filtered to target co, "market" = broad signals
         "top_skills": [{"skill": s, "score": sc} for s, sc in top_skills],
         "posting_urls": posting_urls,
     }
