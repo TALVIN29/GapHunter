@@ -1182,6 +1182,10 @@
       <div x-show="hrSearching" class="mt-3 text-xs text-slate-500">
         <span x-text="hrScanStatus || 'Identifying competitors via Bright Data SERP → scraping job postings → fetching market news → Claude AI analysis'"></span>
       </div>
+      <div x-show="hrScanError && !hrSearching" class="mt-3 flex items-start gap-2 px-3 py-2.5 rounded-lg bg-red-500/10 border border-red-500/20">
+        <i class="fa-solid fa-circle-exclamation text-red-400 text-xs mt-0.5 shrink-0"></i>
+        <p class="text-xs text-red-300" x-text="hrScanError"></p>
+      </div>
       <div x-show="hrPostings > 0 && !hrSearching" class="mt-3 flex flex-col gap-1.5">
         <div class="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
           <span>Auto-detected competitor: <span x-text="hrCompany" class="text-blue-300 font-semibold"></span></span>
@@ -1794,6 +1798,7 @@
         hrDetectedCompetitor: '',
         hrDetectReason: '',
         hrDataScope: 'market',
+        hrScanError: '',
 
         init() {
           // Init AOS
@@ -2142,15 +2147,14 @@
               body: JSON.stringify({ your_company: this.hrYourCompany, role: this.hrRole, location: this.hrLocation }),
             });
             const detectData = await detectRes.json();
-            // Hard stop if detection failed or returned self — don't silently scan own company
+            // Hard stop if detection failed — don't silently scan own company
             if (detectData.status !== 'ok' || !detectData.competitor) {
               this.hrSearching = false;
               this.hrScanStatus = '';
-              Swal.fire({ icon: 'error', title: 'Could not identify competitor',
-                text: detectData.message || 'Try a more specific company name, or enter the competitor manually in the Role field.',
-                background: '#0d1526', color: '#e2e8f0', confirmButtonColor: '#3b82f6' });
+              this.hrScanError = 'Auto-detection failed — the AI could not identify a competitor. Try again, or type the competitor name in the Role field.';
               return;
             }
+            this.hrScanError = '';
             const competitor = detectData.competitor;
             // Always apply the AI-corrected/auto-detected role — fixes typos like "Data Engine" → "Data Engineer"
             const detectedRole = detectData.detected_role || this.hrRole || 'Data Engineer';

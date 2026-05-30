@@ -2088,7 +2088,7 @@ async def hr_detect_competitor(req: HRDetectRequest) -> dict:
     except Exception as exc:
         logger.warning("Competitor detection failed: %s", exc)
     if not competitor:
-        return {"status": "error", "message": f"Could not identify a competitor for '{your_co}'. Try adding a role or use a more specific company name."}
+        return {"status": "error", "message": f"Auto-detection failed for '{your_co}'. Try again, or type the competitor name in the Role field."}
 
     # Step B: SERP for market news / trend snippets
     news_snippets = ""
