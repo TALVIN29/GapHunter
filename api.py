@@ -2367,70 +2367,95 @@ class HRRecommendationRequest(BaseModel):
 
 @app.post("/api/hr/recommendations", dependencies=[Depends(_require_demo_secret)])
 async def hr_recommendations(req: HRRecommendationRequest) -> dict:
-    """Training roadmap: 3 priority skills to develop, with real course links."""
-    # Pick top 3 skills to focus roadmap on
-    skills_list = [s.strip() for s in req.top_skills.split(",") if s.strip()][:3]
-    skills_focus = ", ".join(skills_list)
+    """Training roadmap: 3 priority skills with real course links via Bright Data SERP."""
+    import requests as _req_lib
+    import urllib.parse as _up
 
-    # Claude generates content only (skill, why, steps, timeline, resource label).
-    # URLs are built in Python — no hallucination, no 404 risk.
+    skills_list = [s.strip() for s in req.top_skills.split(",") if s.strip()][:3]
+
+    async def _fetch_course(skill: str) -> dict:
+        """Bright Data SERP — search for a real course for this skill."""
+        keyword = f"{skill} {req.role or ''} course tutorial".strip()
+        payload = {"input": [{"url": "https://www.google.com/", "keyword": keyword,
+                               "language": "en", "tbs": "", "tbm": ""}]}
+        try:
+            r = await asyncio.wait_for(
+                asyncio.to_thread(
+                    lambda: _req_lib.post(
+                        f"https://api.brightdata.com/datasets/v3/scrape"
+                        f"?dataset_id={os.environ.get('BRIGHTDATA_DATASET_ID','')}&include_errors=true",
+                        headers={"Authorization": f"Bearer {os.environ.get('BRIGHTDATA_API_TOKEN','')}",
+                                 "Content-Type": "application/json"},
+                        json=payload, timeout=20,
+                    )
+                ), timeout=25
+            )
+            if r.ok:
+                data = r.json()
+                if isinstance(data, list): data = data[0] if data else {}
+                organic = data.get("organic", []) if isinstance(data, dict) else []
+                for result in organic:
+                    link = result.get("link", "")
+                    title = result.get("title", "")
+                    desc = result.get("description", "")
+                    if link and title:
+                        return {"skill": skill, "resource": title, "link": link, "why": desc}
+        except Exception as exc:
+            logger.warning("Course SERP failed for '%s': %s", skill, exc)
+        # Fallback: Coursera search if SERP returns nothing
+        q = _up.quote(f"{skill} {req.role or ''}".strip())
+        return {
+            "skill": skill,
+            "resource": f"Coursera — {skill}",
+            "link": f"https://www.coursera.org/search?query={q}",
+            "why": "",
+        }
+
+    # Fetch real course links for all 3 skills in parallel via Bright Data SERP
+    course_results = await asyncio.gather(*[_fetch_course(s) for s in skills_list])
+
+    # Claude adds learning steps + timeline — content only, no URLs
+    skills_focus = ", ".join(skills_list)
     prompt = (
-        f"Skills needed for {req.role or 'this role'}: {skills_focus}.\n\n"
-        "For each skill return a training roadmap entry. Do NOT include a link field — it will be added automatically.\n"
-        'Return JSON only — an array of exactly 3 objects.\n'
-        'Use a DIFFERENT platform for each skill (Coursera / YouTube / LinkedIn Learning / Udemy / Pluralsight):\n'
+        f"Skills: {skills_focus}. Role: {req.role or 'professional'}.\n"
+        "For each skill return learning steps and timeline. No link or resource fields.\n"
+        'Return JSON array of exactly 3 objects: '
         '[{"skill":"python","why":"Core language for all data work",'
-        '"steps":["Complete Python basics","Build 2 data projects","Practice on real datasets"],'
-        '"resource":"Coursera","timeline":"4 weeks"},'
-        '{"skill":"databricks","why":"Industry standard for big data pipelines",'
-        '"steps":["Complete Databricks fundamentals","Build a lakehouse pipeline","Practice with Delta Lake"],'
-        '"resource":"YouTube","timeline":"6 weeks"},'
-        '{"skill":"data modeling","why":"Foundation for scalable analytics",'
-        '"steps":["Learn dimensional modeling","Design star schemas","Build 2 models from scratch"],'
-        '"resource":"Udemy","timeline":"4 weeks"}]'
+        '"steps":["Step 1","Step 2","Step 3"],"timeline":"4 weeks"},'
+        '{"skill":"...","why":"...","steps":["...","...","..."],"timeline":"..."},'
+        '{"skill":"...","why":"...","steps":["...","...","..."],"timeline":"..."}]'
     )
     try:
-        async with asyncio.timeout(25):
+        async with asyncio.timeout(20):
             resp = await _client.messages.create(
-                model="claude-haiku-4-5-20251001",
-                max_tokens=900,
-                system="You are an L&D specialist. Return valid JSON array only. No link field.",
+                model="claude-haiku-4-5-20251001", max_tokens=700,
+                system="You are an L&D specialist. Return valid JSON array only.",
                 messages=[{"role": "user", "content": prompt}],
             )
         text = resp.content[0].text.strip()
         if text.startswith("```"):
             text = text.split("\n", 1)[1].rsplit("```", 1)[0].strip()
-        roadmap = json.loads(text)
-        if not isinstance(roadmap, list):
-            roadmap = roadmap.get("training_roadmap", [])
-
-        # Build URLs in Python from the skill name — no hardcoded platform dict.
-        # Coursera search always resolves regardless of skill or platform changes.
-        # Build search URL from skill + Claude's suggested platform name.
-        # These are URL search patterns — the skill name is dynamic, the pattern
-        # is stable (these search routes have not changed in years).
-        import urllib.parse as _up
-        _search_patterns = {
-            "youtube":   "https://www.youtube.com/results?search_query={q}+tutorial",
-            "udemy":     "https://www.udemy.com/courses/search/?q={q}",
-            "linkedin":  "https://www.linkedin.com/learning/search?keywords={q}",
-            "coursera":  "https://www.coursera.org/search?query={q}",
-            "pluralsight": "https://www.pluralsight.com/search?q={q}",
-        }
-        for entry in roadmap:
-            skill = entry.get("skill", "")
-            resource = (entry.get("resource") or "coursera").lower()
-            q = _up.quote(f"{skill} {req.role or ''}".strip())
-            pattern = next(
-                (v for k, v in _search_patterns.items() if k in resource),
-                "https://www.coursera.org/search?query={q}"
-            )
-            entry["link"] = pattern.format(q=q)
-
-        return {"status": "ok", "training_roadmap": roadmap}
+        steps_data = json.loads(text)
+        if not isinstance(steps_data, list):
+            steps_data = []
     except Exception as exc:
-        logger.warning("HR recommendations failed: %s", exc)
-        return {"status": "error", "message": "Could not generate recommendations"}
+        logger.warning("HR roadmap steps failed: %s", exc)
+        steps_data = []
+
+    # Merge Bright Data course links with Claude steps
+    roadmap = []
+    for i, course in enumerate(course_results):
+        steps_entry = next((s for s in steps_data if s.get("skill","").lower() == course["skill"].lower()), {})
+        roadmap.append({
+            "skill": course["skill"],
+            "why": steps_entry.get("why") or course["why"] or f"Key skill for {req.role or 'this role'}",
+            "steps": steps_entry.get("steps", []),
+            "resource": course["resource"],
+            "link": course["link"],
+            "timeline": steps_entry.get("timeline", "4–6 weeks"),
+        })
+
+    return {"status": "ok", "training_roadmap": roadmap}
 
 
 class HRIntelligenceRequest(BaseModel):
