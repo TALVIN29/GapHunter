@@ -2157,42 +2157,47 @@ async def hr_competitors(req: HRRequest) -> dict:
 
     # Use LinkedIn-only scrape — skip web extraction fallback (too memory-heavy for HR path).
     # Semaphore ensures only 1 concurrent scrape runs — prevents OOM on 512MB Render free tier.
-    # Acquire semaphore with a 20s timeout — fail fast instead of blocking indefinitely
-    # when another scan is already in progress.
+    # Acquire semaphore with 20s timeout only — once acquired, full scrape timeout applies.
+    # asyncio.timeout(20) must NOT wrap the scrape itself, only the acquire() call.
+    from scraper import scrape_jobs
+
+    async def _acquire_sem_or_busy():
+        """Returns True if acquired, raises busy error if 20s elapses."""
+        try:
+            await asyncio.wait_for(_scrape_sem.acquire(), timeout=20)
+            return True
+        except asyncio.TimeoutError:
+            raise HTTPException(status_code=429, detail="Another scan is in progress. Please try again in 30 seconds.")
+
+    await _acquire_sem_or_busy()
     try:
-        from scraper import scrape_jobs
-        async with asyncio.timeout(20):
-            async with _scrape_sem:
-                # Search by role only — embedding company name causes 0 results for
-                # low-volume companies. Company filter applied post-scrape below.
-                postings = await asyncio.wait_for(
-                    asyncio.to_thread(scrape_jobs, normalized_role, req.location),
-                    timeout=_SCRAPE_TIMEOUT_S,
-                )
-    except asyncio.TimeoutError:
-        return {"status": "error", "message": "Another scan is in progress — please try again in 30 seconds."}
-    except Exception as exc:
+        postings = await asyncio.wait_for(
+            asyncio.to_thread(scrape_jobs, normalized_role, req.location),
+            timeout=_SCRAPE_TIMEOUT_S,
+        )
+    except (asyncio.TimeoutError, Exception) as exc:
         logger.warning("HR scrape failed: %s", exc)
         postings = []
+    finally:
+        _scrape_sem.release()
 
     # If location-specific search returned nothing, retry without location constraint.
     if not postings and req.location.strip():
-        logger.info("HR scrape: 0 results for location '%s', retrying without location", req.location)
+        logger.info("HR scrape: 0 results for '%s', retrying without location", req.location)
+        await _acquire_sem_or_busy()
         try:
-            async with asyncio.timeout(20):
-                async with _scrape_sem:
-                    postings = await asyncio.wait_for(
-                        asyncio.to_thread(scrape_jobs, normalized_role, ""),
-                        timeout=_SCRAPE_TIMEOUT_S,
-                    )
-        except asyncio.TimeoutError:
-            return {"status": "error", "message": "Another scan is in progress — please try again in 30 seconds."}
-        except Exception as exc:
+            postings = await asyncio.wait_for(
+                asyncio.to_thread(scrape_jobs, normalized_role, ""),
+                timeout=_SCRAPE_TIMEOUT_S,
+            )
+        except (asyncio.TimeoutError, Exception) as exc:
             logger.warning("HR scrape fallback failed: %s", exc)
             postings = []
+        finally:
+            _scrape_sem.release()
 
     if not postings:
-        return {"status": "error", "message": "No postings found for this role. Try a broader role name (e.g. 'Data Engineer' instead of 'Senior Data Engineer')."}
+        return {"status": "error", "message": "No postings found for this role. Try a broader role name."}
 
     # Filter: keep only postings where company name matches the target (case-insensitive).
     # Prevents Agoda/EPAM postings bleeding into a Grab scan.
