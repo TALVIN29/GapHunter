@@ -2036,6 +2036,73 @@ async def analyse_job(req: AnalyseRequest) -> dict:
 # HR Competitor Intelligence (F9) — Track 1
 # ---------------------------------------------------------------------------
 
+class HRDetectRequest(BaseModel):
+    your_company: str
+    role: str = ""
+    location: str = ""
+
+
+@app.post("/api/hr/detect-competitor", dependencies=[Depends(_require_demo_secret)])
+async def hr_detect_competitor(req: HRDetectRequest) -> dict:
+    """
+    Step 1 of competitive intelligence:
+    1. Claude identifies the top competitor for your company + role
+    2. Bright Data SERP fetches news/market trend snippets
+    """
+    # Step A: Claude identifies top competitor
+    competitor_prompt = (
+        f"Company: {req.your_company}. Role they're analyzing: {req.role or 'general tech'}. "
+        f"Location: {req.location or 'Southeast Asia'}.\n\n"
+        "Return JSON only:\n"
+        '{"competitor": "<single most relevant direct competitor company name — use exact LinkedIn company name>", '
+        '"reason": "<one sentence why this is the main competitor>"}'
+    )
+    competitor = req.your_company  # fallback
+    try:
+        async with asyncio.timeout(10):
+            resp = await _client.messages.create(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=80,
+                system="You are a market analyst. Return valid JSON only.",
+                messages=[{"role": "user", "content": competitor_prompt}],
+            )
+        text = resp.content[0].text.strip()
+        if text.startswith("```"):
+            text = text.split("\n", 1)[1].rsplit("```", 1)[0].strip()
+        competitor = json.loads(text).get("competitor", req.your_company)
+        logger.info("Detected competitor for '%s': '%s'", req.your_company, competitor)
+    except Exception as exc:
+        logger.warning("Competitor detection failed: %s", exc)
+
+    # Step B: SERP for market news / trend snippets
+    news_snippets = ""
+    try:
+        role_kw = req.role or "technology"
+        loc_kw = req.location or "Southeast Asia"
+        keyword = f"{req.your_company} {role_kw} {loc_kw} hiring trends 2025"
+        payload = {"input": [{"url": "https://www.google.com/", "keyword": keyword,
+                               "language": "en", "tbs": "qdr:y", "tbm": ""}]}
+        import requests as _req_lib
+        serp_resp = await asyncio.to_thread(
+            lambda: _req_lib.post(
+                f"https://api.brightdata.com/datasets/v3/scrape?dataset_id={os.environ.get('BRIGHTDATA_DATASET_ID','')}&include_errors=true",
+                headers={"Authorization": f"Bearer {os.environ.get('BRIGHTDATA_API_TOKEN','')}", "Content-Type": "application/json"},
+                json=payload, timeout=20,
+            )
+        )
+        if serp_resp.ok:
+            data = serp_resp.json()
+            if isinstance(data, list): data = data[0] if data else {}
+            organic = data.get("organic", []) if isinstance(data, dict) else []
+            snippets = [r.get("description", "") for r in organic[:4] if r.get("description")]
+            news_snippets = " | ".join(snippets)
+            logger.info("News snippets fetched: %d chars", len(news_snippets))
+    except Exception as exc:
+        logger.warning("News SERP failed: %s", exc)
+
+    return {"status": "ok", "competitor": competitor, "news_snippets": news_snippets}
+
+
 @app.post("/api/hr/competitors", dependencies=[Depends(_require_demo_secret)])
 async def hr_competitors(req: HRRequest) -> dict:
     """
@@ -2283,7 +2350,8 @@ class HRIntelligenceRequest(BaseModel):
     company: str
     role: str = ""
     top_skills: str
-    your_skills: str = ""  # your team's current skills for personalized gap
+    your_skills: str = ""
+    news_context: str = ""  # SERP news snippets for richer analysis
 
 
 @app.post("/api/hr/intelligence", dependencies=[Depends(_require_demo_secret)])
@@ -2299,14 +2367,16 @@ async def hr_intelligence(req: HRIntelligenceRequest) -> dict:
         if req.your_skills.strip() else
         '"gap": "<2 sentences: what skills companies NOT investing in these will lack vs this competitor in 12-18 months>",'
     )
+    news_section = f"Market news/trends (from Bright Data SERP): {req.news_context}\n" if req.news_context else ""
     prompt = (
         f"Company/industry scanned: {req.company}. Role: {req.role or 'general'}.\n"
-        f"Skills they are hiring for (live data from Bright Data): {req.top_skills}\n"
+        f"Skills they are hiring for (live LinkedIn data via Bright Data): {req.top_skills}\n"
+        f"{news_section}"
         f"{your_context}\n"
-        "Analyse as a competitive intelligence analyst. Return JSON only:\n"
-        '{"building": "<2 sentences: what capability the scanned company is building — be specific>", '
+        "Analyse as a competitive intelligence analyst using both job posting signals and market news. Return JSON only:\n"
+        '{"building": "<2 sentences: what capability the scanned company is building — reference both skill signals AND market trends if available>", '
         f"{gap_instruction} "
-        '"action": "<2 sentences: one concrete action the HR team should take in the next 30 days>"}'
+        '"action": "<2 sentences: one concrete action the HR team should take in the next 30 days — be specific to this company/role/market>"}'
     )
     try:
         async with asyncio.timeout(15):
@@ -2343,45 +2413,69 @@ class HRTalentHuntRequest(BaseModel):
 @app.post("/api/hr/talent-hunt", dependencies=[Depends(_require_demo_secret)])
 async def hr_talent_hunt(req: HRTalentHuntRequest) -> dict:
     """
-    Generate 3 candidate personas for talent hunting:
-    - Who they are + where to find them
-    - LinkedIn boolean search string
-    - Ready-to-send personalised outreach message
+    Generate 3 candidate personas + search LinkedIn for real profile URLs via Bright Data SERP.
     """
-    location_hint = f" in {req.location}" if req.location else ""
+    # Step 1: Generate personas via Claude
     prompt = (
-        f"You are a headhunter. A client needs to hire {req.role or 'talent'} with these skills: {req.top_skills}.\n"
-        f"Target market: {req.location or 'Southeast Asia'}.\n\n"
-        "Generate 3 distinct candidate personas to hunt for. Each persona is a real type of person who has these skills.\n"
-        "Return JSON only:\n"
-        "{\n"
-        '  "personas": [\n'
-        "    {\n"
-        '      "title": "<short persona label e.g. The ML Platform Engineer>",\n'
-        '      "background": "<2 sentences: who this person likely is, what they do now, what company type they work at>",\n'
-        f'      "likely_at": ["<company type 1>", "<company type 2>", "<company type 3>"],\n'
-        '      "linkedin_search": "<Boolean search string to find them on LinkedIn — use AND/OR/NOT and quoted phrases, include location if relevant>",\n'
-        f'      "outreach": "<4-5 sentence LinkedIn message from the recruiter. Open with a specific hook. Mention 2 key skills. Reference their likely background. Soft CTA. First person, conversational, not corporate.>"\n'
-        "    }\n"
-        "  ]\n"
-        "}"
+        f"You are a headhunter. Hiring company: {req.company or 'client'}. Role: {req.role or 'talent'}. "
+        f"Required skills: {req.top_skills}. Market: {req.location or 'Southeast Asia'}.\n\n"
+        "Generate 3 distinct candidate personas. Each is a real type of person who has these skills.\n"
+        "Return JSON array only — no wrapper object:\n"
+        '[{"title":"<e.g. The MLOps Practitioner>","background":"<2 sentences: who they are, current role type, company type>",'
+        '"likely_at":["<company 1>","<company 2>","<company 3>"],'
+        '"search_query":"<Google search query to find their LinkedIn profiles: site:linkedin.com/in + 2 key skills + location>","outreach":"<4-5 sentence LinkedIn message: specific hook + 2 skills + soft CTA, first person>"},'
+        '{"title":"...","background":"...","likely_at":["...","...","..."],"search_query":"...","outreach":"..."},'
+        '{"title":"...","background":"...","likely_at":["...","...","..."],"search_query":"...","outreach":"..."}]'
     )
+    personas = []
     try:
         async with asyncio.timeout(25):
             resp = await _client.messages.create(
                 model="claude-haiku-4-5-20251001",
                 max_tokens=900,
-                system="You are an expert headhunter. Return valid JSON only.",
+                system="You are an expert headhunter. Return valid JSON array only.",
                 messages=[{"role": "user", "content": prompt}],
             )
         text = resp.content[0].text.strip()
         if text.startswith("```"):
             text = text.split("\n", 1)[1].rsplit("```", 1)[0].strip()
-        data = json.loads(text)
-        return {"status": "ok", "personas": data.get("personas", [])}
+        parsed = json.loads(text)
+        personas = parsed if isinstance(parsed, list) else parsed.get("personas", [])
     except Exception as exc:
-        logger.warning("HR talent hunt failed: %s", exc)
+        logger.warning("HR talent hunt persona generation failed: %s", exc)
         return {"status": "error", "message": "Could not generate talent hunt"}
+
+    # Step 2: SERP search for real LinkedIn profile URLs (one call per persona, parallel)
+    import requests as _req_lib
+
+    async def _serp_profiles(search_query: str) -> list[str]:
+        try:
+            payload = {"input": [{"url": "https://www.google.com/", "keyword": search_query,
+                                   "language": "en", "tbs": "", "tbm": ""}]}
+            r = await asyncio.wait_for(
+                asyncio.to_thread(
+                    lambda: _req_lib.post(
+                        f"https://api.brightdata.com/datasets/v3/scrape?dataset_id={os.environ.get('BRIGHTDATA_DATASET_ID','')}&include_errors=true",
+                        headers={"Authorization": f"Bearer {os.environ.get('BRIGHTDATA_API_TOKEN','')}", "Content-Type": "application/json"},
+                        json=payload, timeout=15,
+                    )
+                ), timeout=18
+            )
+            data = r.json()
+            if isinstance(data, list): data = data[0] if data else {}
+            organic = data.get("organic", []) if isinstance(data, dict) else []
+            return [x["link"] for x in organic if "linkedin.com/in/" in x.get("link", "")][:3]
+        except Exception:
+            return []
+
+    profile_results = await asyncio.gather(*[
+        _serp_profiles(p.get("search_query", "")) for p in personas[:3]
+    ])
+
+    for persona, profile_urls in zip(personas, profile_results):
+        persona["profile_urls"] = profile_urls
+
+    return {"status": "ok", "personas": personas}
 
 
 @app.post("/api/hr/outreach", dependencies=[Depends(_require_demo_secret)])

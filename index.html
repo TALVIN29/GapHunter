@@ -1142,50 +1142,52 @@
 
     <!-- ── Search bar (TOP, full-width) ── -->
     <div class="glass-card card-glow mb-6">
-      <div class="flex items-center gap-2 mb-4">
-        <i class="fa-solid fa-crosshairs text-accent text-sm"></i>
-        <span class="section-label">Industry Skill Intelligence</span>
-        <span class="text-slate-600 text-xs ml-1">— scan a company or industry to see what skills the market is building toward</span>
+      <div class="flex items-center gap-2 mb-1">
+        <i class="fa-solid fa-building-columns text-accent text-sm"></i>
+        <span class="section-label">Competitive Market Intelligence</span>
       </div>
-      <div class="flex flex-wrap gap-3 items-end">
-        <div class="flex-1 min-w-[160px]">
-          <label class="text-xs text-slate-500 mb-1.5 block">Company / Industry <span class="text-slate-600">(LinkedIn name, or try "Fintech Malaysia")</span></label>
-          <input class="input-field py-2.5" type="text" x-model="hrCompany" placeholder="e.g. Grab, Maybank, CIMB" @keydown.enter="doHRSearch()" />
+      <p class="text-slate-500 text-xs mb-4">Enter your company — GapHunter finds your competitors, scans their live job postings, fetches market news, and tells you exactly where the skills gap is.</p>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
+        <div>
+          <label class="text-xs text-slate-500 mb-1.5 block font-medium">Your Company <span class="text-red-400">*</span></label>
+          <input class="input-field py-2.5" type="text" x-model="hrYourCompany" placeholder="e.g. Maybank, Axiata, CIMB" @keydown.enter="doHRSearch()" />
         </div>
-        <div class="flex-1 min-w-[140px]">
-          <label class="text-xs text-slate-500 mb-1.5 block">Role / Function</label>
+        <div>
+          <label class="text-xs text-slate-500 mb-1.5 block font-medium">Role to Analyze <span class="text-red-400">*</span></label>
           <input class="input-field py-2.5" type="text" x-model="hrRole" placeholder="e.g. Data Engineer" @keydown.enter="doHRSearch()" />
         </div>
-        <div class="flex-1 min-w-[130px]">
-          <label class="text-xs text-slate-500 mb-1.5 block">Market</label>
+        <div>
+          <label class="text-xs text-slate-500 mb-1.5 block">Market <span class="text-slate-600">(optional)</span></label>
           <input class="input-field py-2.5" type="text" x-model="hrLocation" placeholder="e.g. Kuala Lumpur" @keydown.enter="doHRSearch()" />
         </div>
-        <div class="w-full">
-          <label class="text-xs text-slate-500 mb-1.5 block">Your Team's Current Skills <span class="text-slate-600">(optional — makes the gap analysis specific to you)</span></label>
-          <input class="input-field py-2.5 text-sm" type="text" x-model="hrYourSkills"
-            placeholder="e.g. Python, SQL, Power BI, Excel — what your team already has"
-            @keydown.enter="doHRSearch()" />
+        <div>
+          <label class="text-xs text-slate-500 mb-1.5 block">Your Team's Skills <span class="text-slate-600">(optional)</span></label>
+          <input class="input-field py-2.5 text-xs" type="text" x-model="hrYourSkills" placeholder="e.g. Python, SQL, Power BI" @keydown.enter="doHRSearch()" />
         </div>
-        <button class="btn-primary gap-2 py-2.5 px-5 shrink-0" @click="doHRSearch()" :disabled="hrSearching">
-          <svg x-show="hrSearching" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
-            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
-          </svg>
-          <i x-show="!hrSearching" class="fa-solid fa-satellite-dish text-sm"></i>
-          <span x-text="hrSearching ? 'Scanning…' : 'Run Market Intelligence'"></span>
-        </button>
       </div>
-      <!-- Loading bar -->
+
+      <button class="btn-primary gap-2 py-2.5 px-6" @click="doHRSearch()" :disabled="hrSearching">
+        <svg x-show="hrSearching" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+        </svg>
+        <i x-show="!hrSearching" class="fa-solid fa-satellite-dish text-sm"></i>
+        <span x-text="hrSearching ? 'Scanning market…' : 'Run Competitive Intelligence'"></span>
+      </button>
+
       <div x-show="hrSearching" class="w-full h-1 bg-slate-700/60 rounded-full overflow-hidden mt-4">
         <div class="h-full bg-blue-500 rounded-full cv-upload-bar"></div>
       </div>
-      <div x-show="hrSearching" class="mt-3 text-xs text-slate-500 text-center">
-        Bright Data SERP → LinkedIn Dataset → Claude AI extraction · takes ~60s
+      <div x-show="hrSearching" class="mt-3 text-xs text-slate-500">
+        <span x-text="hrScanStatus || 'Identifying competitors via Bright Data SERP → scraping job postings → fetching market news → Claude AI analysis'"></span>
       </div>
-      <p x-show="hrPostings > 0 && !hrSearching" class="text-xs text-slate-500 mt-3">
-        Scraped &amp; analysed <span x-text="hrPostings" class="text-slate-200 font-medium"></span> live postings from
-        <span x-text="hrCompany" class="text-blue-300 font-medium"></span> via Bright Data · Source: LinkedIn
-      </p>
+      <div x-show="hrPostings > 0 && !hrSearching" class="mt-3 flex items-center gap-3 flex-wrap text-xs text-slate-500">
+        <span>Scanned <span x-text="hrPostings" class="text-slate-200 font-medium"></span> live postings from
+        <span x-text="hrCompany" class="text-blue-300 font-medium"></span></span>
+        <span x-show="hrNewsSignals" class="text-emerald-400">+ market news signals</span>
+        <span>via Bright Data · Source: LinkedIn + Web</span>
+      </div>
     </div>
 
     <!-- ── Empty state ── -->
@@ -1276,7 +1278,8 @@
         <h2 class="font-semibold text-slate-200 flex items-center gap-2 text-base mb-1">
           <i class="fa-solid fa-chess text-yellow-400"></i> Competitive Intelligence
         </h2>
-        <p class="text-slate-500 text-xs mb-4">What <span class="text-blue-300 font-medium" x-text="hrCompany"></span>'s hiring signals reveal about their strategy — and what that means for your team</p>
+        <p class="text-slate-500 text-xs mb-1">What <span class="text-blue-300 font-medium" x-text="hrCompany"></span>'s signals reveal — and the gap vs your team</p>
+        <p class="text-xs text-slate-600 mb-4" x-show="hrNewsSignals">Sources: LinkedIn job postings + market news via Bright Data SERP</p>
         <div x-show="hrLoadingRec && !hrIntelSummary" class="flex items-center gap-2 text-slate-500 text-xs py-2">
           <i class="fa-solid fa-spinner animate-spin"></i> Analysing competitive signals…
         </div>
@@ -1320,43 +1323,6 @@
               <i class="fa-solid fa-arrow-up-right-from-square text-xs ml-auto opacity-0 group-hover:opacity-100 shrink-0"></i>
             </a>
           </template>
-        </div>
-      </div>
-
-      <!-- Section 4: Candidate Outreach -->
-      <div class="card">
-        <h2 class="font-semibold text-slate-200 flex items-center gap-2 text-base mb-1">
-          <i class="fa-brands fa-linkedin text-blue-400"></i> Candidate Outreach Message
-        </h2>
-        <p class="text-slate-500 text-xs mb-4">Enter the candidate's profile below — GapHunter drafts a personalised LinkedIn message based on who they are</p>
-
-        <!-- Candidate input -->
-        <div class="flex gap-2 mb-4">
-          <input class="input-field flex-1 py-2.5 text-sm" type="text" x-model="hrCandidateProfile"
-            placeholder="Paste LinkedIn URL or describe candidate — e.g. John, Senior Python Dev at Axiata, 5 yrs experience"
-            @keydown.enter="generateOutreach()" />
-          <button class="btn-primary px-4 py-2.5 text-sm shrink-0" @click="generateOutreach()" :disabled="hrGeneratingMsg">
-            <svg x-show="hrGeneratingMsg" class="animate-spin w-3.5 h-3.5" fill="none" viewBox="0 0 24 24">
-              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
-              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
-            </svg>
-            <span x-show="!hrGeneratingMsg"><i class="fa-solid fa-pen-nib mr-1"></i>Draft Message</span>
-            <span x-show="hrGeneratingMsg">Drafting…</span>
-          </button>
-        </div>
-
-        <div x-show="!hrOutreachMsg && !hrGeneratingMsg" class="text-slate-600 text-xs py-2">
-          ↑ Enter the candidate's name, current role, company, and experience — the more context the better the message
-        </div>
-        <div x-show="hrGeneratingMsg && !hrOutreachMsg" class="flex items-center gap-2 text-slate-500 text-xs py-2">
-          <i class="fa-solid fa-spinner animate-spin"></i> Drafting personalised message…
-        </div>
-        <div x-show="hrOutreachMsg" class="relative">
-          <div class="bg-slate-900/60 border border-blue-500/15 rounded-xl p-4 text-sm text-slate-200 leading-relaxed whitespace-pre-wrap" x-text="hrOutreachMsg"></div>
-          <button @click="navigator.clipboard.writeText(hrOutreachMsg).then(() => { $event.target.innerHTML='<i class=\'fa-solid fa-check\'></i> Copied!'; setTimeout(() => $event.target.innerHTML='<i class=\'fa-regular fa-copy\'></i> Copy', 2000) })"
-            class="absolute top-3 right-3 text-xs px-3 py-1.5 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-300 hover:bg-blue-500/20 transition-all flex items-center gap-1.5">
-            <i class="fa-regular fa-copy text-xs"></i> Copy
-          </button>
         </div>
       </div>
 
@@ -1432,22 +1398,36 @@
                 <!-- Where to find them -->
                 <div class="p-4">
                   <p class="text-xs font-semibold text-slate-400 mb-2 flex items-center gap-1.5">
-                    <i class="fa-solid fa-location-dot text-red-400 text-xs"></i> Where to find them
+                    <i class="fa-solid fa-location-dot text-red-400 text-xs"></i> Likely found at
                   </p>
                   <div class="flex flex-wrap gap-1.5 mb-3">
                     <template x-for="co in p.likely_at" :key="co">
                       <span class="text-xs px-2 py-1 rounded-full bg-slate-800 border border-slate-700 text-slate-300" x-text="co"></span>
                     </template>
                   </div>
-                  <p class="text-xs font-semibold text-slate-400 mb-1.5 flex items-center gap-1.5">
-                    <i class="fa-brands fa-linkedin text-blue-400 text-xs"></i> LinkedIn search
-                  </p>
-                  <div class="bg-slate-800/60 rounded-lg px-3 py-2 font-mono text-xs text-slate-300 break-words leading-relaxed" x-text="p.linkedin_search"></div>
-                  <a :href="'https://www.linkedin.com/search/results/people/?keywords=' + encodeURIComponent(p.linkedin_search)"
-                    target="_blank" rel="noopener"
-                    class="mt-2 inline-flex items-center gap-1.5 text-xs text-blue-300 hover:text-blue-200 transition-colors">
-                    <i class="fa-solid fa-arrow-up-right-from-square text-xs"></i> Search on LinkedIn
-                  </a>
+
+                  <!-- Real profiles found via Bright Data SERP -->
+                  <div x-show="p.profile_urls?.length > 0">
+                    <p class="text-xs font-semibold text-emerald-400 mb-1.5 flex items-center gap-1.5">
+                      <i class="fa-brands fa-linkedin text-xs"></i> Profiles found — click to view
+                    </p>
+                    <div class="flex flex-col gap-1">
+                      <template x-for="(url, pi) in p.profile_urls" :key="pi">
+                        <a :href="url" target="_blank" rel="noopener"
+                          class="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-blue-500/10 border border-blue-500/20 hover:bg-blue-500/20 transition-all text-xs text-blue-300 group">
+                          <i class="fa-brands fa-linkedin text-blue-400 text-xs shrink-0"></i>
+                          <span class="truncate" x-text="url.replace('https://www.linkedin.com/in/','').replace(/\?.*$/,'').replace(/-/g,' ')"></span>
+                          <i class="fa-solid fa-arrow-up-right-from-square text-xs ml-auto opacity-60 group-hover:opacity-100 shrink-0"></i>
+                        </a>
+                      </template>
+                    </div>
+                  </div>
+                  <div x-show="!p.profile_urls?.length">
+                    <p class="text-xs font-semibold text-slate-400 mb-1.5 flex items-center gap-1.5">
+                      <i class="fa-brands fa-linkedin text-blue-400 text-xs"></i> Search manually
+                    </p>
+                    <div class="bg-slate-800/60 rounded-lg px-2.5 py-2 font-mono text-xs text-slate-400 break-words leading-relaxed" x-text="p.search_query"></div>
+                  </div>
                 </div>
 
                 <!-- Outreach message -->
@@ -1596,22 +1576,23 @@
         roadmaps: {},
         openRoadmap: null,
         _pollTimer: null,
-        hrCompany: '',
+        hrYourCompany: '',
+        hrCompany: '',  // scanned competitor (set after detection)
         hrRole: '',
         hrLocation: '',
+        hrYourSkills: '',
         hrSearching: false,
         hrSkills: [],
         hrPostings: 0,
-        hrOutreachMsg: '',
         hrTrainingRoadmap: [],
         hrLoadingRec: false,
-        hrCandidateProfile: '',
-        hrGeneratingMsg: false,
         hrPostingLinks: [],
         hrIntelSummary: null,
         hrPersonas: [],
         hrLoadingHunt: false,
-        hrYourSkills: '',
+        hrNewsSignals: '',
+        hrScanStatus: '',
+        hrDetectedCompetitor: '',
 
         init() {
           // Init AOS
@@ -1944,40 +1925,53 @@
 
         async doHRSearch() {
           if (this.hrSearching) return;
-          if (!this.hrCompany.trim() || !this.hrRole.trim()) {
-            Swal.fire({ icon: 'info', title: 'Required', text: 'Please enter a company name and role.',
+          if (!this.hrYourCompany.trim() || !this.hrRole.trim()) {
+            Swal.fire({ icon: 'info', title: 'Required', text: 'Please enter your company name and the role to analyze.',
               background: '#0d1526', color: '#e2e8f0', confirmButtonColor: '#3b82f6' });
             return;
           }
           this.hrSearching = true;
           this.hrSkills = [];
           this.hrPostings = 0;
+          this.hrScanStatus = 'Step 1/3 — Finding competitors via Bright Data SERP…';
           try {
+            // Step 1: detect competitor from your company
+            const detectRes = await fetch(`${API}/api/hr/detect-competitor`, {
+              method: 'POST', headers: _headers(),
+              body: JSON.stringify({ your_company: this.hrYourCompany, role: this.hrRole, location: this.hrLocation }),
+            });
+            const detectData = await detectRes.json();
+            const competitor = detectData.competitor || this.hrYourCompany;
+            this.hrCompany = competitor;
+            this.hrDetectedCompetitor = competitor;
+            this.hrScanStatus = `Step 2/3 — Scanning ${competitor}'s live job postings…`;
+
+            // Step 2: scrape competitor
             const res = await fetch(`${API}/api/hr/competitors`, {
               method: 'POST', headers: _headers(),
-              body: JSON.stringify({ company_name: this.hrCompany, role: this.hrRole, location: this.hrLocation }),
+              body: JSON.stringify({ company_name: competitor, role: this.hrRole, location: this.hrLocation }),
             });
             const data = await res.json();
             if (data.status === 'ok') {
               this.hrSkills = data.top_skills || [];
               this.hrPostings = data.postings_analysed || 0;
               this.hrPostingLinks = data.posting_urls || [];
-              this.hrOutreachMsg = '';
               this.hrTrainingRoadmap = [];
-              this.hrCandidateProfile = '';
               this.hrIntelSummary = null;
               this.hrPersonas = [];
               this.hrLoadingHunt = false;
+              this.hrNewsSignals = detectData.news_snippets || '';
+              this.hrScanStatus = 'Step 3/3 — Generating intelligence…';
               this.$nextTick(() => setTimeout(() => renderHRRadar(this.hrSkills), 120));
               this.fetchHRRecommendations();
             } else {
-              Swal.fire({ icon: 'error', title: 'Search Failed', text: data.message || 'No competitor postings found.',
+              Swal.fire({ icon: 'error', title: 'Scan Failed', text: data.message || 'No postings found for this competitor.',
                 background: '#0d1526', color: '#e2e8f0', confirmButtonColor: '#3b82f6' });
             }
           } catch {
             Swal.fire({ icon: 'error', title: 'Network Error', text: 'Could not reach the server.',
               background: '#0d1526', color: '#e2e8f0', confirmButtonColor: '#3b82f6' });
-          } finally { this.hrSearching = false; }
+          } finally { this.hrSearching = false; this.hrScanStatus = ''; }
         },
 
         async fetchHRRecommendations() {
@@ -1993,11 +1987,11 @@
               }),
               fetch(`${API}/api/hr/intelligence`, {
                 method: 'POST', headers: _headers(),
-                body: JSON.stringify({ company: this.hrCompany, role: this.hrRole, top_skills: topSkills, your_skills: this.hrYourSkills }),
+                body: JSON.stringify({ company: this.hrCompany, role: this.hrRole, top_skills: topSkills, your_skills: this.hrYourSkills, news_context: this.hrNewsSignals }),
               }),
               fetch(`${API}/api/hr/talent-hunt`, {
                 method: 'POST', headers: _headers(),
-                body: JSON.stringify({ company: this.hrCompany, role: this.hrRole, top_skills: topSkills, location: this.hrLocation }),
+                body: JSON.stringify({ company: this.hrYourCompany, role: this.hrRole, top_skills: topSkills, location: this.hrLocation }),
               }),
             ]);
             if (recRes.ok) {
